@@ -171,3 +171,104 @@ Classical Routing Algorithm
 Selected Route
         ↓
 Simulation Evaluation
+
+```
+
+# 6. System Architecture
+
+NetMind follows a modular, layered architecture in which network modelling, graph algorithms, traffic simulation, routing, metrics, machine learning, and GraphRAG work together as a unified system.
+
+## High-Level Architecture
+
+```text
+                         ┌─────────────────────────────┐
+                         │   User / Network Analyst    │
+                         └──────────────┬──────────────┘
+                                        │
+                         ┌──────────────▼──────────────┐
+                         │ Visualization & Interactive  │
+                         │          Interface           │
+                         └──────────────┬──────────────┘
+                                        │
+                         ┌──────────────▼──────────────┐
+                         │ Application Controller &     │
+                         │      Scenario Manager        │
+                         └──────────────┬──────────────┘
+                                        │
+                    ┌───────────────────┴───────────────────┐
+                    │                                       │
+          ┌─────────▼─────────┐                  ┌──────────▼─────────┐
+          │   Network Model   │                  │ Graph & DSA Engine │
+          │                   │                  │                    │
+          │ Routers           │                  │ Graph Structures   │
+          │ Hosts             │                  │ BFS / DFS          │
+          │ Links             │                  │ Connectivity       │
+          │ Packets           │                  │ Graph Metrics      │
+          └─────────┬─────────┘                  └──────────┬─────────┘
+                    │                                       │
+                    └──────────────────┬────────────────────┘
+                                       │
+                         ┌─────────────▼─────────────┐
+                         │      Routing Engine       │
+                         │                           │
+                         │ Dijkstra                  │
+                         │ Alternative Algorithms     │
+                         │ Dynamic Route Evaluation  │
+                         └─────────────┬─────────────┘
+                                       │
+                         ┌─────────────▼─────────────┐
+                         │ Traffic Simulation Engine │
+                         │                           │
+                         │ Traffic Flows             │
+                         │ Packet Processing         │
+                         │ Queues                    │
+                         │ Congestion                │
+                         │ Failures                  │
+                         └─────────────┬─────────────┘
+                                       │
+                         ┌─────────────▼─────────────┐
+                         │ Network Metrics & Analytics│
+                         │                           │
+                         │ Throughput                │
+                         │ Latency / RTT             │
+                         │ Jitter                    │
+                         │ Packet Loss               │
+                         │ Bandwidth Utilisation     │
+                         │ Hop Count / Reliability   │
+                         └─────────────┬─────────────┘
+                                       │
+                         ┌─────────────▼─────────────┐
+                         │ Data & Experiment Storage  │
+                         │                           │
+                         │ Topology                  │
+                         │ Traffic                   │
+                         │ Metrics                   │
+                         │ Events                    │
+                         │ Routing Decisions         │
+                         │ Experiment History        │
+                         └─────────────┬─────────────┘
+                                       │
+                         ┌─────────────┴─────────────┐
+                         │                           │
+               ┌─────────▼─────────┐      ┌──────────▼──────────┐
+               │ Machine Learning  │      │ GraphRAG / Knowledge│
+               │                   │      │       Layer         │
+               │ Traffic Patterns  │      │                     │
+               │ Anomaly Detection │      │ Knowledge Graph     │
+               │ Prediction        │      │ Retrieval           │
+               │ Forecasting       │      │ Contextual Answers  │
+               └─────────┬─────────┘      └──────────┬──────────┘
+                         │                           │
+                         └─────────────┬─────────────┘
+                                       │
+                         ┌─────────────▼─────────────┐
+                         │ Visualization & Analysis  │
+                         │                           │
+                         │ Routes                    │
+                         │ Metrics                   │
+                         │ Predictions               │
+                         │ Anomalies                 │
+                         │ Network Insights          │
+                         └───────────────────────────┘
+
+```
