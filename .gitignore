@@ -1,0 +1,16 @@
+
+build/
+cmake-build-*/
+
+.venv/
+venv/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+data/runs/*
+data/plots/*
+
+!data/runs/.gitkeep
+!data/plots/.gitkeep
