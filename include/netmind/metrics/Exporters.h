@@ -37,6 +37,6 @@ namespace netmind {
             const std::string& manifestJson
         );
 
-    }
+    };
 
 }
