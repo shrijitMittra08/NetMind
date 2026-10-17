@@ -1,0 +1,10 @@
+[project]
+name = "netmind"
+version = "0.1.0"
+description = "Python tooling for the NetMind network simulator"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
