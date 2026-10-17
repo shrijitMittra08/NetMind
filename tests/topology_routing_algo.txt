@@ -1,0 +1,9 @@
+load data/topology_ring_backup.json
+set seed 42
+set algo dijkstra
+set weight latency
+show topology
+show route R1
+show queue R1 R2
+compare PC1 PC2
+export data/
