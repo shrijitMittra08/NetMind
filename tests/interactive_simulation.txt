@@ -1,0 +1,23 @@
+load data/topology_ring_backup.json
+set seed 42
+set algo dijkstra
+set weight latency
+show topology
+show route R1
+show queue R1 R2
+route add R1 PC2 via R4
+show route R1
+add flow PC1 PC2 5 1000 0 10
+congest link R1 R4 factor 0.5 at 2 for 1
+burst PC1 PC2 10 at 1 for 2
+fail link R1 R2 at 4
+restore link R1 R2 at 7
+fail router R3 at 5
+restore router R3 at 6
+ping PC1 PC2 1
+traceroute PC1 PC2
+run 10
+show metrics
+show metrics 1
+show queue R1 R4
+export data

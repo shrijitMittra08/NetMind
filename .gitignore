@@ -1,4 +1,19 @@
 
+# Existing VS Code folders
+src/common/.vscode/
+src/model/.vscode/
+Include/.vscode/
+
+# CMake build output
+build/
+cmake-build-*/
+
+# Generated CMake files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
 build/
 cmake-build-*/
 
