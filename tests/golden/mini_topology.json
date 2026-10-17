@@ -1,0 +1,58 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "HOST",
+      "name": "PC1",
+      "ip": "10.0.0.1",
+      "pos": [80, 200]
+    },
+    {
+      "id": 2,
+      "type": "ROUTER",
+      "name": "R1",
+      "ip": "10.0.0.254",
+      "pos": [260, 200]
+    },
+    {
+      "id": 3,
+      "type": "ROUTER",
+      "name": "R2",
+      "ip": "10.0.1.254",
+      "pos": [440, 200]
+    },
+    {
+      "id": 4,
+      "type": "HOST",
+      "name": "PC2",
+      "ip": "10.0.1.1",
+      "pos": [620, 200]
+    }
+  ],
+  "links": [
+    {
+      "a": 1,
+      "b": 2,
+      "bandwidthMbps": 100,
+      "latencyMs": 2,
+      "lossRate": 0.0,
+      "queueCapacity": 1
+    },
+    {
+      "a": 2,
+      "b": 3,
+      "bandwidthMbps": 100,
+      "latencyMs": 2,
+      "lossRate": 0.0,
+      "queueCapacity": 1
+    },
+    {
+      "a": 3,
+      "b": 4,
+      "bandwidthMbps": 100,
+      "latencyMs": 2,
+      "lossRate": 0.0,
+      "queueCapacity": 64
+    }
+  ]
+}

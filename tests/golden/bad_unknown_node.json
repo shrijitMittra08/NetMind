@@ -1,0 +1,9 @@
+{
+  "nodes": [
+    {"id": 1, "type": "HOST", "name": "PC1", "ip": "10.0.0.1"},
+    {"id": 2, "type": "ROUTER", "name": "R1", "ip": "10.0.0.2"}
+  ],
+  "links": [
+    {"a": 1, "b": 99, "bandwidthMbps": 100, "latencyMs": 1, "lossRate": 0}
+  ]
+}
