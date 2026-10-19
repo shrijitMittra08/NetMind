@@ -14,8 +14,7 @@ namespace {
 
 constexpr std::size_t FlushInterval = 4096;
 
-constexpr const char* TraceHeader =
-    "time_s,event_type,packet_id,flow_id,location,detail\n";
+constexpr const char* TraceHeader = "time_s,event_type,packet_id,flow_id,location,detail\n";
 
 std::string csvEscape(const std::string& value) {
     if (value.find_first_of(",\"\r\n") == std::string::npos) {
@@ -42,8 +41,7 @@ std::string formatTime(SimTime time) {
     return output.str();
 }
 
-std::string formatDetail(
-    const std::vector<std::pair<std::string, std::string>>& values) {
+std::string formatDetail(const std::vector<std::pair<std::string, std::string>>& values) {
     if (values.empty()) {
         return "-";
     }
@@ -82,25 +80,14 @@ std::string defaultChannelName(const ChannelId& channel) {
     return output.str();
 }
 
-void writeRow(
-    std::ofstream& output,
-    std::size_t& linesSinceFlush,
-    const std::string& time,
-    const std::string& eventType,
-    const std::string& packetId,
-    const std::string& flowId,
-    const std::string& location,
-    const std::string& detail) {
-    output
-        << csvEscape(time) << ','
-        << csvEscape(eventType) << ','
-        << csvEscape(packetId) << ','
-        << csvEscape(flowId) << ','
-        << csvEscape(location) << ','
-        << csvEscape(detail) << '\n';
+void writeRow(std::ofstream& output, std::size_t& linesSinceFlush, const std::string& time,
+              const std::string& eventType, const std::string& packetId, const std::string& flowId,
+              const std::string& location, const std::string& detail) {
+    output << csvEscape(time) << ',' << csvEscape(eventType) << ',' << csvEscape(packetId) << ','
+           << csvEscape(flowId) << ',' << csvEscape(location) << ',' << csvEscape(detail) << '\n';
 
     if (!output) {
-        throw std::runtime_error("Failed to write NetMind trace CSV");
+        throw std::runtime_error("Failed to write Project901 trace CSV");
     }
 
     ++linesSinceFlush;
@@ -109,16 +96,14 @@ void writeRow(
         output.flush();
 
         if (!output) {
-            throw std::runtime_error("Failed to flush NetMind trace CSV");
+            throw std::runtime_error("Failed to flush Project901 trace CSV");
         }
 
         linesSinceFlush = 0;
     }
 }
 
-std::string detailValue(
-    const std::string& detail,
-    const std::string& key) {
+std::string detailValue(const std::string& detail, const std::string& key) {
     const std::string prefix = key + "=";
     const std::size_t start = detail.find(prefix);
 
@@ -156,26 +141,21 @@ bool parseNodeId(const std::string& text, NodeId& id) {
 
 }
 
-TraceLogger::TraceLogger(const std::string& outputPath)
-    : TraceLogger(outputPath, {}, {}) {}
+TraceLogger::TraceLogger(const std::string& outputPath) : TraceLogger(outputPath, {}, {}) {}
 
-TraceLogger::TraceLogger(
-    const std::string& outputPath,
-    NodeNameResolver nodeNameResolver,
-    ChannelNameResolver channelNameResolver)
+TraceLogger::TraceLogger(const std::string& outputPath, NodeNameResolver nodeNameResolver,
+                         ChannelNameResolver channelNameResolver)
     : output_(outputPath, std::ios::out | std::ios::trunc),
       nodeNameResolver_(std::move(nodeNameResolver)),
       channelNameResolver_(std::move(channelNameResolver)) {
     if (!output_.is_open()) {
-        throw std::runtime_error(
-            "Cannot open trace output file: " + outputPath);
+        throw std::runtime_error("Cannot open trace output file: " + outputPath);
     }
 
     output_ << TraceHeader;
 
     if (!output_) {
-        throw std::runtime_error(
-            "Cannot write trace CSV header: " + outputPath);
+        throw std::runtime_error("Cannot write trace CSV header: " + outputPath);
     }
 }
 
@@ -188,7 +168,7 @@ TraceLogger::~TraceLogger() {
 void TraceLogger::flush() {
     output_.flush();
     if (!output_) {
-        throw std::runtime_error("Failed to flush NetMind trace CSV");
+        throw std::runtime_error("Failed to flush Project901 trace CSV");
     }
     linesSinceFlush_ = 0;
 }
@@ -210,144 +190,57 @@ std::string TraceLogger::channelName(const ChannelId& channel) const {
 }
 
 void TraceLogger::onSent(SimTime time, const Packet& packet) {
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "SENT",
-        packetIdString(packet),
-        flowIdString(packet),
-        nameOf(packet.srcId),
-        formatDetail({
-            {"dst", nameOf(packet.dstId)},
-            {"size", std::to_string(packet.sizeBytes)},
-            {"type", toString(packet.type)}
-        }));
+    writeRow(output_, linesSinceFlush_, formatTime(time), "SENT", packetIdString(packet),
+             flowIdString(packet), nameOf(packet.srcId),
+             formatDetail({{"dst", nameOf(packet.dstId)},
+                           {"size", std::to_string(packet.sizeBytes)},
+                           {"type", toString(packet.type)}}));
 }
 
-void TraceLogger::onEnqueue(
-    SimTime time,
-    const Packet& packet,
-    const ChannelId& channel,
-    std::size_t queueLength) {
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "ENQUEUE",
-        packetIdString(packet),
-        flowIdString(packet),
-        channelName(channel),
-        formatDetail({
-            {"qlen", std::to_string(queueLength)}
-        }));
+void TraceLogger::onEnqueue(SimTime time, const Packet& packet, const ChannelId& channel,
+                            std::size_t queueLength) {
+    writeRow(output_, linesSinceFlush_, formatTime(time), "ENQUEUE", packetIdString(packet),
+             flowIdString(packet), channelName(channel),
+             formatDetail({{"qlen", std::to_string(queueLength)}}));
 }
 
-void TraceLogger::onTxStart(
-    SimTime time,
-    const Packet& packet,
-    const ChannelId& channel,
-    SimTime eta) {
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "TX_START",
-        packetIdString(packet),
-        flowIdString(packet),
-        channelName(channel),
-        formatDetail({
-            {"eta", formatTime(eta)}
-        }));
+void TraceLogger::onTxStart(SimTime time, const Packet& packet, const ChannelId& channel,
+                            SimTime eta) {
+    writeRow(output_, linesSinceFlush_, formatTime(time), "TX_START", packetIdString(packet),
+             flowIdString(packet), channelName(channel), formatDetail({{"eta", formatTime(eta)}}));
 }
 
-void TraceLogger::onArrive(
-    SimTime time,
-    const Packet& packet,
-    NodeId node,
-    NodeId from) {
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "ARRIVE",
-        packetIdString(packet),
-        flowIdString(packet),
-        nameOf(node),
-        formatDetail({
-            {"from", nameOf(from)}
-        }));
+void TraceLogger::onArrive(SimTime time, const Packet& packet, NodeId node, NodeId from) {
+    writeRow(output_, linesSinceFlush_, formatTime(time), "ARRIVE", packetIdString(packet),
+             flowIdString(packet), nameOf(node), formatDetail({{"from", nameOf(from)}}));
 }
 
-void TraceLogger::onForward(
-    SimTime time,
-    const Packet& packet,
-    NodeId at,
-    NodeId next) {
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "FORWARD",
-        packetIdString(packet),
-        flowIdString(packet),
-        nameOf(at),
-        formatDetail({
-            {"next", nameOf(next)}
-        }));
+void TraceLogger::onForward(SimTime time, const Packet& packet, NodeId at, NodeId next) {
+    writeRow(output_, linesSinceFlush_, formatTime(time), "FORWARD", packetIdString(packet),
+             flowIdString(packet), nameOf(at), formatDetail({{"next", nameOf(next)}}));
 }
 
-void TraceLogger::onDelivered(
-    SimTime time,
-    const Packet& packet) {
-    const double latencyMs =
-        (time - packet.timestampSent) * 1000.0;
+void TraceLogger::onDelivered(SimTime time, const Packet& packet) {
+    const double latencyMs = (time - packet.timestampSent) * 1000.0;
 
-    const std::size_t hops =
-        packet.pathTaken.empty()
-            ? 0
-            : packet.pathTaken.size() - 1;
+    const std::size_t hops = packet.pathTaken.empty() ? 0 : packet.pathTaken.size() - 1;
 
     std::ostringstream latency;
     latency << std::fixed << std::setprecision(6) << latencyMs;
 
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "DELIVERED",
-        packetIdString(packet),
-        flowIdString(packet),
-        nameOf(packet.dstId),
-        formatDetail({
-            {"latency_ms", latency.str()},
-            {"hops", std::to_string(hops)}
-        }));
+    writeRow(output_, linesSinceFlush_, formatTime(time), "DELIVERED", packetIdString(packet),
+             flowIdString(packet), nameOf(packet.dstId),
+             formatDetail({{"latency_ms", latency.str()}, {"hops", std::to_string(hops)}}));
 }
 
-void TraceLogger::onDropped(
-    SimTime time,
-    const Packet& packet,
-    const std::string& where,
-    DropReason reason) {
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        "DROPPED",
-        packetIdString(packet),
-        flowIdString(packet),
-        where,
-        formatDetail({
-            {"reason", toString(reason)}
-        }));
+void TraceLogger::onDropped(SimTime time, const Packet& packet, const std::string& where,
+                            DropReason reason) {
+    writeRow(output_, linesSinceFlush_, formatTime(time), "DROPPED", packetIdString(packet),
+             flowIdString(packet), where, formatDetail({{"reason", toString(reason)}}));
 }
 
-void TraceLogger::onNetworkEvent(
-    SimTime time,
-    const std::string& type,
-    const std::string& target,
-    const std::string& detail) {
+void TraceLogger::onNetworkEvent(SimTime time, const std::string& type, const std::string& target,
+                                 const std::string& detail) {
     if (type == "FLOW_START") {
         const std::string sourceIdText = detailValue(detail, "src");
         const std::string destinationIdText = detailValue(detail, "dst");
@@ -355,26 +248,13 @@ void TraceLogger::onNetworkEvent(
         NodeId sourceId{};
         NodeId destinationId{};
 
-        if (parseNodeId(sourceIdText, sourceId) &&
-            parseNodeId(destinationIdText, destinationId)) {
-            FlowTraceInfo flowInfo{
-                nameOf(sourceId),
-                nameOf(destinationId)
-            };
+        if (parseNodeId(sourceIdText, sourceId) && parseNodeId(destinationIdText, destinationId)) {
+            FlowTraceInfo flowInfo{nameOf(sourceId), nameOf(destinationId)};
 
             flowTraceInfo_[target] = flowInfo;
 
-            writeRow(
-                output_,
-                linesSinceFlush_,
-                formatTime(time),
-                type,
-                "-",
-                target,
-                flowInfo.sourceName,
-                formatDetail({
-                    {"dst", flowInfo.destinationName}
-                }));
+            writeRow(output_, linesSinceFlush_, formatTime(time), type, "-", target,
+                     flowInfo.sourceName, formatDetail({{"dst", flowInfo.destinationName}}));
             return;
         }
     }
@@ -383,30 +263,15 @@ void TraceLogger::onNetworkEvent(
         const auto flowInfo = flowTraceInfo_.find(target);
 
         if (flowInfo != flowTraceInfo_.end()) {
-            writeRow(
-                output_,
-                linesSinceFlush_,
-                formatTime(time),
-                type,
-                "-",
-                target,
-                flowInfo->second.sourceName,
-                formatDetail({
-                    {"dst", flowInfo->second.destinationName}
-                }));
+            writeRow(output_, linesSinceFlush_, formatTime(time), type, "-", target,
+                     flowInfo->second.sourceName,
+                     formatDetail({{"dst", flowInfo->second.destinationName}}));
             return;
         }
     }
 
-    writeRow(
-        output_,
-        linesSinceFlush_,
-        formatTime(time),
-        type,
-        "-",
-        "-",
-        target,
-        detail.empty() ? "-" : detail);
+    writeRow(output_, linesSinceFlush_, formatTime(time), type, "-", "-", target,
+             detail.empty() ? "-" : detail);
 }
 
 }
