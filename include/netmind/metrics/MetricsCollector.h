@@ -195,7 +195,6 @@ private:
     std::map<LinkId, double> linkDowntimeS_;
     std::map<std::string, SimTime> activeFailures_;
 
-    // A flow stays marked as interrupted until its first later delivery.
     std::map<FlowId, SimTime> interruptedFlows_;
 
     std::vector<FlowMetrics> flows_;

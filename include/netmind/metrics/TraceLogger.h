@@ -1,27 +1,24 @@
 #pragma once
 
-#include "netmind/SimObserver.h"
-
 #include <cstddef>
 #include <fstream>
 #include <functional>
 #include <string>
 #include <unordered_map>
 
+#include "netmind/SimObserver.h"
+
 namespace netmind {
 
 class TraceLogger : public SimObserver {
-public:
+  public:
     using NodeNameResolver = std::function<std::string(NodeId)>;
-    using ChannelNameResolver =
-        std::function<std::string(const ChannelId&)>;
+    using ChannelNameResolver = std::function<std::string(const ChannelId&)>;
 
     explicit TraceLogger(const std::string& outputPath);
 
-    TraceLogger(
-        const std::string& outputPath,
-        NodeNameResolver nodeNameResolver,
-        ChannelNameResolver channelNameResolver);
+    TraceLogger(const std::string& outputPath, NodeNameResolver nodeNameResolver,
+                ChannelNameResolver channelNameResolver);
 
     ~TraceLogger() override;
 
@@ -29,47 +26,25 @@ public:
 
     void onSent(SimTime time, const Packet& packet) override;
 
-    void onEnqueue(
-        SimTime time,
-        const Packet& packet,
-        const ChannelId& channel,
-        std::size_t queueLength) override;
+    void onEnqueue(SimTime time, const Packet& packet, const ChannelId& channel,
+                   std::size_t queueLength) override;
 
-    void onTxStart(
-        SimTime time,
-        const Packet& packet,
-        const ChannelId& channel,
-        SimTime eta) override;
+    void onTxStart(SimTime time, const Packet& packet, const ChannelId& channel,
+                   SimTime eta) override;
 
-    void onArrive(
-        SimTime time,
-        const Packet& packet,
-        NodeId node,
-        NodeId from) override;
+    void onArrive(SimTime time, const Packet& packet, NodeId node, NodeId from) override;
 
-    void onForward(
-        SimTime time,
-        const Packet& packet,
-        NodeId at,
-        NodeId next) override;
+    void onForward(SimTime time, const Packet& packet, NodeId at, NodeId next) override;
 
-    void onDelivered(
-        SimTime time,
-        const Packet& packet) override;
+    void onDelivered(SimTime time, const Packet& packet) override;
 
-    void onDropped(
-        SimTime time,
-        const Packet& packet,
-        const std::string& where,
-        DropReason reason) override;
+    void onDropped(SimTime time, const Packet& packet, const std::string& where,
+                   DropReason reason) override;
 
-    void onNetworkEvent(
-        SimTime time,
-        const std::string& type,
-        const std::string& target,
-        const std::string& detail) override;
+    void onNetworkEvent(SimTime time, const std::string& type, const std::string& target,
+                        const std::string& detail) override;
 
-private:
+  private:
     struct FlowTraceInfo {
         std::string sourceName;
         std::string destinationName;

@@ -30,4 +30,4 @@ private:
     const MetricsCollector& metrics_;
 };
 
-} // namespace netmind
+}
