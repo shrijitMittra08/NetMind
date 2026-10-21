@@ -1,0 +1,19 @@
+#pragma once
+
+#include "netmind/common/Types.h"
+#include "netmind/simulation/NetworkEvent.h"
+
+namespace netmind {
+
+class LinkRestoreEvent final : public NetworkEvent {
+public:
+    explicit LinkRestoreEvent(LinkId linkId);
+
+    void apply(SimulationEngine& engine) override;
+    [[nodiscard]] std::string describe() const override;
+
+private:
+    LinkId linkId_;
+};
+
+}
