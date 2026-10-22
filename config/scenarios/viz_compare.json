@@ -1,0 +1,37 @@
+{
+  "name": "visualization_compare",
+  "topology": "../topologies/ring_backup.json",
+  "seed": 42,
+  "duration_s": 10,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 5,
+      "packet_bytes": 1000,
+      "start_s": 0,
+      "stop_s": 10
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 4
+    },
+    {
+      "type": "LINK_RESTORE",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 7
+    }
+  ]
+}
