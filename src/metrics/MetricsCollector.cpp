@@ -339,7 +339,7 @@ void MetricsCollector::onNetworkEvent(
 
             activeFailures_["LINK_DOWN:" + target] = time;
         } catch (const std::exception&) {
-            // Ignore malformed link identifiers.
+                                                 
         }
     } else if (type == "LINK_UP") {
         try {
