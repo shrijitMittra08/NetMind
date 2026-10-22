@@ -52,7 +52,7 @@ nlohmann::json validTopology() {
     };
 }
 
-} // namespace
+}             
 
 TEST_CASE("TopologyLoader builds nodes, links, and host gateways") {
     const netmind::Graph graph =

@@ -68,7 +68,7 @@ public:
     }
 };
 
-} // namespace
+}             
 
 TEST_CASE("Host delivers a packet addressed to itself") {
     netmind::Host host(1, "PC1", "10.0.0.1");

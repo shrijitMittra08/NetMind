@@ -1,9 +1,3 @@
-#include "netmind/cli/CommandLineInterface.h"
-#include "netmind/cli/commands/SimulationCommands.h"
-#include "netmind/cli/commands/TopologyCommands.h"
-#include "netmind/metrics/MetricsCollector.h"
-#include "netmind/simulation/SimulationEngine.h"
-
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -13,6 +7,12 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+
+#include "netmind/cli/CommandLineInterface.h"
+#include "netmind/cli/commands/SimulationCommands.h"
+#include "netmind/cli/commands/TopologyCommands.h"
+#include "netmind/metrics/MetricsCollector.h"
+#include "netmind/simulation/SimulationEngine.h"
 
 namespace {
 
@@ -48,13 +48,12 @@ Options parseOptions(int argc, char* argv[]) {
         } else if (argument == "--json-summary") {
             options.jsonSummary = true;
         } else if (argument == "--help" || argument == "-h") {
-            std::cout
-                << "Usage:\n"
-                << "  netmind_cli\n"
-                << "  netmind_cli --scenario FILE [--out DIR] "
-                   "[--quiet] [--json-summary]\n"
-                << "  netmind_cli --script FILE [--out DIR] "
-                   "[--quiet] [--json-summary]\n";
+            std::cout << "Usage:\n"
+                      << "  netmind_cli\n"
+                      << "  netmind_cli --scenario FILE [--out DIR] "
+                         "[--quiet] [--json-summary]\n"
+                      << "  netmind_cli --script FILE [--out DIR] "
+                         "[--quiet] [--json-summary]\n";
             std::exit(0);
         } else {
             throw std::invalid_argument("Unknown option: " + argument);
@@ -62,8 +61,7 @@ Options parseOptions(int argc, char* argv[]) {
     }
 
     if (options.scenario && options.script) {
-        throw std::invalid_argument(
-            "--scenario and --script cannot be used together");
+        throw std::invalid_argument("--scenario and --script cannot be used together");
     }
 
     return options;
@@ -83,10 +81,8 @@ std::string quoteCommandArgument(const std::string& value) {
     return result;
 }
 
-void executeCommand(
-    netmind::cli::CommandLineInterface& cli,
-    const std::string& command,
-    std::ostream& output) {
+void executeCommand(netmind::cli::CommandLineInterface& cli, const std::string& command,
+                    std::ostream& output) {
     std::ostringstream commandOutput;
     cli.processLine(command, commandOutput);
 
@@ -115,8 +111,7 @@ void printJsonSummary(netmind::cli::Session& session) {
     session.ensureEngine();
 
     if (session.metrics() == nullptr || session.engine() == nullptr) {
-        throw std::runtime_error(
-            "Could not collect metrics for the JSON summary");
+        throw std::runtime_error("Could not collect metrics for the JSON summary");
     }
 
     session.metrics()->finalize(session.engine()->now());
@@ -125,34 +120,29 @@ void printJsonSummary(netmind::cli::Session& session) {
     nlohmann::json flowSummaries = nlohmann::json::array();
 
     for (const auto& flow : session.metrics()->flows()) {
-        flowSummaries.push_back({
-            {"flow_id", flow.flowId},
-            {"sent", flow.sent},
-            {"delivered", flow.delivered},
-            {"dropped", flow.dropped},
-            {"loss_pct", flow.lossPct},
-            {"avg_latency_ms", flow.avgLatencyMs},
-            {"throughput_mbps", flow.throughputMbps}
-        });
+        flowSummaries.push_back({{"flow_id", flow.flowId},
+                                 {"sent", flow.sent},
+                                 {"delivered", flow.delivered},
+                                 {"dropped", flow.dropped},
+                                 {"loss_pct", flow.lossPct},
+                                 {"avg_latency_ms", flow.avgLatencyMs},
+                                 {"throughput_mbps", flow.throughputMbps}});
     }
 
-    const nlohmann::json summary = {
-        {"simulation_time_s", session.engine()->now()},
-        {"network", {
-            {"reliability_pct", network.reliabilityPct},
-            {"avg_throughput_mbps", network.avgThroughputMbps},
-            {"avg_latency_ms", network.avgLatencyMs},
-            {"total_drops", network.totalDrops},
-            {"recovery_time_s", network.recoveryTimeS},
-            {"events", network.events}
-        }},
-        {"flows", std::move(flowSummaries)}
-    };
+    const nlohmann::json summary = {{"simulation_time_s", session.engine()->now()},
+                                    {"network",
+                                     {{"reliability_pct", network.reliabilityPct},
+                                      {"avg_throughput_mbps", network.avgThroughputMbps},
+                                      {"avg_latency_ms", network.avgLatencyMs},
+                                      {"total_drops", network.totalDrops},
+                                      {"recovery_time_s", network.recoveryTimeS},
+                                      {"events", network.events}}},
+                                    {"flows", std::move(flowSummaries)}};
 
     std::cout << summary.dump() << '\n';
 }
 
-}
+}  // namespace
 
 int main(int argc, char* argv[]) {
     try {
@@ -168,41 +158,29 @@ int main(int argc, char* argv[]) {
         netmind::cli::registerSimulationCommands(cli);
 
         std::ostringstream quietOutput;
-        std::ostream& output =
-            options.quiet ? static_cast<std::ostream&>(quietOutput)
-                          : static_cast<std::ostream&>(std::cout);
+        std::ostream& output = options.quiet ? static_cast<std::ostream&>(quietOutput)
+                                             : static_cast<std::ostream&>(std::cout);
 
         if (options.scenario) {
-            executeCommand(
-                cli,
-                "load " + quoteCommandArgument(*options.scenario),
-                output);
+            executeCommand(cli, "load " + quoteCommandArgument(*options.scenario), output);
 
             if (!session.scenarioManager().hasScenario()) {
-                throw std::runtime_error(
-                    "--scenario must refer to a scenario JSON file");
+                throw std::runtime_error("--scenario must refer to a scenario JSON file");
             }
 
             executeCommand(
-                cli,
-                "run " + std::to_string(
-                    session.scenarioManager().durationSeconds()),
-                output);
+                cli, "run " + std::to_string(session.scenarioManager().durationSeconds()), output);
 
             if (options.outputDirectory) {
-                executeCommand(
-                    cli,
-                    "export " +
-                        quoteCommandArgument(*options.outputDirectory),
-                    output);
+                executeCommand(cli, "export " + quoteCommandArgument(*options.outputDirectory),
+                               output);
             } else {
                 executeCommand(cli, "export", output);
             }
         } else if (options.script) {
             std::ifstream script(*options.script);
             if (!script) {
-                throw std::runtime_error(
-                    "Could not open script file: " + *options.script);
+                throw std::runtime_error("Could not open script file: " + *options.script);
             }
 
             std::ostringstream scriptOutput;
@@ -214,8 +192,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (containsCommandError(result)) {
-                throw std::runtime_error(
-                    "One or more commands in the script failed");
+                throw std::runtime_error("One or more commands in the script failed");
             }
         } else {
             cli.run(std::cin, output, true);
@@ -227,7 +204,7 @@ int main(int argc, char* argv[]) {
 
         return 0;
     } catch (const std::exception& error) {
-        std::cerr << "NetMind error: " << error.what() << '\n';
+        std::cerr << "Project901 error: " << error.what() << '\n';
         return 1;
     }
 }

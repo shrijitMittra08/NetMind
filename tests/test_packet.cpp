@@ -47,7 +47,7 @@ TEST_CASE("Packet reply clone swaps endpoints and resets per-transmission state"
     REQUIRE(reply.pathTaken.empty());
     REQUIRE(reply.dropReason == netmind::DropReason::NO_ROUTE);
 
-    // Cloning leaves the original request unchanged.
+                                                     
     REQUIRE(request.id == 10);
     REQUIRE(request.srcId == 3);
     REQUIRE(request.dstId == 1);
@@ -87,7 +87,7 @@ TEST_CASE("Packet retransmission clone keeps packet content and resets transmiss
     REQUIRE(retransmit.pathTaken.empty());
     REQUIRE(retransmit.dropReason == netmind::DropReason::NO_ROUTE);
 
-    // Cloning leaves the original packet unchanged.
+                                                    
     REQUIRE(original.id == 20);
     REQUIRE(original.pathTaken == std::vector<netmind::NodeId>{2, 5, 7});
 }

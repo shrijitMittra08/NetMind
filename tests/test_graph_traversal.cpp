@@ -48,7 +48,7 @@ netmind::Graph makeDiamondGraph() {
     return graph;
 }
 
-} // namespace
+}             
 
 TEST_CASE("Graph BFS returns a deterministic shortest-hop path") {
     netmind::Graph graph = makeDiamondGraph();

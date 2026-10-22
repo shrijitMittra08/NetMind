@@ -20,7 +20,7 @@ std::unique_ptr<netmind::Link> makeLink(
         id, a, b, 100.0, 1.0, 0.0, 16);
 }
 
-} // namespace
+}             
 
 TEST_CASE("Graph adds nodes and looks them up by id and name") {
     netmind::Graph graph;

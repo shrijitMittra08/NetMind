@@ -21,7 +21,7 @@ private:
     double value_;
 };
 
-} // namespace
+}             
 
 TEST_CASE("Link stores its configuration") {
     netmind::Link link(5, 1, 2, 100.0, 2.5, 0.1, 64);

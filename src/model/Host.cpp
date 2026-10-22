@@ -1,44 +1,52 @@
-#include "model/Host.h"
+#include "netmind/model/Host.h"
+
+#include "netmind/simulation/SimContext.h"
+
 #include <utility>
-#include "model/Packet.h"
-#include "simulation/SimContext.h"
+
 namespace netmind {
-Host::Host(NodeId id, std::string name, std::string ip, NodeId gatewayId)
-    : Node(id, std::move(name), std::move(ip), NodeType::HOST),
-      gatewayId_(gatewayId) {}
-NodeId Host::gatewayId() const {
+
+Host::Host(NodeId id, std::string name, std::string ip)
+    : Node(id, std::move(name), std::move(ip), NodeType::HOST) {}
+
+void Host::setGatewayId(NodeId gatewayId) {
+    gatewayId_ = gatewayId;
+}
+
+std::optional<NodeId> Host::gatewayId() const {
     return gatewayId_;
 }
+
 void Host::originate(Packet pkt, SimContext& ctx) {
-    if (!isUp()) {
-        ctx.drop(pkt, getId(), DropReason::NODE_DOWN);
-        return;
+    pkt.timestampSent = ctx.now();
+
+    if (pkt.type != PacketType::ECHO_REPLY) {
+        pkt.originTime = pkt.timestampSent;
     }
-    if (gatewayId_ == static_cast<NodeId>(-1)) {
+
+    pkt.pathTaken.push_back(getId());
+
+    if (!gatewayId_) {
         ctx.drop(pkt, getId(), DropReason::NO_ROUTE);
         return;
     }
-    pkt.status = PacketStatus::IN_TRANSIT;
-    pkt.pathTaken.push_back(getId());
-    ctx.transmit(pkt, getId(), gatewayId_);
+
+    ctx.transmit(std::move(pkt), getId(), *gatewayId_);
 }
-void Host::receivePacket(Packet pkt, LinkId inLink, SimContext& ctx) {
-    (void)inLink;
-    if (!isUp()) {
-        ctx.drop(pkt, getId(), DropReason::NODE_DOWN);
-        return;
-    }
-    pkt.pathTaken.push_back(getId());
+
+void Host::receivePacket(Packet pkt, LinkId, SimContext& ctx) {
     if (pkt.dstId != getId()) {
         ctx.drop(pkt, getId(), DropReason::NO_ROUTE);
         return;
     }
-    pkt.markDelivered(ctx.now());
-    ctx.deliver(pkt, getId());
-    if (pkt.type == PacketType::ECHO_REQUEST) {
-        Packet reply = Packet::cloneForReply(
-            pkt, 0, ctx.now());
-        originate(reply, ctx);
+
+    if (pkt.type != PacketType::ECHO_REQUEST) {
+        ctx.deliver(pkt, getId());
+        return;
     }
+
+    Packet reply = Packet::cloneForReply(pkt, ctx.allocatePacketId());
+    originate(std::move(reply), ctx);
 }
+
 }

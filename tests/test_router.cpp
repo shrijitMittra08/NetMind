@@ -68,7 +68,7 @@ public:
     }
 };
 
-} // namespace
+}             
 
 TEST_CASE("Forwarding table keeps static routes when dynamic routes are installed") {
     netmind::ForwardingTable table;

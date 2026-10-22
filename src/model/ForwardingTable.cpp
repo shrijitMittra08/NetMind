@@ -1,57 +1,97 @@
-#include "model/ForwardingTable.h"
+#include "netmind/model/ForwardingTable.h"
+
+#include "netmind/common/Errors.h"
+
 #include <algorithm>
+#include <cmath>
+
 namespace netmind {
-std::optional<ForwardingTable::Entry> ForwardingTable::lookup(NodeId dst) const {
-    auto staticIt = static_.find(dst);
-    if (staticIt != static_.end()) {
-        return staticIt->second;
-    }
-    auto dynamicIt = dynamic_.find(dst);
-    if (dynamicIt != dynamic_.end()) {
-        return dynamicIt->second;
-    }
-    return std::nullopt;
+
+void ForwardingTable::setNextHop(NodeId destination, NodeId nextHopId) {
+    install(destination, nextHopId, 1.0);
 }
-void ForwardingTable::install(NodeId dst, NodeId nextHop, double cost) {
-    if (static_.find(dst) != static_.end()) {
+
+std::optional<NodeId> ForwardingTable::nextHop(NodeId destination) const {
+    const auto entry = lookup(destination);
+    if (!entry) {
+        return std::nullopt;
+    }
+
+    return entry->nextHop;
+}
+
+bool ForwardingTable::contains(NodeId destination) const {
+    return entries_.find(destination) != entries_.end();
+}
+
+void ForwardingTable::clear() {
+    entries_.clear();
+}
+
+std::optional<ForwardingTable::Entry> ForwardingTable::lookup(
+    NodeId destination) const {
+    const auto it = entries_.find(destination);
+    if (it == entries_.end()) {
+        return std::nullopt;
+    }
+
+    return it->second;
+}
+
+void ForwardingTable::install(
+    NodeId destination,
+    NodeId nextHopId,
+    double cost) {
+    if (!std::isfinite(cost) || cost < 0.0) {
+        throw ConfigError("Route cost must be finite and non-negative");
+    }
+
+    const auto it = entries_.find(destination);
+    if (it != entries_.end() && it->second.source == Source::STATIC) {
         return;
     }
-    dynamic_[dst] = Entry{nextHop, cost, Source::DYNAMIC};
+
+    entries_[destination] = Entry{nextHopId, cost, Source::DYNAMIC};
 }
-void ForwardingTable::replaceDynamic(NodeId dst, NodeId nextHop, double cost) {
-    if (static_.find(dst) != static_.end()) {
-        return;
-    }
-    dynamic_[dst] = Entry{nextHop, cost, Source::DYNAMIC};
-}
+
 void ForwardingTable::clearDynamic() {
-    dynamic_.clear();
-}
-void ForwardingTable::addStatic(NodeId dst, NodeId nextHop, double cost) {
-    static_[dst] = Entry{nextHop, cost, Source::STATIC};
-}
-void ForwardingTable::removeStatic(NodeId dst) {
-    static_.erase(dst);
-}
-std::size_t ForwardingTable::size() const {
-    return static_.size() + dynamic_.size();
-}
-std::vector<std::pair<NodeId, ForwardingTable::Entry>>
-ForwardingTable::toSortedVector() const {
-    std::vector<std::pair<NodeId, Entry>> result;
-    result.reserve(size());
-    for (const auto& entry : static_) {
-        result.push_back(entry);
-    }
-    for (const auto& entry : dynamic_) {
-        if (static_.find(entry.first) == static_.end()) {
-            result.push_back(entry);
+    for (auto it = entries_.begin(); it != entries_.end();) {
+        if (it->second.source == Source::DYNAMIC) {
+            it = entries_.erase(it);
+        } else {
+            ++it;
         }
     }
-    std::sort(result.begin(), result.end(),
-              [](const auto& a, const auto& b) {
-                  return a.first < b.first;
-              });
-    return result;
 }
+
+void ForwardingTable::addStatic(
+    NodeId destination,
+    NodeId nextHopId,
+    double cost) {
+    if (!std::isfinite(cost) || cost < 0.0) {
+        throw ConfigError("Route cost must be finite and non-negative");
+    }
+
+    entries_[destination] = Entry{nextHopId, cost, Source::STATIC};
+}
+
+std::vector<std::pair<NodeId, ForwardingTable::Entry>>
+ForwardingTable::toSortedVector() const {
+    std::vector<std::pair<NodeId, Entry>> routes;
+    routes.reserve(entries_.size());
+
+    for (const auto& item : entries_) {
+        routes.push_back(item);
+    }
+
+    std::sort(
+        routes.begin(),
+        routes.end(),
+        [](const auto& left, const auto& right) {
+            return left.first < right.first;
+        });
+
+    return routes;
+}
+
 }

@@ -43,7 +43,7 @@ std::filesystem::path writeScenarioFile() {
     return path;
 }
 
-} // namespace
+}             
 
 TEST_CASE("CLI loads a topology and displays its nodes and links") {
     netmind::cli::Session session;

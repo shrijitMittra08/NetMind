@@ -83,7 +83,7 @@ void runCommand(netmind::cli::CommandLineInterface& cli,
     CHECK(added.rfind("% ", 0) != 0);
 }
 
-} // namespace
+}             
 
 TEST_CASE("CLI supports routing, flow, ping, traceroute, metrics, queue, and export") {
     TempDirectory temp("core_commands");

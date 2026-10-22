@@ -54,7 +54,7 @@ bool reconstructPath(
     return true;
 }
 
-} // namespace
+}             
 
 void Graph::addNode(std::unique_ptr<Node> node) {
     if (!node) {
@@ -330,7 +330,7 @@ bool Graph::dfsPath(
 
         const auto neighbors = sortedActiveNeighborIds(*this, current);
 
-        // Reverse push order so the smallest id is visited first.
+                                                                  
         for (auto it = neighbors.rbegin(); it != neighbors.rend(); ++it) {
             const NodeId neighbor = *it;
             if (!visited.insert(neighbor).second) {
