@@ -1,274 +1,169 @@
-# NetMind – Intelligent Network Traffic Analysis and Routing Engine
+# NetMind
 
-> **B. Tech CSE (AI & ML)**  
-> **Project Code:** DSCPP-III-2026-T376  
-> **Team:** CodeGraphers  
-> **Mentor:** Dr. Vidit Kumar
+NetMind is a C++17 discrete-event network simulator with a command-line interface, a React workbench, and Python analysis tools. It models a network from a topology or scenario file, simulates packet traffic and network events, and exports run data for comparison and review.
 
----
+This README describes features present in the repository. It does not describe planned work.
 
-## 1. Project Overview
+## Implemented features
 
-**NetMind** is an intelligent network traffic analysis, simulation, and routing engine designed to model, simulate, analyse, and optimise computer networks in a controlled environment.
+### C++ network simulator
 
-The system combines:
+- Models hosts, routers, switches, packets, flows, links, forwarding tables, and simulation events.
+- Loads network topologies and scenarios from JSON files.
+- Represents the topology as a graph and provides breadth-first search, depth-first search, connected-component, and reachability operations.
+- Provides BFS, DFS, Dijkstra, and Bellman–Ford routing. The CLI supports hop-count and latency weights.
+- Simulates packet transmission time, propagation delay, directional link queues, queue limits, packet loss, and link or router availability.
+- Schedules link and router failures and restorations, temporary link congestion, and temporary burst traffic.
+- Collects packet traces, flow and network metrics, and event information. Exports run manifests and CSV files for traces, flows, links, time windows, and network summaries.
 
-- Object-Oriented Programming with C++
-- Data Structures and Algorithms
-- Computer Networking
-- Network Traffic Simulation
-- Graph-Based Routing
-- Standard Network Performance Metrics
-- Machine Learning
-- GraphRAG-based Knowledge Retrieval
-- Interactive Visualisation
+### Command-line interface
 
-Unlike traditional network monitoring tools that primarily show **what is happening**, NetMind aims to help users understand **why a network behaviour occurs** and how different routing strategies respond to changing network conditions.
+The interactive CLI can load topologies or scenarios, configure routing and traffic, inspect routes and queues, run simulations, and export results. It includes:
 
----
+`load`, `show topology`, `show route`, `show queue`, `show metrics`, `set algo`, `set weight`, `set seed`, `route add`, `add flow`, `ping`, `traceroute`, `fail link`, `restore link`, `fail router`, `restore router`, `congest link`, `burst`, `run`, `step`, `compare`, `export`, `reset`, `help`, and `exit`.
 
-# 2. Motivation
+It can also execute a text command script or run a scenario file from the command line.
 
-Modern computer networks generate large amounts of traffic that must be continuously monitored, analysed, and routed efficiently.
+### Python API and React workbench
 
-Traditional network monitoring and simulation software provides useful metrics such as:
+- A FastAPI service connects the GUI to the C++ simulator and exported run files.
+- The React workbench configures and runs simulations, can save scenarios, shows expected-baseline results, loads runs into the replay viewer, and provides a GraphRAG question panel.
+- The replay viewer reads exported run files and displays packet movement and run comparisons; it does not run simulations itself.
 
-- Latency
-- Bandwidth utilisation
-- Throughput
-- Packet loss
-- Jitter
-- Congestion
+### ML expected baseline
 
-However, these capabilities are generally distributed across specialised tools. It can be difficult to experiment with the relationship between:
+The baseline module uses a Random Forest regressor to estimate latency, throughput, and packet loss from a generated run dataset. Evaluation groups runs by topology so a topology can be held out from model training. The GUI compares a completed run with these estimates.
 
-**Network Topology → Traffic Behaviour → Routing Algorithms → Network Conditions → Performance**
+The baseline is a reference based on the dataset, not an optimal result. It needs `data/dataset/runs_all.csv`; estimates may be less reliable for topologies unlike those represented in that dataset.
 
-in one integrated environment.
+### GraphRAG
 
-NetMind addresses this gap by combining network modelling, traffic simulation, graph-based routing, standardised network metrics, machine learning, and GraphRAG into a single educational and experimental platform.
+GraphRAG builds a NetworkX graph from topology, run, flow, event, trace, and window data. Its current query implementation uses supported question patterns and recorded facts to answer run-specific questions and return supporting evidence.
 
----
+GraphRAG is currently fact-based. It does not use an LLM or retrieve information from external knowledge sources.
 
-# 3. Problem Statement
+## Current scope limits
 
-Existing network tools are generally focused on specific tasks such as:
+- ML provides expected-metric baseline comparisons. Anomaly detection and future-metric forecasting are not included in the current implementation.
+- ML predictions do not choose routes or change the simulator's routing decisions.
+- GraphRAG does not generate answers with Groq, LangChain, or LangGraph.
+- Run data is stored as local JSON and CSV files; there is no database service.
 
-- Packet capture and protocol analysis
-- Network performance monitoring
-- Traffic visualisation
-- Network simulation
-- Troubleshooting
-
-These tools are highly useful, but their internal algorithms and decision-making processes are often abstracted from the user.
-
-NetMind provides an integrated environment where users can:
-
-1. Create network topologies.
-2. Generate network traffic.
-3. Simulate congestion and failures.
-4. Apply routing algorithms.
-5. Measure network performance.
-6. Compare routing strategies.
-7. Analyse traffic using machine learning.
-8. Predict future network conditions.
-9. Query network history and topology using GraphRAG.
-
----
-
-# 4. Project Objectives
-
-The primary goal of NetMind is to develop an engine for **network traffic analysis, simulation, and graph-based routing**.
-
-The project specifically aims to:
-
-1. Design an object-oriented model for hosts, routers, links, packets, flows, and network events.
-2. Model network topology using graphs.
-3. Implement fundamental graph and routing algorithms.
-4. Simulate network traffic, congestion, failures, and changing link conditions.
-5. Measure standard network performance metrics.
-6. Evaluate multiple routing algorithms under different network conditions.
-7. Apply machine learning for traffic-pattern analysis, anomaly detection, and network-condition prediction.
-8. Integrate GraphRAG for context-aware network querying and interpretation.
-9. Provide visualisation for network behaviour, routing paths, metrics, and analytical results.
-
----
-
-# 5. Key Features
-
-### Dynamic Network Simulation
-
-- Network topology modelling
-- Routers and hosts
-- Communication links
-- Traffic flows
-- Packet-level simulation
-- Congestion modelling
-- Link failures
-- Changing network conditions
-
-### Graph-Based Network Engine
-
-- Graph representation of network topology
-- Adjacency-list based structures
-- BFS
-- DFS
-- Connected-component analysis
-- Graph metrics
-- Dynamic topology handling
-
-### Routing Engine
-
-- Dijkstra's algorithm
-- Alternative routing algorithms
-- Route comparison
-- Dynamic route evaluation
-- Routing under changing network conditions
-
-### Standard Network Metrics
-
-NetMind measures standard networking metrics including:
-
-- Throughput
-- Latency
-- RTT
-- Jitter
-- Packet loss
-- Bandwidth utilisation
-- Hop count
-- Reliability
-- Packet counters
-- Byte counters
-- Errors
-- Discards
-- Queue-related statistics
-
-### Machine Learning
-
-The ML layer is used for:
-
-- Traffic pattern analysis
-- Network anomaly detection
-- Network-condition prediction
-- Future traffic forecasting
-- Predictive network analysis
-
-The ML system complements classical routing rather than replacing it.
-
-A possible workflow is:
+## Repository layout
 
 ```text
-Current Network Metrics
-        ↓
-Machine Learning Model
-        ↓
-Predicted Network Conditions
-        ↓
-Dynamic Route Cost
-        ↓
-Classical Routing Algorithm
-        ↓
-Selected Route
-        ↓
-Simulation Evaluation
-
+apps/                 C++ CLI entry point
+config/topologies/    Example topology JSON files
+config/scenarios/     Example scenario JSON files
+frontend_v2/          React and Vite workbench
+include/netmind/      C++ public headers
+python/               FastAPI service, ML baseline, GraphRAG, and data tools
+src/                  C++ simulator implementation
+tests/                C++ tests and fixtures
+python/tests/          Python tests
+data/                 Generated run files and training data (created locally)
 ```
 
-# 6. System Architecture
+## Build and test the C++ project
 
-NetMind follows a modular, layered architecture in which network modelling, graph algorithms, traffic simulation, routing, metrics, machine learning, and GraphRAG work together as a unified system.
+From the repository root, configure, build, and run the C++ tests:
 
-## High-Level Architecture
+```sh
+cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=Debug
+cmake --build build/debug --parallel
+ctest --test-dir build/debug --output-on-failure
+```
+
+CMake downloads Catch2 and nlohmann/json when configuring, so the first configure needs network access. The CLI executable is created as `build/debug/netmind_cli` on Linux/macOS and `build/debug/netmind_cli.exe` on Windows.
+
+Run Python tests from the repository root:
+
+```sh
+python -m pip install -r python/requirements.txt
+cd python
+python -m pytest -q
+```
+
+## Use the CLI
+
+Start the interactive CLI from the repository root:
+
+```sh
+./build/debug/netmind_cli
+```
+
+On Windows PowerShell:
+
+```powershell
+.\build\debug\netmind_cli.exe
+```
+
+Example interactive session:
 
 ```text
-                         ┌─────────────────────────────┐
-                         │   User / Network Analyst    │
-                         └──────────────┬──────────────┘
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │ Visualization & Interactive  │
-                         │          Interface           │
-                         └──────────────┬──────────────┘
-                                        │
-                         ┌──────────────▼──────────────┐
-                         │ Application Controller &     │
-                         │      Scenario Manager        │
-                         └──────────────┬──────────────┘
-                                        │
-                    ┌───────────────────┴───────────────────┐
-                    │                                       │
-          ┌─────────▼─────────┐                  ┌──────────▼─────────┐
-          │   Network Model   │                  │ Graph & DSA Engine │
-          │                   │                  │                    │
-          │ Routers           │                  │ Graph Structures   │
-          │ Hosts             │                  │ BFS / DFS          │
-          │ Links             │                  │ Connectivity       │
-          │ Packets           │                  │ Graph Metrics      │
-          └─────────┬─────────┘                  └──────────┬─────────┘
-                    │                                       │
-                    └──────────────────┬────────────────────┘
-                                       │
-                         ┌─────────────▼─────────────┐
-                         │      Routing Engine       │
-                         │                           │
-                         │ Dijkstra                  │
-                         │ Alternative Algorithms     │
-                         │ Dynamic Route Evaluation  │
-                         └─────────────┬─────────────┘
-                                       │
-                         ┌─────────────▼─────────────┐
-                         │ Traffic Simulation Engine │
-                         │                           │
-                         │ Traffic Flows             │
-                         │ Packet Processing         │
-                         │ Queues                    │
-                         │ Congestion                │
-                         │ Failures                  │
-                         └─────────────┬─────────────┘
-                                       │
-                         ┌─────────────▼─────────────┐
-                         │ Network Metrics & Analytics│
-                         │                           │
-                         │ Throughput                │
-                         │ Latency / RTT             │
-                         │ Jitter                    │
-                         │ Packet Loss               │
-                         │ Bandwidth Utilisation     │
-                         │ Hop Count / Reliability   │
-                         └─────────────┬─────────────┘
-                                       │
-                         ┌─────────────▼─────────────┐
-                         │ Data & Experiment Storage  │
-                         │                           │
-                         │ Topology                  │
-                         │ Traffic                   │
-                         │ Metrics                   │
-                         │ Events                    │
-                         │ Routing Decisions         │
-                         │ Experiment History        │
-                         └─────────────┬─────────────┘
-                                       │
-                         ┌─────────────┴─────────────┐
-                         │                           │
-               ┌─────────▼─────────┐      ┌──────────▼──────────┐
-               │ Machine Learning  │      │ GraphRAG / Knowledge│
-               │                   │      │       Layer         │
-               │ Traffic Patterns  │      │                     │
-               │ Anomaly Detection │      │ Knowledge Graph     │
-               │ Prediction        │      │ Retrieval           │
-               │ Forecasting       │      │ Contextual Answers  │
-               └─────────┬─────────┘      └──────────┬──────────┘
-                         │                           │
-                         └─────────────┬─────────────┘
-                                       │
-                         ┌─────────────▼─────────────┐
-                         │ Visualization & Analysis  │
-                         │                           │
-                         │ Routes                    │
-                         │ Metrics                   │
-                         │ Predictions               │
-                         │ Anomalies                 │
-                         │ Network Insights          │
-                         └───────────────────────────┘
-
+load config/topologies/ring_backup.json
+set seed 42
+set algo dijkstra
+set weight latency
+add flow PC1 PC2 5 1000 0 10
+run 10
+show metrics
+export
 ```
+
+To run a saved scenario and export its output:
+
+```sh
+./build/debug/netmind_cli --scenario config/scenarios/ring_backup.json --out data
+```
+
+Use `netmind_cli --help` for the supported command-line options and `help` inside the interactive CLI for the command list. Exported files are written to `data/` by default; use `--out` or the `export` command to choose another output directory.
+
+## Use the API and React workbench
+
+Install the Python dependencies from the repository root:
+
+```sh
+python -m pip install -r python/requirements.txt
+```
+
+Start the API in one terminal:
+
+```sh
+python -m uvicorn netmind_api:app --app-dir python --host 127.0.0.1 --port 8765
+```
+
+The API defaults to `build/debug/netmind_cli.exe`. Set `NETMIND_CLI` to the actual executable path if you are on a platform that uses a different binary name or built it elsewhere.
+
+Start the React workbench in another terminal:
+
+```sh
+cd frontend_v2
+npm install
+npm run dev
+```
+
+Vite proxies `/api` requests to the local API on port `8765`. The frontend also provides `npm run build` and `npm run lint` scripts.
+
+## Generate the ML dataset
+
+The baseline requires a generated dataset. Example for Windows PowerShell:
+
+```powershell
+python python\ml\generate_dataset.py `
+  --cli build\debug\netmind_cli.exe `
+  --topologies config\topologies\ring_backup.json `
+  --output data\dataset `
+  --max-runs 80 `
+  --seeds 1 2 3 4 5 `
+  --workers 1 `
+  --duration 10
+```
+
+The generator writes aggregate run and time-window CSV files, along with per-run artifacts. Run `python python/ml/generate_dataset.py --help` to see all options.
+
+## Data and tests
+
+Generated simulation runs and datasets are local artifacts and are not included in the repository by default. Topology and scenario examples are kept under `config/`.
+
+The C++ suite is built by CMake/CTest. The Python suite is run with pytest. The frontend can be checked with its lint and production-build scripts.
