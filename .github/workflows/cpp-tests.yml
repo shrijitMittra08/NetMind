@@ -12,23 +12,20 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up CMake
-        uses: lukka/get-cmake@v4
-
       - name: Configure Debug
-        run: cmake --preset debug
+        run: cmake -S . -B build/debug -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build Debug
-        run: cmake --build --preset debug
+        run: cmake --build build/debug
 
       - name: Run C++ tests
-        run: ctest --preset debug
+        run: ctest --test-dir build/debug --output-on-failure
 
       - name: Configure Sanitizer
-        run: cmake --preset sanitize
+        run: cmake -S . -B build/sanitize -DCMAKE_BUILD_TYPE=Debug -DNETMIND_ENABLE_SANITIZERS=ON
 
       - name: Build Sanitizer
-        run: cmake --build --preset sanitize
+        run: cmake --build build/sanitize
 
       - name: Run Sanitizer tests
-        run: ctest --preset sanitize
+        run: ctest --test-dir build/sanitize --output-on-failure
