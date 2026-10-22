@@ -80,7 +80,7 @@ void addSwitchTestTopology(SwitchTestContext& ctx) {
         std::make_unique<netmind::Link>(12, 2, 4, 100.0, 1.0, 0.0, 16));
 }
 
-} // namespace
+}             
 
 TEST_CASE("Switch floods to active neighbors except the incoming link") {
     SwitchTestContext ctx;

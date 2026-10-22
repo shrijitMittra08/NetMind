@@ -1,62 +1,147 @@
-#include "model/Link.h"
-#include <stdexcept>
+#include "netmind/model/Link.h"
+
+#include "netmind/common/Errors.h"
+#include "netmind/routing/WeightPolicy.h"
+
+#include <cmath>
+
 namespace netmind {
-Link::Link(LinkId id,
-           NodeId nodeA,
-           NodeId nodeB,
-           double bandwidthMbps,
-           double latencyMs,
-           double lossRate,
-           std::size_t queueCapacity)
+
+Link::Link(
+    LinkId id,
+    NodeId a,
+    NodeId b,
+    double bandwidthMbps,
+    double latencyMs,
+    double lossRate,
+    std::size_t queueCapacity)
     : id_(id),
-      nodeA_(nodeA),
-      nodeB_(nodeB),
+      a_(a),
+      b_(b),
       bandwidthMbps_(bandwidthMbps),
       latencyMs_(latencyMs),
       lossRate_(lossRate),
       queueCapacity_(queueCapacity) {
-    if (nodeA == nodeB) {
-        throw std::invalid_argument("Link endpoints cannot be the same");
+    if (!std::isfinite(bandwidthMbps_) || bandwidthMbps_ <= 0.0) {
+        throw ConfigError("Link bandwidth must be finite and positive");
     }
-    if (bandwidthMbps <= 0) {
-        throw std::invalid_argument("Bandwidth must be greater than 0");
+
+    if (!std::isfinite(latencyMs_) || latencyMs_ < 0.0) {
+        throw ConfigError("Link latency must be finite and non-negative");
     }
-    if (latencyMs < 0) {
-        throw std::invalid_argument("Latency cannot be negative");
-    }
-    if (lossRate < 0 || lossRate > 1) {
-        throw std::invalid_argument("Loss rate must be between 0 and 1");
-    }
-    if (queueCapacity == 0) {
-        throw std::invalid_argument("Queue capacity must be at least 1");
+
+    if (!std::isfinite(lossRate_) || lossRate_ < 0.0 || lossRate_ > 1.0) {
+        throw ConfigError("Link loss rate must be between 0 and 1");
     }
 }
-NodeId Link::other(NodeId nodeId) const {
-    if (nodeId == nodeA_) {
-        return nodeB_;
-   }
-    if (nodeId == nodeB_) {
-        return nodeA_;
-    }
-    throw std::invalid_argument("Node is not connected to this link");
+
+LinkId Link::getId() const {
+    return id_;
 }
-bool Link::connects(NodeId a, NodeId b) const {
-    return (a == nodeA_ && b == nodeB_) ||
-           (a == nodeB_ && b == nodeA_);
+
+NodeId Link::a() const {
+    return a_;
 }
-double Link::effectiveBandwidth() const {
-    return bandwidthMbps_ * degradeFactor_;
+
+NodeId Link::b() const {
+    return b_;
 }
-bool Link::isStateUp() const {
-    return state_ != LinkState::DOWN;
+
+double Link::bandwidthMbps() const {
+    return bandwidthMbps_;
 }
-double Link::getWeight() const {
+
+double Link::latencyMs() const {
     return latencyMs_;
 }
+
+double Link::lossRate() const {
+    return lossRate_;
+}
+
+std::size_t Link::queueCapacity() const {
+    return queueCapacity_;
+}
+
+bool Link::connects(NodeId x, NodeId y) const {
+    return (a_ == x && b_ == y) || (a_ == y && b_ == x);
+}
+
+NodeId Link::other(NodeId endpoint) const {
+    if (endpoint == a_) {
+        return b_;
+    }
+
+    if (endpoint == b_) {
+        return a_;
+    }
+
+    throw TopologyError("Node is not an endpoint of this link");
+}
+
+LinkState Link::state() const {
+    return state_;
+}
+
 void Link::setState(LinkState state) {
-    if (state == LinkState::DOWN && state_ != LinkState::DOWN) {
+    if (state_ != LinkState::DOWN && state == LinkState::DOWN) {
         ++epoch_;
     }
+
     state_ = state;
 }
+
+std::uint64_t Link::epoch() const {
+    return epoch_;
+}
+
+double Link::degradeFactor() const {
+    return degradeFactor_;
+}
+
+void Link::setDegradeFactor(double factor) {
+    if (!std::isfinite(factor) || factor <= 0.0 || factor > 1.0) {
+        throw ConfigError(
+            "Link degradation factor must be finite and in (0, 1]");
+    }
+
+    degradeFactor_ = factor;
+}
+
+double Link::effectiveBandwidth() const {
+    if (state_ == LinkState::DEGRADED) {
+        return bandwidthMbps_ * degradeFactor_;
+    }
+
+    return bandwidthMbps_;
+}
+
+bool Link::isUsable() const {
+    return state_ != LinkState::DOWN;
+}
+
+double Link::getWeight(const WeightPolicy& policy) const {
+    return policy.weight(*this);
+}
+
+double Link::extraLossRate() const {
+    return extraLossRate_;
+}
+
+double Link::effectiveLossRate() const {
+    return lossRate_ + extraLossRate_;
+}
+
+void Link::setExtraLossRate(double extraLossRate) {
+    if (!std::isfinite(extraLossRate) ||
+        extraLossRate < 0.0 ||
+        lossRate_ + extraLossRate > 1.0) {
+        throw ConfigError(
+            "Additional link loss must be finite and keep total loss "
+            "between 0 and 1");
+    }
+
+    extraLossRate_ = extraLossRate;
+}
+
 }

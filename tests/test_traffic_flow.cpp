@@ -36,7 +36,7 @@ TEST_CASE("Bursty pattern emits packets during ON periods and waits through OFF 
     REQUIRE(std::abs(pattern.nextInterval(rng) - 0.001) < 1e-12);
     REQUIRE(std::abs(pattern.nextInterval(rng) - 0.001) < 1e-12);
 
-    // The next packet is after the OFF period and one packet interval.
+                                                                       
     REQUIRE(std::abs(pattern.nextInterval(rng) - 0.003) < 1e-12);
     REQUIRE(std::abs(pattern.nextInterval(rng) - 0.001) < 1e-12);
     REQUIRE(pattern.packetSizeBytes() == 1000);

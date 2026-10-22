@@ -1,72 +1,83 @@
-#include "model/Flow.h"
-#include <stdexcept>
+#include "netmind/model/Flow.h"
+
+#include "netmind/common/Errors.h"
+
+#include <cmath>
 #include <utility>
+
 namespace netmind {
-Flow::Flow(FlowId id,
-           NodeId src,
-           NodeId dst,
-           std::uint32_t packetBytes,
-           SimTime start,
-           SimTime stop,
-           std::unique_ptr<TrafficPattern> pattern)
+
+Flow::Flow(
+    FlowId id,
+    NodeId src,
+    NodeId dst,
+    SimTime startTime,
+    SimTime stopTime,
+    std::unique_ptr<TrafficPattern> pattern)
     : id_(id),
       src_(src),
       dst_(dst),
-      packetBytes_(packetBytes),
-      start_(start),
-      stop_(stop),
+      startTime_(startTime),
+      stopTime_(stopTime),
       pattern_(std::move(pattern)) {
-    if (start < 0) {
-        throw std::invalid_argument("Flow start time cannot be negative");
+    if (!std::isfinite(startTime_) || startTime_ < 0.0) {
+        throw ConfigError("Flow start time must be finite and non-negative");
     }
-    if (stop <= start) {
-        throw std::invalid_argument("Flow stop time must be greater than start time");
+
+    if (!std::isfinite(stopTime_) || stopTime_ < startTime_) {
+        throw ConfigError(
+            "Flow stop time must be finite and no earlier than its start time");
     }
-    if (packetBytes == 0) {
-        throw std::invalid_argument("Packet size must be greater than 0");
-    }
+
     if (!pattern_) {
-        throw std::invalid_argument("Traffic pattern cannot be null");
+        throw ConfigError("Flow must have a traffic pattern");
     }
 }
+
+FlowId Flow::id() const {
+    return id_;
+}
+
+NodeId Flow::src() const {
+    return src_;
+}
+
+NodeId Flow::dst() const {
+    return dst_;
+}
+
+SimTime Flow::startTime() const {
+    return startTime_;
+}
+
+SimTime Flow::stopTime() const {
+    return stopTime_;
+}
+
+TrafficPattern& Flow::pattern() {
+    return *pattern_;
+}
+
+const TrafficPattern& Flow::pattern() const {
+    return *pattern_;
+}
+
 Packet Flow::makePacket(SimTime now, PacketId packetId) {
-    Packet packet(packetId,
-                  src_,
-                  dst_,
-                  id_,
-                  packetBytes_,
-                  PacketType::DATA,
-                  64,
-                  now);
-    ++generated_;
+    if (!std::isfinite(now) || now < startTime_ || now >= stopTime_) {
+        throw ConfigError(
+            "Packet generation time must be within the flow interval");
+    }
+
+    Packet packet;
+    packet.id = packetId;
+    packet.srcId = src_;
+    packet.dstId = dst_;
+    packet.flowId = id_;
+    packet.sizeBytes = pattern_->packetSizeBytes();
+    packet.timestampSent = now;
+    packet.originTime = now;
+
     return packet;
 }
-std::optional<SimTime> Flow::nextGenerationTime(SimTime now, Rng& rng) {
-    SimTime next = now + pattern_->nextInterval(rng);
-    if (next >= stop_) {
-        return std::nullopt;
-    }
-    return next;
-}
-SimTime Flow::firstGenerationTime() const {
-    return start_;
-}
-bool Flow::isActiveAt(SimTime t) const {
-    return t >= start_ && t < stop_;
-}
-std::uint64_t Flow::generated() const {
-    return generated_;
-}
-std::unique_ptr<Flow> Flow::clone() const {
-    auto copy = std::make_unique<Flow>(
-        id_,
-        src_,
-        dst_,
-        packetBytes_,
-        start_,
-        stop_,
-        pattern_->clone());
-    copy->generated_ = generated_;
-    return copy;
-}
+
 }

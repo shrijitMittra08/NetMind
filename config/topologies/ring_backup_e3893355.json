@@ -1,0 +1,84 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "HOST",
+      "name": "PC1",
+      "ip": "10.1.0.1"
+    },
+    {
+      "id": 2,
+      "type": "ROUTER",
+      "name": "R1",
+      "ip": "10.1.0.2"
+    },
+    {
+      "id": 3,
+      "type": "ROUTER",
+      "name": "R2",
+      "ip": "10.1.0.3"
+    },
+    {
+      "id": 4,
+      "type": "ROUTER",
+      "name": "R3",
+      "ip": "10.1.0.4"
+    },
+    {
+      "id": 5,
+      "type": "ROUTER",
+      "name": "R4",
+      "ip": "10.1.0.5"
+    },
+    {
+      "id": 6,
+      "type": "HOST",
+      "name": "PC2",
+      "ip": "10.1.0.6"
+    }
+  ],
+  "links": [
+    {
+      "a": 1,
+      "b": 2,
+      "bandwidthMbps": 100,
+      "latencyMs": 1,
+      "lossRate": 0
+    },
+    {
+      "a": 2,
+      "b": 3,
+      "bandwidthMbps": 100,
+      "latencyMs": 2,
+      "lossRate": 0
+    },
+    {
+      "a": 3,
+      "b": 4,
+      "bandwidthMbps": 100,
+      "latencyMs": 2,
+      "lossRate": 0
+    },
+    {
+      "a": 4,
+      "b": 6,
+      "bandwidthMbps": 100,
+      "latencyMs": 1,
+      "lossRate": 0
+    },
+    {
+      "a": 2,
+      "b": 5,
+      "bandwidthMbps": 50,
+      "latencyMs": 8,
+      "lossRate": 0
+    },
+    {
+      "a": 5,
+      "b": 4,
+      "bandwidthMbps": 50,
+      "latencyMs": 8,
+      "lossRate": 0
+    }
+  ]
+}

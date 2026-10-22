@@ -22,7 +22,7 @@ TEST_CASE("network model entities can be constructed together") {
     REQUIRE(linkB.connects(router.getId(), hostB.getId()));
 
     std::cout
-        << "NetMind model integration check\n"
+        << "Project901 model integration check\n"
         << "Host: " << hostA.name() << " (" << hostA.ip() << ")\n"
         << "Router: " << router.name() << " (" << router.ip() << ")\n"
         << "Host: " << hostB.name() << " (" << hostB.ip() << ")\n"

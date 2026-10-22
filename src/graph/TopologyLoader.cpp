@@ -157,7 +157,7 @@ std::uint64_t edgeKey(NodeId a, NodeId b) {
            static_cast<std::uint64_t>(high);
 }
 
-} // namespace
+}             
 
 Graph TopologyLoader::loadFromFile(const std::string& filePath) {
     std::ifstream input(filePath);
@@ -290,7 +290,7 @@ Graph TopologyLoader::loadFromJson(const nlohmann::json& document) {
                 }
             }
 
-            // The contract permits an optional two-number position.
+                                                                    
             const auto positionIt = node.find("pos");
             if (positionIt != node.end()) {
                 bool validPosition =

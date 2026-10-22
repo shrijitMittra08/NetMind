@@ -32,7 +32,7 @@ public:
     }
 };
 
-} // namespace
+}             
 
 TEST_CASE("CLI tokenizer keeps quoted names together") {
     const auto tokens =

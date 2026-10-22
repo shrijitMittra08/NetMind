@@ -23,7 +23,7 @@ netmind::Graph loadSample(const std::string& filename) {
     return netmind::TopologyLoader::loadFromFile(path.string());
 }
 
-} // namespace
+}             
 
 TEST_CASE("small4 topology loads and has the expected BFS path") {
     const netmind::Graph graph = loadSample("small4.json");
@@ -41,7 +41,7 @@ TEST_CASE("ring_backup provides an alternate path after a link is removed") {
     REQUIRE(graph.bfsPath(1, 6, path));
     REQUIRE(path == std::vector<netmind::NodeId>{1, 2, 3, 4, 6});
 
-    // Link IDs are assigned in topology-file order; link 2 is R1–R2.
+                                                                     
     REQUIRE(graph.removeLink(2));
     REQUIRE(graph.bfsPath(1, 6, path));
     REQUIRE(path == std::vector<netmind::NodeId>{1, 2, 5, 4, 6});
