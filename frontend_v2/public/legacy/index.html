@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NetMind Replay Viewer</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="js/parser.js"></script>
+  <script defer src="js/layout.js"></script>
+  <script defer src="js/model.js"></script>
+  <script defer src="js/charts.js"></script>
+  <script defer src="js/renderer.js"></script>
+  <script defer src="js/controls.js"></script>
+  <script defer src="js/app.js"></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>NetMind Replay Viewer</h1>
+      <p>Load a topology and exported run files to replay packet activity.</p>
+    </div>
+    <label class="file-button">
+      Load files
+      <input id="fileInput" type="file" multiple
+        accept=".json,.csv,application/json,text/csv">
+    </label>
+  </header>
+
+  <main>
+    <section class="panel selected-files-panel" aria-labelledby="selectedFilesHeading">
+      <div class="selected-files-heading">
+        <h2 id="selectedFilesHeading">Selected files <span id="selectedFileCount">0</span></h2>
+        <button id="clearFilesButton" type="button" disabled>Clear files</button>
+      </div>
+      <p class="selected-files-help">
+        You can add files from different folders in separate selections. They stay here until cleared.
+      </p>
+      <ul id="selectedFileList" class="selected-file-list">
+        <li class="empty-file-list">No files selected yet.</li>
+      </ul>
+    </section>
+
+    <section class="toolbar">
+      <label>Time <span id="timeLabel">0.000 s</span></label>
+      <input id="timeSlider" type="range" min="0" max="0" step="0.001" value="0">
+      <button id="playButton" disabled>Play</button>
+      <label>Speed
+        <select id="speedSelect">
+          <option value="0.1">0.1×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+          <option value="10">10×</option>
+        </select>
+      </label>
+      <button id="nextIncidentButton" disabled>Next failure/drop</button>
+    </section>
+
+    <p id="status" role="status">Choose topology.json, a run trace, and windows CSV.</p>
+
+    <section class="workspace">
+      <div class="panel topology-panel">
+        <h2>Topology replay</h2>
+        <canvas id="topologyCanvas" aria-label="Animated network topology"></canvas>
+        <p id="selectionInfo">Click a device to inspect it.</p>
+      </div>
+
+      <aside class="panel metrics-panel">
+        <h2>Window metrics</h2>
+        <label>Metric
+          <select id="metricSelect">
+            <option value="avg_latency_ms">Average latency (ms)</option>
+            <option value="throughput_mbps">Throughput (Mbps)</option>
+            <option value="loss_pct">Loss (%)</option>
+            <option value="max_util_pct">Maximum utilization (%)</option>
+          </select>
+        </label>
+        <canvas id="metricCanvas" aria-label="Metric over time"></canvas>
+        <h3>Run summary</h3>
+        <div id="summary"></div>
+      </aside>
+    </section>
+
+    <section class="panel comparison-panel">
+  <h2>Routing algorithm comparison</h2>
+  <p id="comparisonStatus">
+    Load standard exported run files to compare algorithms.
+  </p>
+
+  <label>Metric
+    <select id="comparisonMetric" disabled>
+      <option value="avg_latency_ms">Average latency (ms)</option>
+      <option value="avg_throughput_mbps">Throughput (Mbps)</option>
+      <option value="reliability_pct">Reliability (%)</option>
+      <option value="total_drops">Packet drops</option>
+      <option value="recovery_time_s">Recovery time (s)</option>
+      <option value="avg_hops">Average flow hops</option>
+    </select>
+  </label>
+
+  <canvas id="comparisonCanvas"
+    aria-label="Comparison of metrics across exported runs"></canvas>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Algorithm</th>
+          <th>Weight</th>
+          <th>Seed</th>
+          <th>Latency (ms)</th>
+          <th>Throughput (Mbps)</th>
+          <th>Reliability (%)</th>
+          <th>Drops</th>
+          <th>Recovery (s)</th>
+          <th>Avg. hops</th>
+        </tr>
+      </thead>
+      <tbody id="comparisonRows"></tbody>
+    </table>
+  </div>
+</section>
+
+    <section class="panel event-panel">
+      <h2>Events</h2>
+      <div id="eventLog">Load a trace file to see events.</div>
+    </section>
+
+    <section class="panel flow-panel">
+      <h2>Flows</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Flow</th><th>Source</th><th>Destination</th>
+              <th>Sent</th><th>Delivered</th><th>Dropped</th><th>Loss %</th>
+            </tr>
+          </thead>
+          <tbody id="flowRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    This viewer reads exported files only. It does not run or alter simulations.
+  </footer>
+</body>
+</html>

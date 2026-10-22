@@ -1,0 +1,23 @@
+| Command | Behavior and output |
+| --- | --- |
+| `load <file>` | Loads topology or scenario; prints node/link counts |
+| `show topology` | Table: node, type, IP, neighbors; link list with bandwidth/latency/loss/state |
+| `show route <router>` | Forwarding table sorted by destination: `dest next-hop cost [S/D]` |
+| `show queue <A>-<B>` | Current queue length, max, drops per direction |
+| `show metrics [flow]` | Latest aggregates (calls `Report`) |
+| \`set algo \<bfs | dfs | dijkstra | bellman-ford
+| \`set weight \<hops | latency |
+| `set seed <n>` | Re-seeds RNG (resets run) |
+| `route add <router> <dst> via <next>` | Static route |
+| `add flow <src> <dst> <mbps> <bytes> [start stop] [bursty]` | Registers a flow |
+| `ping <A> <B> [count]` | Sends ECHO_REQUESTs, prints per-reply RTT, then `sent/received/loss, min/avg/max RTT` |
+| `traceroute <A> <B>` | Hop list with cumulative latency (from `pathTaken`/`explainRoute`) |
+| `fail link <A> <B> at <t>` / `fail router <R> at <t>` | Schedules failure |
+| `restore link <A> <B> at <t>` / `restore router <R> at <t>` | Schedules recovery |
+| `congest link <A> <B> factor <f> at <t> for <d>` | Schedules degradation |
+| `burst <src> <dst> <mbps> at <t> for <d>` | Schedules burst |
+| `run <seconds>` | Runs until that time |
+| `step [n]` | Executes *n* events, printing each (`[t=5.002000] R1 forward pkt 9 → R2`) |
+| `compare <A> <B>` | Runs the active scenario once per algorithm with identical seed and prints a table |
+| `export [dir]` | Writes the run files |
+| `reset` | Rebuilds engine, keeps topology |

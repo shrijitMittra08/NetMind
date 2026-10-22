@@ -1,0 +1,413 @@
+:root {
+  color: #172433;
+  background: #f2f5f8;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.workbench {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 36px 0 80px;
+}
+
+.workbench-header {
+  padding: 22px 4px 16px;
+}
+
+.workbench-header h1 {
+  max-width: 800px;
+  margin: 4px 0 10px;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.08;
+}
+
+.workbench-header p:last-child {
+  max-width: 760px;
+  color: #5d6b79;
+  line-height: 1.6;
+}
+
+.gui-card {
+  margin: 18px 0;
+  padding: 24px;
+  border: 1px solid #dce3ea;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(31 54 76 / 5%);
+}
+
+.gui-eyebrow {
+  margin: 0 0 5px;
+  color: #3377a8;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.gui-card h2 {
+  margin: 0 0 14px;
+  font-size: 1.55rem;
+}
+
+.gui-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.gui-muted,
+.gui-subsection-heading p {
+  color: #647382;
+  line-height: 1.5;
+}
+
+.gui-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  color: #4c5c6b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.gui-field input,
+.gui-field select,
+.gui-field textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #cad4de;
+  border-radius: 8px;
+  color: #182838;
+  background: #fff;
+}
+
+.gui-field textarea {
+  resize: vertical;
+}
+
+.gui-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.file-picker {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px solid #a9bed0;
+  border-radius: 9px;
+  color: #174c71;
+  background: #f4f9fc;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.topology-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+  color: #526372;
+}
+
+.topology-summary strong {
+  color: #1b2d3c;
+}
+
+.topology-name-list {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 6px;
+}
+
+.topology-name-list span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #edf3f7;
+  font-size: 0.82rem;
+}
+
+.gui-subsection {
+  margin-top: 26px;
+}
+
+.gui-subsection-heading,
+.editor-heading,
+.gui-section-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.gui-subsection-heading {
+  margin-bottom: 12px;
+}
+
+.gui-subsection-heading p {
+  margin: 5px 0 0;
+  font-size: 0.9rem;
+}
+
+.editor-card {
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid #e0e6eb;
+  border-radius: 11px;
+  background: #fbfcfd;
+}
+
+.editor-heading {
+  margin-bottom: 13px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 43px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-button {
+  margin-top: 18px;
+  color: #fff;
+  background: #176b9b;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #10567e;
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.secondary-button {
+  color: #15577f;
+  background: #e9f3f9;
+}
+
+.text-button {
+  padding: 4px;
+  border: 0;
+  color: #176b9b;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gui-error {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #f0c4c2;
+  border-radius: 9px;
+  color: #8c2721;
+  background: #fff3f2;
+  white-space: pre-wrap;
+}
+
+.baseline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.baseline-card {
+  padding: 16px;
+  border: 1px solid #dce5eb;
+  border-radius: 11px;
+  background: #fafdff;
+}
+
+.baseline-card h3 {
+  margin-bottom: 12px;
+  text-transform: capitalize;
+}
+
+.baseline-card dl {
+  margin: 0;
+}
+
+.baseline-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #e8edf1;
+}
+
+.baseline-card dt {
+  color: #657482;
+}
+
+.baseline-card dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.baseline-flag {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #216b42;
+  background: #e8f5ec;
+  font-size: 0.8rem;
+}
+
+.baseline-flag.flagged {
+  color: #8d4b16;
+  background: #fff1db;
+}
+
+.replay-frame {
+  display: block;
+  width: 100%;
+  min-height: 1120px;
+  margin-top: 16px;
+  border: 1px solid #dce3ea;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.query-form {
+  display: grid;
+  gap: 12px;
+}
+
+.example-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.answer-box {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 10px;
+  background: #f4f8fb;
+  line-height: 1.6;
+}
+
+.fact-card {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #dce5eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.fact-card p {
+  margin-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .workbench {
+    width: min(100% - 20px, 1180px);
+    padding-top: 18px;
+  }
+
+  .gui-card {
+    padding: 17px;
+  }
+
+  .gui-grid,
+  .baseline-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .gui-subsection-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .replay-frame {
+    min-height: 1200px;
+  }
+}
+
+.baseline-run {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid #e5ebf1;
+}
+
+.baseline-run-title {
+  margin-bottom: 4px;
+  font-size: 1.1rem;
+}
+
+.baseline-run-title span {
+  margin-left: 8px;
+  color: #657482;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.replay-picker {
+  max-width: 320px;
+  margin-top: 14px;
+}
+
+.save-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.save-row .gui-field {
+  min-width: 260px;
+}
+
+.gui-success {
+  margin: 12px 0 0;
+  color: #1f6b3a;
+}
+
+.gui-warning {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #f0cf8f;
+  border-radius: 10px;
+  background: #fff8ea;
+  color: #7a4b00;
+}
+

@@ -1,31 +1,72 @@
-
-# Existing VS Code folders
-src/common/.vscode/
-src/model/.vscode/
-Include/.vscode/
-
-# CMake build output
-build/
-cmake-build-*/
-
-# Generated CMake files
+# Build and generated C++ files
+/build/
+/cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-CTestTestfile.cmake
-Testing/
-build/
-cmake-build-*/
+compile_commands.json
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
 
+# Project tests are intentionally excluded from this push as requested
+/tests/
+
+# Python environments, caches, and generated test data
 .venv/
 venv/
-
 __pycache__/
-*.py[cod]
 .pytest_cache/
+.pytest_tmp/
+**/.pytest_tmp/
+.mypy_cache/
+.ruff_cache/
+*.py[cod]
 
-data/runs/*
-data/plots/*
+# JavaScript dependencies and build output
+node_modules/
+/frontend_v2/dist/
 
-!data/runs/.gitkeep
-!data/plots/.gitkeep
+# Local secrets and machine-specific files
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+
+# Generated simulation runs and training datasets
+/data/
+
+# Temporary output, except the teammate study guide created for this project
+/output/*
+!/output/pdf/
+/output/pdf/*
+!/output/pdf/NetMind_Project_Technical_Study_Guide.pdf
+
+# Local logs and temporary files
+*.log
+*.tmp
+
+# Member-specific handoff bundles must not be pushed
+/netmind-member-*-push/
+# Existing VS Code ignores and CTest-generated files from current remote rules
+src/common/.vscode/
+src/model/.vscode/
+Include/.vscode/
+CTestTestfile.cmake
+CTestCostData.txt
+Testing/
+
+# Duplicate workspace snapshot, not an active project source directory
+/common/
+/tmp/
+test_verification.txt
+
+# Apply test exclusion recursively
+**/tests/
+/frontend_v2/dist/
+/frontend_v2/public/legacy/legacy/
