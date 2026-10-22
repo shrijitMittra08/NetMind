@@ -52,6 +52,19 @@ file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+list(
+    FILTER NETMIND_CORE_SOURCES
+    EXCLUDE REGEX "/src/commands/"
+)
+list(
+    FILTER NETMIND_CORE_SOURCES
+    EXCLUDE REGEX "/src/common/Ip\\.cpp$"
+)
+list(
+    FILTER NETMIND_CORE_SOURCES
+    EXCLUDE REGEX "/src/model/TrafficPattern\\.cpp$"
+)
+
 if(NOT NETMIND_CORE_SOURCES)
     message(FATAL_ERROR "No C++ source files found in src/")
 endif()
