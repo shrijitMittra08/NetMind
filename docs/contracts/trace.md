@@ -1,4 +1,4 @@
-# NetMind Trace and Output Contract
+# Project901 Trace and Output Contract
 
 This document defines the trace and metric-output formats shared by the
 C++ simulator, metrics subsystem, Python modules, GraphRAG layer, and viewer.
