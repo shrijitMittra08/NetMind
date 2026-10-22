@@ -1,8 +1,20 @@
 [project]
 name = "netmind"
 version = "0.1.0"
-description = "Python tooling for the NetMind network simulator"
+description = "Python tooling for the Project901 network simulator"
 requires-python = ">=3.10"
+dependencies = [
+    "networkx",
+    "pandas",
+    "scikit-learn",
+    "uvicorn",
+    "fastapi",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["common*","graphrag*", "ml*"]
+exclude = ["tests*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
