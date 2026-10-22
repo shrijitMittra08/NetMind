@@ -1,1 +1,6 @@
 pytest
+networkx
+pandas
+scikit-learn
+uvicorn
+fastapi
