@@ -46,7 +46,7 @@ netmind::Graph makeReportGraph() {
     return graph;
 }
 
-} // namespace
+}             
 
 TEST_CASE("Report sorts links and flows deterministically") {
     auto graph = makeReportGraph();

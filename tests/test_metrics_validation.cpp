@@ -27,7 +27,7 @@ netmind::Packet makePacket(
     return packet;
 }
 
-} // namespace
+}             
 
 TEST_CASE("MetricsCollector matches hand-calculated results and cross-checks") {
     netmind::Graph graph;
@@ -36,7 +36,7 @@ TEST_CASE("MetricsCollector matches hand-calculated results and cross-checks") {
     constexpr netmind::FlowId flowId = 55;
     constexpr std::size_t packetCount = 10;
 
-    // Seven delivered packets have known one-way latencies.
+                                                            
     const double latenciesMs[] = {
         10.0, 12.0, 10.0, 14.0, 16.0, 12.0, 14.0
     };
@@ -63,7 +63,7 @@ TEST_CASE("MetricsCollector matches hand-calculated results and cross-checks") {
                 "PC1",
                 netmind::DropReason::NO_ROUTE);
         }
-        // Packet 10 remains unfinished at the end of the run.
+                                                              
     }
 
     metrics.onNetworkEvent(
@@ -78,24 +78,24 @@ TEST_CASE("MetricsCollector matches hand-calculated results and cross-checks") {
     CHECK(flow.dropped == 2);
     CHECK(flow.unfinished == 1);
 
-    // Guide invariant: SENT = DELIVERED + DROPPED + UNFINISHED.
+                                                                
     CHECK(flow.sent ==
           flow.delivered + flow.dropped + flow.unfinished);
 
-    // Loss excludes unfinished packets: 2 / (7 + 2) * 100.
+                                                           
     CHECK(near(flow.lossPct, 200.0 / 9.0));
 
-    // Latencies total 88 ms across seven delivered packets.
+                                                            
     CHECK(near(flow.avgLatencyMs, 88.0 / 7.0));
     CHECK(near(flow.minLatencyMs, 10.0));
     CHECK(near(flow.maxLatencyMs, 16.0));
     CHECK(near(flow.p95LatencyMs, 16.0));
 
-    // Absolute consecutive differences total 16 ms across six pairs.
+                                                                     
     CHECK(near(flow.jitterMs, 16.0 / 6.0));
     CHECK(near(flow.avgHops, 1.0));
 
-    // Seven 1000-byte packets delivered during a one-second flow.
+                                                                  
     CHECK(near(flow.throughputMbps, 0.056));
     CHECK(near(flow.goodputMbps, 0.056));
 
@@ -123,7 +123,7 @@ TEST_CASE("MetricsCollector matches hand-calculated results and cross-checks") {
             return total + window.dropped;
         });
 
-    // Guide cross-check: window totals must agree with flow totals.
+                                                                    
     CHECK(windowSent == flow.sent);
     CHECK(windowDelivered == flow.delivered);
     CHECK(windowDropped == flow.dropped);

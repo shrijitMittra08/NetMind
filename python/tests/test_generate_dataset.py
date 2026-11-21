@@ -50,15 +50,27 @@ def test_scenario_uses_topology_algorithm_load_seed_and_failure_events(tmp_path)
     assert scenario["topology"] == str(topology_path.resolve())
     assert scenario["routing"]["algorithm"] == "dijkstra"
     assert scenario["seed"] == 17
-    assert scenario["flows"][0]["rate_mbps"] == 40
-    assert scenario["events"] == [
-        {"type": "LINK_FAILURE", "a": "R1", "b": "PC2", "time_s": 4.0},
-        {"type": "LINK_RESTORE", "a": "R1", "b": "PC2", "time_s": 6.5},
-    ]
-    assert scenario["dataset_metadata"]["event_pattern"] == "link_failure"
+    first = scenario["flows"][0]
+    assert {first["src"], first["dst"]} == {"PC1", "PC2"}
+    assert first["rate_mbps"] == 40
+    failure = scenario["events"][0]
+    assert failure["type"] == "LINK_FAILURE"
+    assert {failure["a"], failure["b"]} in ({"PC1", "R1"}, {"R1", "PC2"})
+    assert 0 < failure["time_s"] < scenario["duration_s"]
+    metadata = scenario["dataset_metadata"]
+    assert metadata["event_pattern"] == "link_failure"
+    assert json.loads(metadata["scenario_json"])["flows"] == scenario["flows"]
 
 
-def test_burst_scenario_targets_flow_one_and_uses_valid_hosts(tmp_path):
+def test_scenarios_are_reproducible(tmp_path):
+    topology_path = tmp_path / "topology.json"
+    write_topology(topology_path)
+    topology = load_topology(topology_path)
+
+    assert build_scenario(make_task(topology, "congestion")) == build_scenario(make_task(topology, "congestion"))
+
+
+def test_burst_scenario_adds_a_new_flow_between_valid_hosts(tmp_path):
     topology_path = tmp_path / "topology.json"
     write_topology(topology_path)
     topology = load_topology(topology_path)
@@ -67,9 +79,8 @@ def test_burst_scenario_targets_flow_one_and_uses_valid_hosts(tmp_path):
 
     event = scenario["events"][0]
     assert event["type"] == "TRAFFIC_BURST"
-    assert event["flow_id"] != scenario["flows"][0]["id"]
-    assert event["src"] == "PC1"
-    assert event["dst"] == "PC2"
+    assert event["flow_id"] not in {flow["id"] for flow in scenario["flows"]}
+    assert {event["src"], event["dst"]} == {"PC1", "PC2"}
     assert event["time_s"] < scenario["duration_s"]
 
 

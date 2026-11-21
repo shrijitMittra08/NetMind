@@ -52,7 +52,7 @@ netmind::Graph makeGraph() {
     return graph;
 }
 
-} // namespace
+}             
 
 TEST_CASE("Exporters write metric files using the agreed schemas") {
     const auto uniqueSuffix =

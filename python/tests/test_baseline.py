@@ -72,12 +72,37 @@ def test_build_run_features_includes_topology_algorithm_and_event_inputs(tmp_pat
 
     assert features.loc[0, "node_count"] == 3
     assert features.loc[0, "link_count"] == 2
-    assert features.loc[0, "path_hops"] == 2
-    assert features.loc[0, "bottleneck_bandwidth_mbps"] == 50
-    assert features.loc[0, "path_latency_ms"] == 3
+    assert features.loc[0, "mean_path_hops"] == 2
+    assert features.loc[0, "min_path_bottleneck_mbps"] == 50
+    assert features.loc[0, "mean_path_latency_ms"] == 3
     assert features.loc[0, "algorithm_bfs"] == 1
     assert features.loc[0, "event_none"] == 1
-    assert features.loc[0, "offered_to_bottleneck_ratio"] == pytest.approx(0.1)
+    assert features.loc[0, "physics_throughput_mbps"] == pytest.approx(5.0)
+    assert features.loc[0, "physics_loss_pct"] == pytest.approx(0.0)
+    assert features.loc[0, "physics_latency_ms"] == pytest.approx(3.24)
+
+
+def test_features_follow_the_scenario_flows_and_failures(tmp_path):
+    topology_path = write_topology(tmp_path / "topology.json")
+    scenario = {
+        "duration_s": 10,
+        "routing": {"algorithm": "dijkstra", "weight": "latency"},
+        "flows": [{"src": "PC1", "dst": "PC2", "rate_mbps": 10, "packet_bytes": 1000}],
+        "events": [
+            {"type": "LINK_FAILURE", "a": "R1", "b": "PC2", "time_s": 2},
+            {"type": "LINK_RESTORE", "a": "R1", "b": "PC2", "time_s": 7},
+        ],
+    }
+    runs = pd.DataFrame([{
+        "topology_path": topology_path, "algorithm": "dijkstra", "event_pattern": "link_failure",
+        "scenario_json": json.dumps(scenario),
+    }])
+
+    features = build_run_features(runs)
+
+    assert features.loc[0, "unreachable_traffic_share"] == pytest.approx(0.5)
+    assert features.loc[0, "physics_loss_pct"] == pytest.approx(50.0)
+    assert features.loc[0, "physics_throughput_mbps"] == pytest.approx(5.0)
 
 
 def test_grouped_baseline_produces_expected_metrics_and_deviation_flags(tmp_path):

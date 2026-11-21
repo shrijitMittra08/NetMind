@@ -41,7 +41,7 @@ netmind::Graph makeTwoHostGraph() {
     return graph;
 }
 
-} // namespace
+}             
 
 TEST_CASE("MetricsCollector calculates flow metrics and excludes unfinished "
           "packets from loss") {
@@ -192,7 +192,7 @@ TEST_CASE("MetricsCollector records recovery after the link is restored") {
         "PC1",
         netmind::DropReason::LINK_DOWN);
 
-    // The link returns before delivery resumes for the interrupted flow.
+                                                                         
     metrics.onNetworkEvent(
         1.2, "LINK_UP", "7", "state=up");
 
@@ -202,6 +202,6 @@ TEST_CASE("MetricsCollector records recovery after the link is restored") {
 
     metrics.finalize(2.0);
 
-    // Recovery is measured from LINK_DOWN to the first resumed delivery.
+                                                                         
     CHECK(near(metrics.network().recoveryTimeS, 0.5));
 }
