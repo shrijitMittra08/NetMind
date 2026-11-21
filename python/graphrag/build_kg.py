@@ -1,5 +1,3 @@
-"""Build a deterministic NetworkX knowledge graph for one NetMind run."""
-
 from __future__ import annotations
 
 import csv
@@ -134,6 +132,7 @@ def _build_link_target_lookup(
         a_name = names_by_id[str(link["a"])]
         b_name = names_by_id[str(link["b"])]
         node_key = link_keys[index]
+        lookup[str(index + 1)] = node_key
 
         for first, second in ((a_name, b_name), (b_name, a_name)):
             for separator in ("-", ">", "->", ""):

@@ -24,10 +24,11 @@ if str(_PYTHON_ROOT) not in sys.path:
 import pandas as pd
 
 from common.io import RunData, read_run
+from ml import scenario_model
 
 
 ALGORITHMS = ("bfs", "dfs", "dijkstra", "bellman-ford")
-LOAD_PERCENTAGES = (10, 50, 80, 120)
+LOAD_PERCENTAGES = (10, 30, 50, 80, 100, 120)
 EVENT_PATTERNS = ("none", "link_failure", "router_failure", "congestion", "burst")
 RUN_FILE_SUFFIXES = (
     ".json",
@@ -128,121 +129,139 @@ def load_topology(path: str | Path) -> TopologyInfo:
     )
 
 
-def _event_for(
-    pattern: str,
-    topology: TopologyInfo,
-    duration_s: float,
-    rate_mbps: float,
-    packet_bytes: int,
-) -> tuple[list[dict[str, Any]], float | None, float | None]:
-    start = duration_s * 0.4
-    end = duration_s * 0.65
+def _node_name(topology: TopologyInfo, node_id: int) -> str:
+    try:
+        return topology.id_to_name[int(node_id)]
+    except KeyError as error:
+        raise ValueError(f"Node {node_id} is missing from topology {topology.path}") from error
 
-    if pattern == "none":
-        return [], None, None
 
+def _path_links(model: scenario_model.Topology, path: list[int] | None) -> list[scenario_model.Link]:
+    if not path:
+        return []
+    return [model.link_between(a, b) for a, b in zip(path, path[1:])]
+
+
+def _pick(rng: random.Random, preferred: list[Any], fallback: list[Any], preferred_share: float) -> Any:
+    pool = preferred if preferred and rng.random() < preferred_share else fallback
+    return rng.choice(pool)
+
+
+def build_scenario(task: RunTask, packet_bytes: int | None = None) -> dict[str, Any]:
+    rng = random.Random(f"{task.run_id}|{task.topology.path.name}|{task.algorithm}|{task.seed}")
+    model = scenario_model.parse_topology({"nodes": list(task.topology.nodes), "links": list(task.topology.links)})
+    weight = "hops" if rng.random() < 0.25 else "latency"
+    router = scenario_model.Router(model, scenario_model.GraphState(), task.algorithm, weight)
+    duration = task.duration_s
+
+    hosts = model.hosts
+    pairs = [(s, d) for s in hosts for d in hosts if s != d and router.path(s, d)]
+    if not pairs:
+        raise ValueError(f"No routable host pair in {task.topology.path}")
+    rng.shuffle(pairs)
+    flow_count = min(len(pairs), rng.choice((1, 1, 2, 2, 3, 4)))
+    chosen = pairs[:flow_count]
+
+    flows, paths = [], []
+    for index, (src, dst) in enumerate(chosen, start=1):
+        path = router.path(src, dst)
+        paths.append(path)
+        bottleneck = min(link.bandwidth_mbps for link in _path_links(model, path))
+        share = task.load_pct / 100.0 if index == 1 else rng.uniform(0.05, 0.6)
+        flow: dict[str, Any] = {
+            "id": index,
+            "src": model.names[src],
+            "dst": model.names[dst],
+            "pattern": "constant",
+            "rate_mbps": round(bottleneck * share, 4),
+            "packet_bytes": packet_bytes or rng.choice((500, 1000, 1500)),
+            "start_s": 0.0 if index == 1 else round(rng.uniform(0, 0.3 * duration), 3),
+            "stop_s": duration if index == 1 else round(rng.uniform(0.7 * duration, duration), 3),
+        }
+        kind = rng.random()
+        if kind < 0.15:
+            flow["pattern"] = "poisson"
+        elif kind < 0.30:
+            flow["pattern"] = "bursty"
+            flow["on_duration_s"] = round(rng.uniform(0.5, 1.5), 3)
+            flow["off_duration_s"] = round(rng.uniform(0.2, 1.0), 3)
+        flows.append(flow)
+
+    used_links = list({link.index: link for path in paths for link in _path_links(model, path)}.values())
+    core_links = [l for l in model.links if model.kinds[l.a] != "HOST" and model.kinds[l.b] != "HOST"]
+    used_core = [l for l in used_links if l in core_links]
+    routers = [n for n, kind in model.kinds.items() if kind == "ROUTER"]
+    used_routers = sorted({n for path in paths for n in path if model.kinds[n] == "ROUTER"})
+
+    start = round(rng.uniform(0.2, 0.5) * duration, 3)
+    end = round(min(duration * 0.95, start + rng.uniform(0.15, 0.4) * duration), 3)
+    events: list[dict[str, Any]] = []
+    target: str | None = None
+    pattern = task.event_pattern
     if pattern == "link_failure":
-        link = min(topology.links, key=lambda item: float(item["bandwidthMbps"]))
-        try:
-            a = topology.id_to_name[int(link["a"])]
-            b = topology.id_to_name[int(link["b"])]
-        except KeyError as error:
-            raise ValueError(f"Link endpoint is missing from topology: {link!r}") from error
-
-        return [
-            {"type": "LINK_FAILURE", "a": a, "b": b, "time_s": start},
-            {"type": "LINK_RESTORE", "a": a, "b": b, "time_s": end},
-        ], start, end
-
-    if pattern == "router_failure":
-        if not topology.routers:
+        link = _pick(rng, used_core or used_links, core_links or list(model.links), 0.6)
+        a, b = model.names[link.a], model.names[link.b]
+        target = f"{a}-{b}"
+        events.append({"type": "LINK_FAILURE", "a": a, "b": b, "time_s": start})
+        if rng.random() < 0.9:
+            events.append({"type": "LINK_RESTORE", "a": a, "b": b, "time_s": end})
+    elif pattern == "router_failure":
+        if not routers:
             raise ValueError("Router failure requested for a topology without routers")
-        router = topology.routers[0]
-        return [
-            {"type": "ROUTER_FAILURE", "node": router, "time_s": start},
-            {"type": "ROUTER_RESTORE", "node": router, "time_s": end},
-        ], start, end
+        node = model.names[_pick(rng, used_routers, routers, 0.6)]
+        target = node
+        events.append({"type": "ROUTER_FAILURE", "node": node, "time_s": start})
+        if rng.random() < 0.9:
+            events.append({"type": "ROUTER_RESTORE", "node": node, "time_s": end})
+    elif pattern == "congestion":
+        link = _pick(rng, used_links, list(model.links), 0.7)
+        a, b = model.names[link.a], model.names[link.b]
+        target = f"{a}-{b}"
+        events.append({
+            "type": "CONGESTION", "a": a, "b": b, "time_s": start,
+            "bandwidth_multiplier": round(rng.uniform(0.2, 0.8), 3),
+            "extra_loss_rate": round(rng.uniform(0.0, 0.05), 4),
+            "duration_s": round(end - start, 3),
+        })
+    elif pattern == "burst":
+        src, dst = chosen[0] if rng.random() < 0.5 else rng.choice(pairs)
+        bottleneck = min(link.bandwidth_mbps for link in _path_links(model, router.path(src, dst)))
+        target = f"{model.names[src]}->{model.names[dst]}"
+        events.append({
+            "type": "TRAFFIC_BURST", "flow_id": len(flows) + 1,
+            "src": model.names[src], "dst": model.names[dst], "time_s": start,
+            "duration_s": round(end - start, 3), "rate_mbps": round(bottleneck * rng.uniform(0.5, 2.0), 4),
+            "packet_bytes": packet_bytes or 1000,
+        })
+    elif pattern != "none":
+        raise ValueError(f"Unsupported event pattern: {pattern}")
 
-    if pattern == "congestion":
-        link = min(topology.links, key=lambda item: float(item["bandwidthMbps"]))
-        a = topology.id_to_name[int(link["a"])]
-        b = topology.id_to_name[int(link["b"])]
-        congestion_duration = max(0.1, end - start)
-        return [
-            {
-                "type": "CONGESTION",
-                "a": a,
-                "b": b,
-                "time_s": start,
-                "bandwidth_multiplier": 0.5,
-                "extra_loss_rate": 0.02,
-                "duration_s": congestion_duration,
-            }
-        ], start, start + congestion_duration
-
-    if pattern == "burst":
-        burst_duration = max(0.1, duration_s * 0.2)
-        return [
-            {
-                "type": "TRAFFIC_BURST",
-                "flow_id": 2,
-                "src": topology.hosts[0],
-                "dst": topology.hosts[1],
-                "time_s": start,
-                "duration_s": burst_duration,
-                "rate_mbps": max(rate_mbps * 2.0, 0.1),
-                "packet_bytes": packet_bytes,
-            }
-        ], start, start + burst_duration
-
-    raise ValueError(f"Unsupported event pattern: {pattern}")
-
-
-def build_scenario(task: RunTask, packet_bytes: int = 1000) -> dict[str, Any]:
-    offered_rate = task.topology.minimum_bandwidth_mbps * task.load_pct / 100.0
-    events, disturbance_start, disturbance_end = _event_for(
-        task.event_pattern,
-        task.topology,
-        task.duration_s,
-        offered_rate,
-        packet_bytes,
-    )
-
+    reconvergence = 0 if rng.random() < 0.7 else rng.choice((50, 200, 500))
+    routing = {"algorithm": task.algorithm, "weight": weight, "reconvergence_delay_ms": reconvergence}
+    offered = sum(flow["rate_mbps"] for flow in flows)
     return {
         "name": task.run_id,
         "topology": str(task.topology.path),
         "seed": task.seed,
-        "duration_s": task.duration_s,
-        "routing": {
-            "algorithm": task.algorithm,
-            "weight": "latency",
-            "reconvergence_delay_ms": 0,
-        },
-        "flows": [
-            {
-                "id": 1,
-                "src": task.topology.hosts[0],
-                "dst": task.topology.hosts[1],
-                "pattern": "constant",
-                "rate_mbps": offered_rate,
-                "packet_bytes": packet_bytes,
-                "start_s": 0,
-                "stop_s": task.duration_s,
-            }
-        ],
+        "duration_s": duration,
+        "routing": routing,
+        "flows": flows,
         "events": events,
         "dataset_metadata": {
             "run_id": task.run_id,
             "topology_path": str(task.topology.path),
             "algorithm": task.algorithm,
-            "weight": "latency",
+            "weight": weight,
             "seed": task.seed,
-            "load_pct_of_min_link_bandwidth": task.load_pct,
-            "offered_rate_mbps": offered_rate,
-            "event_pattern": task.event_pattern,
+            "load_pct_of_path_bottleneck": task.load_pct,
+            "offered_rate_mbps": offered,
+            "flow_count": len(flows),
+            "event_pattern": pattern,
+            "event_target": target,
             "injected_events": events,
-            "disturbance_start_s": disturbance_start,
-            "disturbance_end_s": disturbance_end,
+            "disturbance_start_s": start if events else None,
+            "disturbance_end_s": end if events else None,
+            "scenario_json": json.dumps({"duration_s": duration, "routing": routing, "flows": flows, "events": events}),
         },
     }
 
@@ -315,13 +334,15 @@ def run_task(
     cli_path: Path,
     dataset_directory: Path,
     runs_directory: Path,
-    packet_bytes: int,
+    packet_bytes: int | None,
+    keep_runs: bool = True,
 ) -> dict[str, Any]:
     scenarios_directory = dataset_directory / "scenarios"
     work_directory = dataset_directory / ".work"
     scenarios_directory.mkdir(parents=True, exist_ok=True)
     work_directory.mkdir(parents=True, exist_ok=True)
-    runs_directory.mkdir(parents=True, exist_ok=True)
+    if keep_runs:
+        runs_directory.mkdir(parents=True, exist_ok=True)
 
     scenario = build_scenario(task, packet_bytes)
     scenario_path = scenarios_directory / f"{task.run_id}_scenario.json"
@@ -366,7 +387,10 @@ def run_task(
         )
 
                                                                                   
-        read_run(simulator_output, "run_001")
+        produced = read_run(simulator_output, "run_001")
+        run_row = {"run_id": task.run_id, **produced.network.iloc[0].to_dict(), **scenario["dataset_metadata"]}
+        if not keep_runs:
+            return run_row
 
         for suffix in RUN_FILE_SUFFIXES:
             source = simulator_output / f"run_001{suffix}"
@@ -381,16 +405,6 @@ def run_task(
                 )
             shutil.copy2(source, target)
 
-    retained_run = read_run(runs_directory, task.run_id)
-    metadata = retained_run.manifest.get("dataset_metadata", {})
-    if not isinstance(metadata, dict):
-        metadata = {}
-
-    run_row = {
-        "run_id": task.run_id,
-        **retained_run.network.iloc[0].to_dict(),
-        **metadata,
-    }
     return run_row
 
 
@@ -402,16 +416,17 @@ def generate_dataset(
     seeds: list[int] | None = None,
     workers: int = 1,
     duration_s: float = 10.0,
-    packet_bytes: int = 1000,
+    packet_bytes: int | None = None,
     random_state: int = 42,
     runs_output_directory: str | Path | None = None,
+    keep_runs: bool = True,
 ) -> pd.DataFrame:
     executable = Path(cli_path).expanduser().resolve()
     if not executable.is_file():
         raise FileNotFoundError(f"Project901 CLI executable not found: {executable}")
     if workers <= 0:
         raise ValueError("workers must be greater than zero")
-    if packet_bytes <= 0:
+    if packet_bytes is not None and packet_bytes <= 0:
         raise ValueError("packet_bytes must be greater than zero")
     dataset_directory = Path(output_directory).expanduser().resolve()
     dataset_directory.mkdir(parents=True, exist_ok=True)
@@ -436,19 +451,18 @@ def generate_dataset(
         run_id_start=starting_number,
     )
 
+    finished = 0
+
+    def run_one(task: RunTask) -> dict[str, Any]:
+        nonlocal finished
+        row = run_task(task, executable, dataset_directory, runs_directory, packet_bytes, keep_runs)
+        finished += 1
+        if finished % 25 == 0 or finished == len(tasks):
+            print(f"{finished}/{len(tasks)} runs done", flush=True)
+        return row
+
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        results = list(
-            executor.map(
-                lambda task: run_task(
-                    task,
-                    executable,
-                    dataset_directory,
-                    runs_directory,
-                    packet_bytes,
-                ),
-                tasks,
-            )
-        )
+        results = list(executor.map(run_one, tasks))
 
     runs_frame = pd.DataFrame(results)
 
@@ -474,7 +488,10 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3, 4, 5])
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--duration", type=float, default=10.0)
-    parser.add_argument("--packet-bytes", type=int, default=1000)
+    parser.add_argument("--packet-bytes", type=int, default=None,
+                        help="Fixed packet size for every flow (default: 500/1000/1500 at random)")
+    parser.add_argument("--discard-runs", action="store_true",
+                        help="Keep only the dataset rows, not each run's trace files")
     parser.add_argument("--random-state", type=int, default=42)
     args = parser.parse_args()
 
@@ -489,6 +506,7 @@ def main() -> None:
         packet_bytes=args.packet_bytes,
         random_state=args.random_state,
         runs_output_directory=args.runs_output,
+        keep_runs=not args.discard_runs,
     )
     run_directory = (
         Path(args.runs_output).resolve()

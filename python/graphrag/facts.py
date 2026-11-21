@@ -1,5 +1,3 @@
-"""Extract deterministic, evidence-backed facts from a NetMind run graph."""
-
 from __future__ import annotations
 
 import math
@@ -18,7 +16,6 @@ def _time(value: Any) -> float | None:
 
 
 def _compact(value: Any) -> str:
-    """Normalize endpoint names such as 'A-B' and 'A>B' for comparison."""
     return re.sub(r"[\s>.-]+", "", str(value or "")).lower()
 
 
@@ -119,7 +116,6 @@ def _packet_paths(
     graph: nx.MultiDiGraph,
     flow_key: str,
 ) -> dict[str, list[tuple[float, str]]]:
-    """Group forwarding observations by packet, in time order."""
     packets: dict[str, list[tuple[float, str]]] = {}
 
     for device_key, edge in _relation_targets(graph, flow_key, "ROUTED_VIA"):
@@ -374,7 +370,7 @@ def _congestion_facts(
     run_end = _run_end_time(trace_rows)
 
     for event_key, event in _nodes_of_type(graph, "Event"):
-        if event.get("type") != "CONGESTION":
+        if event.get("type") not in {"CONGESTION", "LINK_DEGRADED"}:
             continue
 
         start_time = _time(event.get("time"))
@@ -391,6 +387,13 @@ def _congestion_facts(
             target,
             start_time,
         )
+        if end_time is None:
+            end_time = _matching_event_end(
+                graph,
+                "LINK_UP",
+                target,
+                start_time,
+            )
         if end_time is None:
             end_time = run_end
 
@@ -521,11 +524,6 @@ def extract_facts(
     trace_rows: Iterable[dict[str, Any]],
     anomaly_lookback_seconds: float = 1.0,
 ) -> list[dict[str, Any]]:
-    """Return stable, fact-cited explanations for one run graph.
-
-    ``trace_rows`` should contain dictionaries read from that run's trace CSV.
-    Each returned fact has ``id``, ``type``, ``text``, and ``evidence`` fields.
-    """
     if not isinstance(graph, nx.MultiDiGraph):
         raise TypeError("graph must be a NetworkX MultiDiGraph")
     if (

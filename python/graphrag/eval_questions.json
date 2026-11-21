@@ -1,0 +1,103 @@
+{
+  "scenarios": {
+    "ring_link_failure": {
+      "topology": "config/topologies/ring_backup.json",
+      "seed": 42,
+      "duration_s": 10,
+      "weight": "latency",
+      "algorithms": ["bfs", "dfs", "dijkstra", "bellman-ford"],
+      "flows": [
+        {"id": 1, "src": "PC1", "dst": "PC2", "pattern": "constant", "rate_mbps": 5, "packet_bytes": 1000, "start_s": 0, "stop_s": 10}
+      ],
+      "events": [
+        {"type": "LINK_FAILURE", "a": "R1", "b": "R2", "time_s": 3},
+        {"type": "LINK_RESTORE", "a": "R1", "b": "R2", "time_s": 7}
+      ]
+    },
+    "ring_router_failure": {
+      "topology": "config/topologies/ring_backup.json",
+      "seed": 7,
+      "duration_s": 8,
+      "weight": "latency",
+      "algorithms": ["dijkstra"],
+      "flows": [
+        {"id": 1, "src": "PC1", "dst": "PC2", "pattern": "constant", "rate_mbps": 8, "packet_bytes": 500, "start_s": 1, "stop_s": 7}
+      ],
+      "events": [
+        {"type": "ROUTER_FAILURE", "node": "R3", "time_s": 3},
+        {"type": "ROUTER_RESTORE", "node": "R3", "time_s": 4}
+      ]
+    },
+    "dumbbell_congestion": {
+      "topology": "config/topologies/dumbbell.json",
+      "seed": 11,
+      "duration_s": 6,
+      "weight": "latency",
+      "algorithms": ["dijkstra"],
+      "flows": [
+        {"id": 1, "src": "LeftPC1", "dst": "RightPC1", "pattern": "constant", "rate_mbps": 40, "packet_bytes": 1000, "start_s": 0, "stop_s": 6},
+        {"id": 2, "src": "LeftPC2", "dst": "RightPC2", "pattern": "constant", "rate_mbps": 30, "packet_bytes": 1000, "start_s": 0, "stop_s": 6}
+      ],
+      "events": []
+    },
+    "medium_compare": {
+      "topology": "config/topologies/medium10.json",
+      "seed": 5,
+      "duration_s": 8,
+      "weight": "latency",
+      "algorithms": ["bfs", "dfs", "dijkstra", "bellman-ford"],
+      "flows": [
+        {"id": 1, "src": "PC1", "dst": "PC4", "pattern": "constant", "rate_mbps": 20, "packet_bytes": 1000, "start_s": 0, "stop_s": 8},
+        {"id": 2, "src": "PC2", "dst": "PC3", "pattern": "constant", "rate_mbps": 20, "packet_bytes": 1000, "start_s": 0, "stop_s": 8}
+      ],
+      "events": [
+        {"type": "LINK_FAILURE", "a": "R3", "b": "R4", "time_s": 3}
+      ]
+    }
+  },
+  "questions": [
+    {"id": "ring-best", "scenario": "ring_link_failure", "question": "Which algorithm performed best?",
+     "check": {"kind": "best_algorithm", "metric": "latency_ms"}, "tool": {"name": "compare_runs", "args": {"metric": "latency_ms"}}},
+    {"id": "ring-best-para", "scenario": "ring_link_failure", "question": "Which routing method gave the lowest delay?",
+     "check": {"kind": "best_algorithm", "metric": "latency_ms"}, "tool": {"name": "compare_runs", "args": {"metric": "latency_ms"}}},
+    {"id": "ring-failure", "scenario": "ring_link_failure", "question": "Which link failed and when?",
+     "check": {"kind": "first_failure"}, "tool": {"name": "network_events", "run": "dijkstra", "args": {}}},
+    {"id": "ring-path-before", "scenario": "ring_link_failure", "question": "What path did PC1 to PC2 use at 1 second?",
+     "check": {"kind": "flow_path", "run": "dijkstra", "src": "PC1", "dst": "PC2", "at": 1}, "tool": {"name": "flow_path", "run": "dijkstra", "args": {"src": "PC1", "dst": "PC2", "at_time": 1}}},
+    {"id": "ring-path-during", "scenario": "ring_link_failure", "question": "What path did PC1 to PC2 use at 5 seconds?",
+     "check": {"kind": "flow_path", "run": "dijkstra", "src": "PC1", "dst": "PC2", "at": 5}, "tool": {"name": "flow_path", "run": "dijkstra", "args": {"src": "PC1", "dst": "PC2", "at_time": 5}}},
+    {"id": "ring-path-para", "scenario": "ring_link_failure", "question": "After the failure, how did traffic from PC1 get to PC2?",
+     "check": {"kind": "flow_path", "run": "dijkstra", "src": "PC1", "dst": "PC2", "at": 5}, "tool": {"name": "flow_path", "run": "dijkstra", "args": {"src": "PC1", "dst": "PC2", "at_time": 5}}},
+
+    {"id": "router-drops", "scenario": "ring_router_failure", "question": "Why were packets dropped around 3 seconds?",
+     "check": {"kind": "drop_reason", "run": "dijkstra", "from": 2, "to": 5}, "tool": {"name": "drops", "run": "dijkstra", "args": {"t_from": 2, "t_to": 5}}},
+    {"id": "router-drops-para", "scenario": "ring_router_failure", "question": "What caused the packet loss in this run?",
+     "check": {"kind": "drop_reason", "run": "dijkstra", "from": null, "to": null}, "tool": {"name": "drops", "run": "dijkstra", "args": {}}},
+    {"id": "router-count", "scenario": "ring_router_failure", "question": "How many packets were dropped in total?",
+     "check": {"kind": "drop_total", "run": "dijkstra"}, "tool": {"name": "run_summary", "run": "dijkstra", "args": {}}},
+    {"id": "router-failure", "scenario": "ring_router_failure", "question": "Which device went down and when?",
+     "check": {"kind": "first_failure"}, "tool": {"name": "network_events", "run": "dijkstra", "args": {}}},
+
+    {"id": "dumbbell-congested", "scenario": "dumbbell_congestion", "question": "Which link was most congested?",
+     "check": {"kind": "busiest_link", "run": "dijkstra"}, "tool": {"name": "link_load", "run": "dijkstra", "args": {}}},
+    {"id": "dumbbell-congested-para", "scenario": "dumbbell_congestion", "question": "Where was the bottleneck in the network?",
+     "check": {"kind": "busiest_link", "run": "dijkstra"}, "tool": {"name": "link_load", "run": "dijkstra", "args": {}}},
+    {"id": "dumbbell-drops", "scenario": "dumbbell_congestion", "question": "Why were packets dropped around 3 seconds?",
+     "check": {"kind": "drop_reason", "run": "dijkstra", "from": 1, "to": 5}, "tool": {"name": "drops", "run": "dijkstra", "args": {"t_from": 1, "t_to": 5}}},
+    {"id": "dumbbell-loss", "scenario": "dumbbell_congestion", "question": "How many packets were dropped in total?",
+     "check": {"kind": "drop_total", "run": "dijkstra"}, "tool": {"name": "run_summary", "run": "dijkstra", "args": {}}},
+
+    {"id": "medium-best", "scenario": "medium_compare", "question": "Which algorithm performed best?",
+     "check": {"kind": "best_algorithm", "metric": "latency_ms"}, "tool": {"name": "compare_runs", "args": {"metric": "latency_ms"}}},
+    {"id": "medium-reliable", "scenario": "medium_compare", "question": "Which algorithm delivered the most packets reliably?",
+     "check": {"kind": "best_algorithm", "metric": "reliability_pct"}, "tool": {"name": "compare_runs", "args": {"metric": "reliability_pct"}}},
+    {"id": "medium-hops", "scenario": "medium_compare", "question": "Which algorithm used the shortest paths?",
+     "check": {"kind": "best_algorithm", "metric": "avg_hops"}, "tool": {"name": "compare_runs", "args": {"metric": "avg_hops"}}},
+    {"id": "medium-path", "scenario": "medium_compare", "question": "What path did PC1 to PC4 use at 5 seconds?",
+     "check": {"kind": "flow_path", "run": "dfs", "src": "PC1", "dst": "PC4", "at": 5}, "tool": {"name": "flow_path", "run": "dfs", "args": {"src": "PC1", "dst": "PC4", "at_time": 5}}},
+    {"id": "medium-congested", "scenario": "medium_compare", "question": "Which link was most congested?",
+     "check": {"kind": "busiest_link", "run": "dijkstra"}, "tool": {"name": "link_load", "run": "dijkstra", "args": {}}},
+    {"id": "medium-failure", "scenario": "medium_compare", "question": "Which link failed and when?",
+     "check": {"kind": "first_failure"}, "tool": {"name": "network_events", "run": "dijkstra", "args": {}}}
+  ]
+}

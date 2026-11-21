@@ -1,5 +1,3 @@
-"""Schema-checked readers for exported NetMind run files."""
-
 from __future__ import annotations
 
 import csv
