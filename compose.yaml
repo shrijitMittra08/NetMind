@@ -1,0 +1,18 @@
+services:
+  netmind:
+    build: .
+    image: netmind:latest
+    container_name: netmind
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - netmind-data:/app/data
+      - netmind-config:/app/config
+    env_file:
+      - path: python/.env
+        required: false
+    restart: unless-stopped
+
+volumes:
+  netmind-data:
+  netmind-config:

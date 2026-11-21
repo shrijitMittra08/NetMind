@@ -1,7 +1,6 @@
-"""Local HTTP API used by the NetMind React frontend."""
-
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
@@ -9,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import uuid
@@ -25,11 +25,32 @@ import pandas as pd
 from common.io import read_run
 from graphrag.build_kg import build_run_graph
 from graphrag.facts import extract_facts
+from graphrag import llm as llm_config
+from graphrag import tools as qa_tools
+from graphrag.answer_rules import answer_with_rules
 from graphrag.query import answer_question
-from ml.baseline import evaluate_expected_baseline
+from graphrag.session import QASession
+from ml.baseline import ExpectedMetricBaseline, event_pattern_of
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+FROZEN = getattr(sys, "frozen", False)
+RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+
+
+def _user_home() -> Path:
+    configured = os.environ.get("NETMIND_HOME")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    base = os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share"
+    return Path(base) / "NetMind"
+
+
+PROJECT_ROOT = _user_home() if FROZEN else Path(__file__).resolve().parents[1]
+if FROZEN and not (PROJECT_ROOT / "config").exists():
+    PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(RESOURCE_ROOT / "config", PROJECT_ROOT / "config")
 DATA_DIR = Path(os.environ.get("NETMIND_DATA_DIR", PROJECT_ROOT / "data")).resolve()
+if FROZEN and not (DATA_DIR / "dataset").exists():
+    shutil.copytree(RESOURCE_ROOT / "seed" / "dataset", DATA_DIR / "dataset")
 SCENARIOS_DIR = PROJECT_ROOT / "config" / "scenarios"
 TOPOLOGIES_DIR = PROJECT_ROOT / "config" / "topologies"
 
@@ -39,9 +60,16 @@ NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _GUI_ALGORITHMS = ("bfs", "dfs", "dijkstra", "bellman-ford")
 _GUI_WEIGHTS = {"hops", "latency", "latency+congestion"}
 
-_GRAPH_CACHE: dict[str, tuple[Any, list[dict[str, Any]]]] = {}
-_BASELINE_CACHE: dict[str, dict[str, Any]] = {}
-_RUN_LOCK = threading.Lock()                                                              
+_GRAPH_CACHE: dict[tuple[str, int], tuple[Any, list[dict[str, Any]]]] = {}
+_QA_CACHE: dict[tuple[str, int], qa_tools.RunContext] = {}
+_BASELINE_MODEL: dict[str, Any] = {}
+_BASELINE_LOCK = threading.Lock()
+
+
+def _run_stamp(run_id: str) -> int:
+    return (DATA_DIR / f"{run_id}.json").stat().st_mtime_ns
+_RUN_LOCK = threading.Lock()
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 def _num(value: Any) -> float | None:
     try:
@@ -56,7 +84,17 @@ def _absolute_project_path(value: Any) -> str:
     if not text:
         return text
     path = Path(text.replace("\\", "/")).expanduser()
-    return str(path if path.is_absolute() else (PROJECT_ROOT / path).resolve())
+    foreign_absolute = re.match(r"^[A-Za-z]:/", text.replace("\\", "/")) is not None
+    if not path.is_absolute() and not foreign_absolute:
+        return str((PROJECT_ROOT / path).resolve())
+    if not path.exists():
+        parts = path.parts
+        for anchor in ("config", "data"):
+            if anchor in parts:
+                moved = PROJECT_ROOT.joinpath(*parts[parts.index(anchor):])
+                if moved.exists():
+                    return str(moved)
+    return str(path)
 
 
 def _run_ids() -> list[dict[str, str]]:
@@ -337,7 +375,8 @@ def _graph_for_run(run_id: str) -> tuple[Any, list[dict[str, Any]]]:
     if not RUN_ID_PATTERN.fullmatch(run_id):
         raise ValueError("Invalid run ID")
 
-    cached = _GRAPH_CACHE.get(run_id)
+    key = (run_id, _run_stamp(run_id))
+    cached = _GRAPH_CACHE.get(key)
     if cached is not None:
         return cached
 
@@ -354,11 +393,52 @@ def _graph_for_run(run_id: str) -> tuple[Any, list[dict[str, Any]]]:
         graph = build_run_graph(staging, run_id, topology_path=topology_path)
 
     facts = extract_facts(graph, run.trace.to_dict(orient="records"))
-    _GRAPH_CACHE[run_id] = (graph, facts)
-    return _GRAPH_CACHE[run_id]
+    _GRAPH_CACHE[key] = (graph, facts)
+    return _GRAPH_CACHE[key]
 
 
-def _answer_graphrag(run_ids: list[str], question: str) -> dict[str, Any]:
+def _qa_session(run_ids: list[str]) -> QASession:
+    contexts = []
+    for run_id in dict.fromkeys(run_ids):
+        if not RUN_ID_PATTERN.fullmatch(run_id):
+            raise ValueError("Invalid run ID")
+        key = (run_id, _run_stamp(run_id))
+        if key not in _QA_CACHE:
+            manifest = json.loads((DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig"))
+            _QA_CACHE[key] = qa_tools.load_run(DATA_DIR, run_id, _topology_path_for(manifest))
+        contexts.append(_QA_CACHE[key])
+    return QASession(contexts)
+
+
+def _answer_graphrag(
+    run_ids: list[str],
+    question: str,
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    session = _qa_session(run_ids)
+    model = llm_config.chat_model()
+    if model is None:
+        result = answer_with_rules(session, question)
+    else:
+        try:
+            from graphrag.agent import answer_with_agent
+
+            result = answer_with_agent(session, question, model, history)
+        except Exception as error:  # noqa: BLE001
+            result = answer_with_rules(session, question)
+            result["fallback_reason"] = (
+                f"The AI service could not answer ({type(error).__name__}: {str(error)[:160]}), "
+                "so the rule-based answer is shown."
+            )
+
+    result["facts"] = [
+        {"id": call["name"], "text": ", ".join(f"{k}={v}" for k, v in call["args"].items()) or "all runs"}
+        for call in result.get("tool_calls", [])
+    ]
+    return result
+
+
+def _answer_graphrag_legacy(run_ids: list[str], question: str) -> dict[str, Any]:
     ids = list(dict.fromkeys(run_ids))
     if not ids:
         raise ValueError("Select at least one run")
@@ -425,31 +505,34 @@ def _baseline_metric_rows(row: Any) -> list[dict[str, Any]]:
         })
     return metrics
 
-def _analyze_expected_baseline_uncached(run_id: str) -> dict[str, Any]:
-    if not RUN_ID_PATTERN.fullmatch(run_id):
-        raise ValueError("Invalid run ID")
-
+def _baseline_model() -> tuple[ExpectedMetricBaseline, pd.DataFrame]:
     runs_path = DATA_DIR / "dataset" / "runs_all.csv"
     if not runs_path.is_file():
         raise FileNotFoundError(
             f"Run dataset not found: {runs_path}. Generate the ML dataset first."
         )
+    stamp = runs_path.stat().st_mtime_ns
+    with _BASELINE_LOCK:
+        if _BASELINE_MODEL.get("stamp") != stamp:
+            runs = pd.read_csv(runs_path, keep_default_na=False)
+            if "topology_path" in runs.columns:
+                runs["topology_path"] = runs["topology_path"].map(_absolute_project_path)
+            if "run_id" not in runs.columns:
+                raise ValueError("The run dataset has no run_id column")
+            runs["run_id"] = runs["run_id"].astype(str)
+            model = ExpectedMetricBaseline().fit(runs)
+            _BASELINE_MODEL.update(stamp=stamp, model=model, runs=runs)
+        return _BASELINE_MODEL["model"], _BASELINE_MODEL["runs"]
 
-    runs = pd.read_csv(runs_path, keep_default_na=False)
-    if "topology_path" in runs.columns:
-        runs["topology_path"] = runs["topology_path"].map(_absolute_project_path)
-    if "run_id" not in runs.columns:
-        raise ValueError("The run dataset has no run_id column")
 
-    runs["run_id"] = runs["run_id"].astype(str)
-    if run_id not in set(runs["run_id"]):
-        raise FileNotFoundError(f"{run_id} is not present in {runs_path.name}")
-
-    _, validation = evaluate_expected_baseline(runs, n_estimators=100, random_state=42)
-    selected = validation.loc[validation["run_id"].astype(str) == run_id]
+def _analyze_expected_baseline(run_id: str) -> dict[str, Any]:
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("Invalid run ID")
+    model, runs = _baseline_model()
+    assert model.validation_predictions_ is not None
+    selected = model.validation_predictions_.loc[runs["run_id"] == run_id]
     if selected.empty:
-        raise ValueError(f"No baseline validation result was produced for {run_id}")
-
+        raise FileNotFoundError(f"{run_id} is not present in the baseline dataset")
     return {
         "run_id": run_id,
         "label": "expected/baseline",
@@ -457,49 +540,13 @@ def _analyze_expected_baseline_uncached(run_id: str) -> dict[str, Any]:
     }
 
 
-def _analyze_expected_baseline(run_id: str) -> dict[str, Any]:
-    if run_id not in _BASELINE_CACHE:
-        _BASELINE_CACHE[run_id] = _analyze_expected_baseline_uncached(run_id)
-    return _BASELINE_CACHE[run_id]
-
-
 def _baseline_for_new_run(run_row: dict[str, Any]) -> dict[str, Any]:
-    """Compare a just-completed GUI run against topology-held-out estimates."""
-    runs_path = DATA_DIR / "dataset" / "runs_all.csv"
-    if not runs_path.is_file():
-        return {
-            "error": (
-                "The baseline dataset is missing. Generate "
-                "data/dataset/runs_all.csv first."
-            )
-        }
-
     try:
-        runs = pd.read_csv(runs_path, keep_default_na=False)
-        if "topology_path" in runs.columns:
-            runs["topology_path"] = runs["topology_path"].map(_absolute_project_path)
-
-                                                                        
-        if "loss_pct" in runs.columns:
-            loss = pd.to_numeric(runs["loss_pct"], errors="coerce")
-        else:
-            loss = pd.Series(float("nan"), index=runs.index)
-        if "reliability_pct" in runs.columns:
-            reliability = pd.to_numeric(runs["reliability_pct"], errors="coerce")
-            loss = loss.fillna(100.0 - reliability)
-        runs["loss_pct"] = loss
-
-        runs = runs.loc[runs["run_id"].astype(str) != str(run_row["run_id"])]
-        runs = pd.concat([runs, pd.DataFrame([run_row])], ignore_index=True)
-
-        _, validation = evaluate_expected_baseline(runs, n_estimators=100, random_state=42)
-        selected = validation.loc[
-            validation["run_id"].astype(str) == str(run_row["run_id"])
-        ]
-        if selected.empty:
-            return {"error": "No baseline estimate was produced for this run."}
-
-        return {"metrics": _baseline_metric_rows(selected.iloc[0])}
+        model, _ = _baseline_model()
+        prediction = model.predict(pd.DataFrame([run_row]))
+        return {"metrics": _baseline_metric_rows(prediction.iloc[0])}
+    except FileNotFoundError:
+        return {"error": "The baseline dataset is missing. Generate data/dataset/runs_all.csv first."}
     except Exception as error:
         return {"error": f"Baseline unavailable: {error}"}
 
@@ -510,11 +557,12 @@ def _baseline_for_new_run(run_row: dict[str, Any]) -> dict[str, Any]:
 
 def _cli_path() -> Path:
     configured = os.environ.get("NETMIND_CLI")
-    cli = (
-        Path(configured).expanduser().resolve()
-        if configured
-        else PROJECT_ROOT / "build" / "debug" / "netmind_cli.exe"
-    )
+    if configured:
+        cli = Path(configured).expanduser().resolve()
+    elif FROZEN:
+        cli = RESOURCE_ROOT / "bin" / "netmind_cli.exe"
+    else:
+        cli = PROJECT_ROOT / "build" / "debug" / "netmind_cli.exe"
     if not cli.is_file():
         raise FileNotFoundError(
             f"NetMind CLI executable not found: {cli}. "
@@ -534,6 +582,7 @@ def _run_cli(scenario_path: Path) -> str:
             text=True,
             timeout=600,
             check=False,
+            creationflags=_NO_WINDOW,
         )
         if completed.returncode != 0:
             raise RuntimeError(
@@ -548,19 +597,6 @@ def _run_cli(scenario_path: Path) -> str:
     return new_ids[0]
 
 
-def _event_pattern(events: list[dict[str, Any]]) -> str:
-    types = {str(event.get("type", "")) for event in events}
-    if "TRAFFIC_BURST" in types:
-        return "burst"
-    if "CONGESTION" in types:
-        return "congestion"
-    if types & {"ROUTER_FAILURE", "ROUTER_RESTORE"}:
-        return "router_failure"
-    if types & {"LINK_FAILURE", "LINK_RESTORE"}:
-        return "link_failure"
-    return "none"
-
-
 def _finish_run(
     run_id: str,
     fields: dict[str, Any],
@@ -573,8 +609,18 @@ def _finish_run(
     if not isinstance(metadata, dict):
         metadata = {}
 
-    pattern = _event_pattern(fields["events"])
+    pattern = event_pattern_of(fields["events"])
     offered = sum(float(flow.get("rate_mbps", 0)) for flow in fields["flows"])
+    scenario_json = json.dumps({
+        "duration_s": fields["duration"],
+        "routing": {
+            "algorithm": algorithm,
+            "weight": fields["weight"],
+            "reconvergence_delay_ms": fields.get("reconvergence_ms", 0),
+        },
+        "flows": fields["flows"],
+        "events": fields["events"],
+    })
     metadata.update({
         "topology_path": str(topology_path.resolve()),
         "topology_file": topology_path.name,
@@ -583,6 +629,7 @@ def _finish_run(
         "seed": fields["seed"],
         "event_pattern": pattern,
         "offered_rate_mbps": offered,
+        "scenario_json": scenario_json,
     })
     manifest["dataset_metadata"] = metadata
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -596,6 +643,7 @@ def _finish_run(
         "seed": fields["seed"],
         "event_pattern": pattern,
         "offered_rate_mbps": offered,
+        "scenario_json": scenario_json,
         **network,
     }
     reliability = _num(run_row.get("reliability_pct"))
@@ -626,7 +674,10 @@ def _finish_run(
             "recovery_time_s": _num(run_row.get("recovery_time_s")),
             "avg_hops": avg_hops,
         },
-        "baseline": _baseline_for_new_run(run_row),
+        "baseline": (
+            _baseline_for_new_run(run_row) if fields["flows"]
+            else {"error": "No baseline: the run's traffic flows are not known."}
+        ),
     }
 
 
@@ -671,11 +722,139 @@ def _run_gui_simulation(body: dict[str, Any]) -> dict[str, Any]:
         runs.append(_finish_run(run_id, fields, algorithm, topology_path))
 
     return {"runs": runs}
-                                                                           
+
+
+_SCRIPT_MAX_BYTES = 100_000
+_SCRIPT_MAX_LINES = 2_000
+_CLI_PROMPT = "netmind> "
+
+
+def _strip_script_comment(line: str) -> str:
+    quote = ""
+    for index, char in enumerate(line):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "\"'":
+            quote = char
+        elif char == "#" and (index == 0 or line[index - 1].isspace()):
+            return line[:index]
+    return line
+
+
+def _prepare_script(script: str, export_results: bool) -> tuple[list[tuple[int, str]], list[str]]:
+    if len(script.encode("utf-8")) > _SCRIPT_MAX_BYTES:
+        raise ValueError("Script is too large")
+    raw_lines = script.splitlines()
+    if len(raw_lines) > _SCRIPT_MAX_LINES:
+        raise ValueError(f"Script has too many lines (limit {_SCRIPT_MAX_LINES})")
+
+    commands: list[tuple[int, str]] = []
+    notes: list[str] = []
+    for number, raw in enumerate(raw_lines, start=1):
+        line = _strip_script_comment(raw).strip()
+        if not line:
+            continue
+        words = line.split()
+        if words[0].lower() == "load":
+            notes.append(f"Line {number}: load ignored, the topology chosen in the workbench is used.")
+            continue
+        if words[0].lower() == "export" and len(words) > 1:
+            notes.append(f"Line {number}: export always writes to the NetMind data folder.")
+            line = "export"
+        commands.append((number, line))
+
+    names = [command.split()[0].lower() for _, command in commands]
+    if export_results and "run" in names and "export" not in names:
+        commands.append((0, "export"))
+        notes.append("export was added at the end so the run can be replayed and analysed.")
+    return commands, notes
+
+
+def _split_cli_transcript(stdout: str, count: int) -> list[str]:
+    pieces = stdout.split(_CLI_PROMPT)
+    blocks = pieces[1:]
+    return (blocks + [""] * count)[:count]
+
+
+def _run_script(body: dict[str, Any]) -> dict[str, Any]:
+    topology = body["topology"]
+    if not isinstance(topology.get("nodes"), list) or not isinstance(topology.get("links"), list):
+        raise ValueError("Topology must contain nodes and links")
+    commands, notes = _prepare_script(body["script"], bool(body.get("export_results", True)))
+    if not commands:
+        raise ValueError("The script has no commands to run")
+
+    cli = _cli_path()
+    topologies_dir = DATA_DIR / "gui_topologies"
+    topologies_dir.mkdir(parents=True, exist_ok=True)
+    topology_path = topologies_dir / f"topology_{uuid.uuid4().hex[:12]}.json"
+    topology_path.write_text(json.dumps(topology, indent=2), encoding="utf-8")
+
+    quoted = str(topology_path.resolve()).replace("\\", "\\\\").replace('"', '\\"')
+    sent = [f'load "{quoted}"'] + [command for _, command in commands]
+    with _RUN_LOCK:
+        before = {path.stem for path in DATA_DIR.glob("run_*.json")}
+        completed = subprocess.run(
+            [str(cli), "--out", str(DATA_DIR)],
+            input="\n".join(sent) + "\n",
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=600,
+            check=False,
+            creationflags=_NO_WINDOW,
+        )
+        new_ids = sorted(
+            path.stem for path in DATA_DIR.glob("run_*.json") if path.stem not in before
+        )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "The simulator stopped unexpectedly.\n"
+            f"{completed.stderr.strip() or completed.stdout.strip()}"
+        )
+
+    blocks = _split_cli_transcript(completed.stdout, len(sent))
+    transcript = []
+    for index, ((number, command), block) in enumerate(
+        zip([(0, "load <topology>")] + commands, blocks)
+    ):
+        failed = any(line.startswith("% ") for line in block.splitlines())
+        if index == 0 and not failed:
+            continue
+        transcript.append(
+            {"line": number, "command": command, "output": block.rstrip("\n"), "ok": not failed}
+        )
+
+    settings = body.get("settings") or {}
+    runs = []
+    for run_id in new_ids:
+        manifest = json.loads((DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig"))
+        fields = {
+            "events": settings.get("events") or [],
+            "flows": settings.get("flows") or [],
+            "weight": manifest.get("weight", settings.get("weight", "latency")),
+            "seed": manifest.get("seed", settings.get("seed", 0)),
+            "duration": manifest.get("simulation_time_s", settings.get("duration_s", 0)),
+            "reconvergence_ms": float(settings.get("reconvergence_delay_ms", 0) or 0),
+        }
+        runs.append(_finish_run(run_id, fields, manifest.get("algorithm", "dijkstra"), topology_path))
+
+    return {
+        "ok": all(entry["ok"] for entry in transcript),
+        "transcript": transcript,
+        "notes": notes,
+        "runs": runs,
+    }
+
+
 class GraphQueryRequest(BaseModel):
     question: str
     run_ids: list[str] | None = None
     run_id: str | None = None
+    history: list[dict[str, str]] | None = None
 
 
 class BaselineRequest(BaseModel):
@@ -698,16 +877,37 @@ class SimulationRequest(BaseModel):
     algorithms: list[str] | None = None
 
 
+class ScriptRunRequest(BaseModel):
+    topology: dict[str, Any]
+    script: str
+    export_results: bool = True
+    settings: dict[str, Any] = Field(default_factory=dict)
+
+
 class ScenarioSaveRequest(SimulationRequest):
     name: str
     topology_name: str = ""
     overwrite: bool = False
 
 
+def _warm_baseline() -> None:
+    try:
+        _baseline_model()
+    except Exception:
+        pass
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    threading.Thread(target=_warm_baseline, name="baseline-warmup", daemon=True).start()
+    yield
+
+
 app = FastAPI(
     title="NetMind API",
     version="1.0.0",
     description="Local API for NetMind simulation, replay, baseline analysis, and GraphRAG.",
+    lifespan=_lifespan,
 )
 
 
@@ -845,7 +1045,13 @@ def query_graphrag(body: GraphQueryRequest) -> dict[str, Any]:
     return _answer_graphrag(
         [run_id.strip() for run_id in run_ids],
         question,
+        body.history,
     )
+
+
+@app.get("/api/graphrag/status")
+def graphrag_status() -> dict[str, Any]:
+    return llm_config.describe()
 
 
 @app.post("/api/ml/baseline")
@@ -862,6 +1068,11 @@ def run_simulation(body: SimulationRequest) -> dict[str, Any]:
     return _run_gui_simulation(body.model_dump())
 
 
+@app.post("/api/script/run")
+def run_script(body: ScriptRunRequest) -> dict[str, Any]:
+    return _run_script(body.model_dump())
+
+
 @app.post("/api/scenario/resolve")
 def resolve_scenario(body: ScenarioResolveRequest) -> dict[str, Any]:
     return _resolve_scenario_topology(body.scenario)
@@ -875,8 +1086,16 @@ def save_scenario(body: ScenarioSaveRequest) -> dict[str, Any]:
 def main() -> None:
     import uvicorn
 
-    host = "127.0.0.1"
-    port = 8765
+    host = os.environ.get("NETMIND_HOST", "127.0.0.1")
+    port = int(os.environ.get("NETMIND_PORT", "8765"))
+    viewer = os.environ.get("NETMIND_VIEWER_DIR")
+    if viewer:
+        from fastapi.staticfiles import StaticFiles
+
+        if not (Path(viewer) / "index.html").is_file():
+            raise FileNotFoundError(f"Built viewer not found in {viewer}")
+        app.mount("/", StaticFiles(directory=viewer, html=True), name="viewer")
+        print(f"Serving the viewer from: {viewer}")
     print(f"NetMind API listening at http://{host}:{port}")
     print(f"Reading exported runs from: {DATA_DIR}")
     uvicorn.run(app, host=host, port=port)
