@@ -142,7 +142,7 @@ void printJsonSummary(netmind::cli::Session& session) {
     std::cout << summary.dump() << '\n';
 }
 
-}  // namespace
+}
 
 int main(int argc, char* argv[]) {
     try {

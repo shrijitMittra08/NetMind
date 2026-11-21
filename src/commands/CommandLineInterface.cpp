@@ -60,7 +60,7 @@ public:
     }
 };
 
-} // namespace
+}
 
 CommandLineInterface::CommandLineInterface(Session& session)
     : session_(session) {
@@ -146,8 +146,6 @@ std::vector<std::string> CommandLineInterface::tokenize(
                 if (hasNext) {
                     const char next = line[i + 1];
 
-                    // Inside quotes, only consume a backslash when it
-                    // escapes the active quote or another backslash.
                     if (next == quoteCharacter || next == '\\') {
                         current += next;
                         ++i;
@@ -156,8 +154,6 @@ std::vector<std::string> CommandLineInterface::tokenize(
                     }
                 }
 
-                // Preserve ordinary Windows path separators, such as
-                // the backslash in C:\Users\name.
                 current += character;
                 tokenStarted = true;
                 continue;

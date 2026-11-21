@@ -62,7 +62,7 @@ private:
     std::vector<std::string>& messages_;
 };
 
-} // namespace
+}
 
 Session::Session() = default;
 
@@ -95,7 +95,6 @@ void Session::setEngine(std::unique_ptr<SimulationEngine> engine) {
 }
 
 void Session::clearRuntime() {
-    // The engine stores non-owning observer pointers, so destroy it first.
     engine_.reset();
     observers_.clear();
     metrics_ = nullptr;
@@ -142,8 +141,6 @@ void Session::ensureEngine() {
     consoleObserver_ = console.get();
     addObserver(std::move(console));
 
-    // ScenarioManager transfers the graph into the engine and schedules its
-    // declared flows/events. Running to zero applies events scheduled at t=0.
     scenarioManager_.run(*engine_, 0.0);
 }
 

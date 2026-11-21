@@ -251,7 +251,7 @@ void registerCommand(CommandLineInterface& cli, std::string name,
         std::move(name), std::move(help), std::move(handler)));
 }
 
-} // namespace
+}
 
 void registerSimulationCommands(CommandLineInterface& cli) {
     registerCommand(cli, "show route", "Show a router forwarding table",
@@ -455,8 +455,6 @@ void registerSimulationCommands(CommandLineInterface& cli) {
                 std::make_shared<PingRequestEvent>(std::move(request)));
         }
 
-        // The last request is sent at firstSendTime + count - 1 and gets
-        // its own two-second reply window.
         const SimTime deadline =
             firstSendTime + static_cast<double>(count - 1) + 2.0;
 
@@ -787,4 +785,4 @@ void registerSimulationCommands(CommandLineInterface& cli) {
         });
 }
 
-} // namespace netmind::cli
+}

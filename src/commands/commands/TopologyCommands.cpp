@@ -88,7 +88,7 @@ std::string neighborNames(const Graph& graph, NodeId nodeId) {
     return result.str();
 }
 
-} // namespace
+}
 
 std::string LoadCommand::name() const {
     return "load";
@@ -133,7 +133,6 @@ void LoadCommand::execute(
     const std::size_t nodeCount = candidate.graph().numNodes();
     const std::size_t linkCount = candidate.graph().numLinks();
 
-    // Replace the active state only after the new file has loaded correctly.
     session.clearRuntime();
     session.scenarioManager() = std::move(candidate);
 

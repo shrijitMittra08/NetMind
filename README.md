@@ -27,14 +27,19 @@ It can also execute a text command script or run a scenario file from the comman
 ### Python API and React workbench
 
 - A FastAPI service connects the GUI to the C++ simulator and exported run files.
-- The React workbench configures and runs simulations, can save scenarios, shows expected-baseline results, loads runs into the replay viewer, and provides a GraphRAG question panel.
+- The React workbench builds or imports topologies, configures and runs simulations (interactively or as a CLI script), saves, downloads and imports scenario files (topology + settings), shows expected-baseline results, loads runs into the replay viewer, and provides a GraphRAG question panel. `docs/DEMO_GUIDE.md` walks through every feature; `docs/demo/` holds the files it imports.
 - The replay viewer reads exported run files and displays packet movement and run comparisons; it does not run simulations itself.
 
 ### ML expected baseline
 
-The baseline module uses a Random Forest regressor to estimate latency, throughput, and packet loss from a generated run dataset. Evaluation groups runs by topology so a topology can be held out from model training. The GUI compares a completed run with these estimates.
+The baseline estimates a run's latency, throughput and packet loss from its inputs: the topology plus the scenario's flows, events and routing settings. It works in two parts:
 
-The baseline is a reference based on the dataset, not an optimal result. It needs `data/dataset/runs_all.csv`; estimates may be less reliable for topologies unlike those represented in that dataset.
+- **Physical estimate (`ml/scenario_model.py`).** It recomputes each flow's path the way the simulator's routing does. It splits the run at every event, and in each interval it pushes every flow's rate through link capacities and loss rates. This estimate is the expected value.
+- **Calibration (`ml/baseline.py`).** The generated runs measure how far real results stray from the estimate. A result is flagged when it differs by more than three times that typical error, and by more than a minimum size.
+
+A Random Forest trained on the remaining error (`learn_correction=True`) made estimates worse on held-out topologies, so it is off by default. The API calibrates once per dataset version and never retrains on runs made in the viewer.
+
+The baseline is a reference based on the dataset, not an optimal result. It needs `data/dataset/runs_all.csv`. Run `python -m ml.evaluate_baseline` from `python/` to measure its accuracy, false alarms and fault detection.
 
 ### GraphRAG
 
@@ -63,6 +68,28 @@ tests/                C++ tests and fixtures
 python/tests/          Python tests
 data/                 Generated run files and training data (created locally)
 ```
+
+## Run everything with Docker
+
+With Docker running, start the project from the repository root:
+
+```sh
+docker compose up -d --build
+```
+
+Then open http://localhost:8765.
+
+One container builds and runs everything:
+
+- the C++ simulator (built for Linux);
+- the API;
+- the viewer (`viewer_v2`).
+
+The port is bound to this computer only.
+
+- **Data:** runs and saved topologies and scenarios are kept in the `netmind-data` and `netmind-config` volumes, so they survive restarts and rebuilds. The baseline dataset is copied into `netmind-data` the first time it is created.
+- **GraphRAG LLM:** settings in `python/.env` are passed in when the container starts and are never copied into the image.
+- **Stop:** `docker compose down` keeps your data. `docker compose down -v` also deletes the volumes.
 
 ## Build and test the C++ project
 
@@ -151,16 +178,23 @@ The baseline requires a generated dataset. Example for Windows PowerShell:
 
 ```powershell
 python python\ml\generate_dataset.py `
-  --cli build\debug\netmind_cli.exe `
-  --topologies config\topologies\ring_backup.json `
+  --cli build\release\netmind_cli.exe `
+  --topologies config\topologies\small4.json config\topologies\diamond_weighted.json `
+               config\topologies\dumbbell.json config\topologies\ring_backup.json config\topologies\medium10.json `
   --output data\dataset `
-  --max-runs 80 `
-  --seeds 1 2 3 4 5 `
-  --workers 1 `
-  --duration 10
+  --max-runs 600 `
+  --workers 8 `
+  --discard-runs
 ```
 
-The generator writes aggregate run and time-window CSV files, along with per-run artifacts. Run `python python/ml/generate_dataset.py --help` to see all options.
+Each run gets a random reproducible scenario:
+
+- 1 to 4 flows between random host pairs;
+- constant, Poisson or bursty traffic;
+- hop or latency weights, and some reconvergence delay;
+- one disturbance: a link failure, router failure, congestion or burst. It often hits a link or router the traffic actually uses.
+
+The generator writes `runs_all.csv`, which includes each run's `scenario_json`, and the scenario files. `--discard-runs` skips the per-run trace files, which are large. Run `python python/ml/generate_dataset.py --help` to see all options.
 
 ## Data and tests
 

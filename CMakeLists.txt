@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.25)
 
 project(
@@ -8,22 +7,13 @@ project(
     LANGUAGES CXX
 )
 
-# ------------------------------------------------------------
-# C++ STANDARD
-# ------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ------------------------------------------------------------
-# TESTING
-# ------------------------------------------------------------
 include(CTest)
 enable_testing()
 
-# ------------------------------------------------------------
-# DEPENDENCIES
-# ------------------------------------------------------------
 include(FetchContent)
 
 FetchContent_Declare(
@@ -42,10 +32,22 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2 nlohmann_json)
 
-# ------------------------------------------------------------
-# CORE LIBRARY
-# Include .cpp files from nested src directories too.
-# ------------------------------------------------------------
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CATCH2_JUNIT_SOURCE
+        "${catch2_SOURCE_DIR}/src/catch2/reporters/catch_reporter_junit.cpp"
+    )
+    file(READ "${CATCH2_JUNIT_SOURCE}" CATCH2_JUNIT_CONTENT)
+    string(REPLACE
+        "#if defined (_MSC_VER) || defined (__MINGW32__)\n            gmtime_s(&timeInfo, &rawtime);"
+        "#if defined (_MSC_VER)\n            gmtime_s(&timeInfo, &rawtime);\n#elif defined (__MINGW32__)\n            if (const std::tm* utcTime = std::gmtime(&rawtime)) {\n                timeInfo = *utcTime;\n            }"
+        CATCH2_JUNIT_CONTENT
+        "${CATCH2_JUNIT_CONTENT}"
+    )
+    file(WRITE "${CATCH2_JUNIT_SOURCE}" "${CATCH2_JUNIT_CONTENT}")
+
+    add_link_options(-static-libgcc -static-libstdc++)
+endif()
+
 file(
     GLOB_RECURSE NETMIND_CORE_SOURCES
     CONFIGURE_DEPENDS
@@ -64,6 +66,10 @@ list(
     FILTER NETMIND_CORE_SOURCES
     EXCLUDE REGEX "/src/model/TrafficPattern\\.cpp$"
 )
+list(
+    FILTER NETMIND_CORE_SOURCES
+    EXCLUDE REGEX "/src/model/Packet\\.cpp$"
+)
 
 if(NOT NETMIND_CORE_SOURCES)
     message(FATAL_ERROR "No C++ source files found in src/")
@@ -81,19 +87,11 @@ target_link_libraries(
     PUBLIC nlohmann_json::nlohmann_json
 )
 
-# ------------------------------------------------------------
-# COMMAND-LINE APPLICATION (OPTIONAL)
-# ------------------------------------------------------------
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/apps/netmind_cli.cpp")
     add_executable(netmind_cli apps/netmind_cli.cpp)
     target_link_libraries(netmind_cli PRIVATE netmind_core)
 endif()
 
-# ------------------------------------------------------------
-# TESTS
-# Discover test source files recursively.
-# Exclude benchmark files from the test executable.
-# ------------------------------------------------------------
 file(
     GLOB_RECURSE NETMIND_TEST_SOURCES
     CONFIGURE_DEPENDS
@@ -125,10 +123,6 @@ if(BUILD_TESTING AND NETMIND_TEST_SOURCES)
     catch_discover_tests(netmind_tests)
 endif()
 
-# ------------------------------------------------------------
-# SANITIZERS (OPTIONAL)
-# Enable with -DNETMIND_ENABLE_SANITIZERS=ON
-# ------------------------------------------------------------
 option(
     NETMIND_ENABLE_SANITIZERS
     "Enable AddressSanitizer and UndefinedBehaviorSanitizer"
