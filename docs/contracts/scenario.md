@@ -83,3 +83,12 @@ Event times use seconds.
 The scenario loader should reject invalid field types, unknown references,
 invalid time ranges, unsupported event types, and invalid routing settings
 using the project's configuration-error conventions.
+
+## Self-contained scenario files (viewer only)
+
+The viewer's **Simulation → Save as scenario → Download** writes a scenario whose
+`topology` is the topology document itself (`nodes` and `links`) instead of a
+path, so one file can be shared and loaded with **Topology → Import scenario**.
+The import accepts both forms; a path is resolved against the project
+(`config/topologies` and paths relative to `config/scenarios`). The C++ CLI's
+`--scenario` option still expects a path.

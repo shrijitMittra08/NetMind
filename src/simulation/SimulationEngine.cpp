@@ -874,13 +874,11 @@ void SimulationEngine::applyCongestion(
 
     Link* link = graph_->getLink(linkId);
     if (link == nullptr) {
-        throw TopologyError(
-            "Cannot congest a missing link");
+        throw TopologyError("Cannot congest a missing link");
     }
 
     if (link->state() != LinkState::UP) {
-        throw ConfigError(
-            "Congestion can only be applied to an up link");
+        throw ConfigError("Congestion can only be applied to an up link");
     }
 
     if (!std::isfinite(bandwidthMultiplier) ||
@@ -901,6 +899,14 @@ void SimulationEngine::applyCongestion(
         throw ConfigError(
             "Congestion duration must be finite and positive");
     }
+
+    const Node* nodeA = graph_->getNode(link->a());
+    const Node* nodeB = graph_->getNode(link->b());
+    if (nodeA == nullptr || nodeB == nullptr) {
+        throw TopologyError("Congested link has a missing endpoint");
+    }
+
+    const std::string target = nodeA->name() + "-" + nodeB->name();
 
     link->setDegradeFactor(bandwidthMultiplier);
     link->setExtraLossRate(extraLossRate);
@@ -936,9 +942,19 @@ void SimulationEngine::endCongestion(
         return;
     }
 
+    const Node* nodeA = graph_->getNode(link->a());
+    const Node* nodeB = graph_->getNode(link->b());
+    if (nodeA == nullptr || nodeB == nullptr) {
+        throw TopologyError("Congested link has a missing endpoint");
+    }
+
+    const std::string target = nodeA->name() + "-" + nodeB->name();
+
     link->setDegradeFactor(1.0);
     link->setExtraLossRate(0.0);
     setLinkState(linkId, LinkState::UP);
+
+    
 }
 
 }

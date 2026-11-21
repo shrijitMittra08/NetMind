@@ -21,7 +21,6 @@ public:
         std::size_t qlen
     ) {}
 
-    // Called whenever a channel's queued packet count changes.
     virtual void onQueueChanged(
         SimTime,
         const ChannelId&,
