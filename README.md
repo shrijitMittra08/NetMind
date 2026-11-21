@@ -100,9 +100,6 @@ The baseline estimates a run's latency, throughput and packet loss from its inpu
 
 A Random Forest trained on the remaining error (`learn_correction=True`) made estimates worse on held-out topologies, so it is off by default. The API calibrates once per dataset version and never retrains on runs made in the workbench.
 
-> [!IMPORTANT]
-> The baseline is a reference based on the dataset, not an optimal result. It needs `data/dataset/runs_all.csv` (see [Generate the ML dataset](#-generate-the-ml-dataset)). Run `python -m ml.evaluate_baseline` from `python/` to measure its accuracy, false alarms and fault detection.
-
 ### 💬 GraphRAG
 
 GraphRAG builds a NetworkX graph from topology, run, flow, event, trace and window data, and answers run-specific questions with supporting evidence. It has two modes:
@@ -156,21 +153,6 @@ NetMind/
 ├── 🛠️ CMakeLists.txt · CMakePresets.json
 └── 📄 commands.txt           CLI command reference
 ```
-
-> [!TIP]
-> `data/` holds generated run files and training data. It's created locally and not stored in git, and neither are `build/`, `python/.venv/`, `python/.env`, `viewer_v2/node_modules/` or `viewer_v2/dist/`.
-
-<details>
-<summary><b>Files left over from earlier phases</b> (not used by the build)</summary>
-
-| Path | What it is |
-|---|---|
-| `common/*.h` | Older copies of the headers in `include/netmind/common/` |
-| `main.cpp` | An early test program |
-| `src/commands/` | An older copy of the CLI sources; the build uses `src/cli/` |
-| `PBL_Phase_1 (1).pdf`, `Phase-1 v4.tex` | Phase 1 report |
-
-</details>
 
 ---
 
