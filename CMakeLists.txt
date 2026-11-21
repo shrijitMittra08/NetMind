@@ -98,11 +98,6 @@ file(
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
 )
 
-list(
-    FILTER NETMIND_TEST_SOURCES
-    EXCLUDE REGEX "/bench/"
-)
-
 if(BUILD_TESTING AND NETMIND_TEST_SOURCES)
     add_executable(netmind_tests ${NETMIND_TEST_SOURCES})
 
