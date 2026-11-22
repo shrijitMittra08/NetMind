@@ -1,0 +1,44 @@
+{
+  "name": "s1_normal",
+  "topology": "../topologies/medium10.json",
+  "seed": 42,
+  "duration_s": 60.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 5,
+      "packet_bytes": 1000,
+      "start_s": 0,
+      "stop_s": 60
+    },
+    {
+      "id": 2,
+      "src": "PC3",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 3,
+      "packet_bytes": 1000,
+      "start_s": 0,
+      "stop_s": 60
+    },
+    {
+      "id": 3,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 2,
+      "packet_bytes": 1000,
+      "start_s": 0,
+      "stop_s": 60
+    }
+  ],
+  "events": []
+}

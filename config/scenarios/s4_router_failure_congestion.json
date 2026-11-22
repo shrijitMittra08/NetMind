@@ -1,0 +1,44 @@
+{
+  "name": "s4_router_failure_congestion",
+  "topology": "../topologies/ring_backup.json",
+  "seed": 42,
+  "duration_s": 60.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 200
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 5,
+      "packet_bytes": 1000,
+      "start_s": 0,
+      "stop_s": 60
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R2",
+      "time_s": 15
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R2",
+      "time_s": 30
+    },
+    {
+      "type": "CONGESTION",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 40,
+      "duration_s": 10,
+      "bandwidth_multiplier": 0.04,
+      "extra_loss_rate": 0.0
+    }
+  ]
+}

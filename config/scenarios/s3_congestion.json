@@ -1,0 +1,45 @@
+{
+  "name": "s3_congestion",
+  "topology": "../topologies/dumbbell.json",
+  "seed": 42,
+  "duration_s": 60.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC1",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 30,
+      "packet_bytes": 1500,
+      "start_s": 0,
+      "stop_s": 60
+    },
+    {
+      "id": 2,
+      "src": "LeftPC2",
+      "dst": "RightPC2",
+      "pattern": "constant",
+      "rate_mbps": 30,
+      "packet_bytes": 1500,
+      "start_s": 0,
+      "stop_s": 60
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 3,
+      "src": "LeftPC1",
+      "dst": "RightPC2",
+      "time_s": 30,
+      "duration_s": 5,
+      "rate_mbps": 20,
+      "packet_bytes": 1500
+    }
+  ]
+}
