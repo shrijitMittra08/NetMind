@@ -1,0 +1,120 @@
+{
+  "seed": 42,
+  "primary": "zscore",
+  "features": [
+    "avg_latency_ms",
+    "jitter_ms",
+    "loss_pct",
+    "throughput_mbps",
+    "max_queue",
+    "max_util_pct",
+    "no_delivery",
+    "avg_latency_ms_delta1",
+    "avg_latency_ms_delta3",
+    "avg_latency_ms_vs_roll3",
+    "avg_latency_ms_vs_ref",
+    "jitter_ms_delta1",
+    "jitter_ms_delta3",
+    "jitter_ms_vs_roll3",
+    "jitter_ms_vs_ref",
+    "loss_pct_delta1",
+    "loss_pct_delta3",
+    "loss_pct_vs_roll3",
+    "loss_pct_vs_ref",
+    "throughput_mbps_delta1",
+    "throughput_mbps_delta3",
+    "throughput_mbps_vs_roll3",
+    "throughput_mbps_vs_ref",
+    "max_queue_delta1",
+    "max_queue_delta3",
+    "max_queue_vs_roll3",
+    "max_queue_vs_ref",
+    "max_util_pct_delta1",
+    "max_util_pct_delta3",
+    "max_util_pct_vs_roll3",
+    "max_util_pct_vs_ref"
+  ],
+  "split_runs": {
+    "train": 240,
+    "validation": 80,
+    "test": 80
+  },
+  "train_normal_windows": 1395,
+  "models": {
+    "zscore": {
+      "threshold": 6.228980399806124,
+      "threshold_source": "max F1 on validation runs",
+      "test": {
+        "precision": 0.5993031358885017,
+        "recall": 0.5840407470288624,
+        "f1": 0.5915735167669819,
+        "flagged": 574,
+        "positives": 589,
+        "windows": 2480
+      },
+      "test_runs": {
+        "disturbed_runs": 63,
+        "detection_rate": 0.7936507936507936,
+        "clean_runs": 17,
+        "clean_runs_with_false_alarm": 0.29411764705882354,
+        "clean_window_false_alarm_rate": 0.026565464895635674
+      },
+      "test_recall_by_pattern": {
+        "burst": 0.6993464052287581,
+        "congestion": 0.4594594594594595,
+        "link_failure": 0.5294117647058824,
+        "router_failure": 0.6694915254237288
+      }
+    },
+    "isolation_forest": {
+      "threshold": 0.39622775589812875,
+      "threshold_source": "max F1 on validation runs",
+      "test": {
+        "precision": 0.39342723004694835,
+        "recall": 0.7113752122241087,
+        "f1": 0.5066505441354293,
+        "flagged": 1065,
+        "positives": 589,
+        "windows": 2480
+      },
+      "test_runs": {
+        "disturbed_runs": 63,
+        "detection_rate": 0.873015873015873,
+        "clean_runs": 17,
+        "clean_runs_with_false_alarm": 1.0,
+        "clean_window_false_alarm_rate": 0.2049335863377609
+      },
+      "test_recall_by_pattern": {
+        "burst": 0.9084967320261438,
+        "congestion": 0.6351351351351351,
+        "link_failure": 0.5705882352941176,
+        "router_failure": 0.7542372881355932
+      }
+    },
+    "zscore_fixed_3sigma": {
+      "threshold": 3.0,
+      "threshold_source": "fixed |z| > 3 on any feature",
+      "test": {
+        "precision": 0.4289940828402367,
+        "recall": 0.7385398981324278,
+        "f1": 0.5427323767935122,
+        "flagged": 1014,
+        "positives": 589,
+        "windows": 2480
+      },
+      "test_runs": {
+        "disturbed_runs": 63,
+        "detection_rate": 0.8888888888888888,
+        "clean_runs": 17,
+        "clean_runs_with_false_alarm": 1.0,
+        "clean_window_false_alarm_rate": 0.16129032258064516
+      },
+      "test_recall_by_pattern": {
+        "burst": 0.9019607843137255,
+        "congestion": 0.6554054054054054,
+        "link_failure": 0.6352941176470588,
+        "router_failure": 0.7796610169491526
+      }
+    }
+  }
+}
