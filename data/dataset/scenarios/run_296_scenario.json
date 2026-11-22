@@ -1,0 +1,64 @@
+{
+  "name": "run_296",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 30.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 1.245,
+      "off_duration_s": 0.873
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "time_s": 2.126,
+      "duration_s": 3.891,
+      "rate_mbps": 160.9304,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_296",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 30.0,
+    "flow_count": 1,
+    "event_pattern": "burst",
+    "event_target": "PC2->PC1",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 2,
+        "src": "PC2",
+        "dst": "PC1",
+        "time_s": 2.126,
+        "duration_s": 3.891,
+        "rate_mbps": 160.9304,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 2.126,
+    "disturbance_end_s": 6.017,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 30.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 1.245, \"off_duration_s\": 0.873}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"time_s\": 2.126, \"duration_s\": 3.891, \"rate_mbps\": 160.9304, \"packet_bytes\": 1000}]}"
+  }
+}

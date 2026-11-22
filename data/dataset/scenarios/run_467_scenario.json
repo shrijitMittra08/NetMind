@@ -1,0 +1,74 @@
+{
+  "name": "run_467",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "bursty",
+      "rate_mbps": 30.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.833,
+      "off_duration_s": 0.271
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 59.458,
+      "packet_bytes": 1500,
+      "start_s": 1.918,
+      "stop_s": 7.387,
+      "on_duration_s": 0.844,
+      "off_duration_s": 0.755
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R2",
+      "b": "PC2",
+      "time_s": 2.535,
+      "bandwidth_multiplier": 0.317,
+      "extra_loss_rate": 0.0024,
+      "duration_s": 2.63
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_467",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 89.458,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "R2-PC2",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R2",
+        "b": "PC2",
+        "time_s": 2.535,
+        "bandwidth_multiplier": 0.317,
+        "extra_loss_rate": 0.0024,
+        "duration_s": 2.63
+      }
+    ],
+    "disturbance_start_s": 2.535,
+    "disturbance_end_s": 5.165,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"bursty\", \"rate_mbps\": 30.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.833, \"off_duration_s\": 0.271}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 59.458, \"packet_bytes\": 1500, \"start_s\": 1.918, \"stop_s\": 7.387, \"on_duration_s\": 0.844, \"off_duration_s\": 0.755}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R2\", \"b\": \"PC2\", \"time_s\": 2.535, \"bandwidth_multiplier\": 0.317, \"extra_loss_rate\": 0.0024, \"duration_s\": 2.63}]}"
+  }
+}

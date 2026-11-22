@@ -1,0 +1,70 @@
+{
+  "name": "run_128",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 5,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 50.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC4",
+      "dst": "PC1",
+      "pattern": "poisson",
+      "rate_mbps": 16.2352,
+      "packet_bytes": 1000,
+      "start_s": 0.909,
+      "stop_s": 7.918
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "PC3",
+      "b": "R5",
+      "time_s": 3.601,
+      "bandwidth_multiplier": 0.79,
+      "extra_loss_rate": 0.0057,
+      "duration_s": 1.785
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_128",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "seed": 5,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 66.23519999999999,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "PC3-R5",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "PC3",
+        "b": "R5",
+        "time_s": 3.601,
+        "bandwidth_multiplier": 0.79,
+        "extra_loss_rate": 0.0057,
+        "duration_s": 1.785
+      }
+    ],
+    "disturbance_start_s": 3.601,
+    "disturbance_end_s": 5.386,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 50.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC4\", \"dst\": \"PC1\", \"pattern\": \"poisson\", \"rate_mbps\": 16.2352, \"packet_bytes\": 1000, \"start_s\": 0.909, \"stop_s\": 7.918}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"PC3\", \"b\": \"R5\", \"time_s\": 3.601, \"bandwidth_multiplier\": 0.79, \"extra_loss_rate\": 0.0057, \"duration_s\": 1.785}]}"
+  }
+}

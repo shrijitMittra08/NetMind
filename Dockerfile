@@ -11,6 +11,15 @@ RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF 
  && cmake --build build --target netmind_cli \
  && strip build/netmind_cli
 
+# Optional: build and run the C++ test suite in a clean Linux toolchain.
+#   docker build --target cpp-test .
+FROM simulator AS cpp-test
+COPY config ./config
+COPY tests ./tests
+RUN cmake -S . -B build-test -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+ && cmake --build build-test \
+ && ctest --test-dir build-test --output-on-failure
+
 FROM node:22-slim AS viewer
 WORKDIR /viewer
 COPY viewer_v2/package.json viewer_v2/package-lock.json ./

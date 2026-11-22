@@ -1,0 +1,82 @@
+{
+  "name": "run_215",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "RightPC2",
+      "dst": "LeftPC2",
+      "pattern": "poisson",
+      "rate_mbps": 25.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC2",
+      "dst": "LeftPC1",
+      "pattern": "constant",
+      "rate_mbps": 35.383,
+      "packet_bytes": 1000,
+      "start_s": 1.174,
+      "stop_s": 8.626
+    },
+    {
+      "id": 3,
+      "src": "RightPC1",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 26.8121,
+      "packet_bytes": 1500,
+      "start_s": 1.45,
+      "stop_s": 7.445
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R1",
+      "time_s": 4.927
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R1",
+      "time_s": 6.465
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_215",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 87.1951,
+    "flow_count": 3,
+    "event_pattern": "router_failure",
+    "event_target": "R1",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R1",
+        "time_s": 4.927
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R1",
+        "time_s": 6.465
+      }
+    ],
+    "disturbance_start_s": 4.927,
+    "disturbance_end_s": 6.465,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"RightPC2\", \"dst\": \"LeftPC2\", \"pattern\": \"poisson\", \"rate_mbps\": 25.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC2\", \"dst\": \"LeftPC1\", \"pattern\": \"constant\", \"rate_mbps\": 35.383, \"packet_bytes\": 1000, \"start_s\": 1.174, \"stop_s\": 8.626}, {\"id\": 3, \"src\": \"RightPC1\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 26.8121, \"packet_bytes\": 1500, \"start_s\": 1.45, \"stop_s\": 7.445}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R1\", \"time_s\": 4.927}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R1\", \"time_s\": 6.465}]}"
+  }
+}

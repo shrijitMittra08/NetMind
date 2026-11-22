@@ -1,0 +1,60 @@
+{
+  "name": "run_031",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 5,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 200
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC2",
+      "dst": "LeftPC1",
+      "pattern": "constant",
+      "rate_mbps": 10.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC1",
+      "dst": "RightPC2",
+      "pattern": "poisson",
+      "rate_mbps": 3.7045,
+      "packet_bytes": 1000,
+      "start_s": 1.525,
+      "stop_s": 7.202
+    },
+    {
+      "id": 3,
+      "src": "RightPC1",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 17.7703,
+      "packet_bytes": 1500,
+      "start_s": 2.074,
+      "stop_s": 8.813
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_031",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 5,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 31.4748,
+    "flow_count": 3,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 200}, \"flows\": [{\"id\": 1, \"src\": \"LeftPC2\", \"dst\": \"LeftPC1\", \"pattern\": \"constant\", \"rate_mbps\": 10.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC1\", \"dst\": \"RightPC2\", \"pattern\": \"poisson\", \"rate_mbps\": 3.7045, \"packet_bytes\": 1000, \"start_s\": 1.525, \"stop_s\": 7.202}, {\"id\": 3, \"src\": \"RightPC1\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 17.7703, \"packet_bytes\": 1500, \"start_s\": 2.074, \"stop_s\": 8.813}], \"events\": []}"
+  }
+}

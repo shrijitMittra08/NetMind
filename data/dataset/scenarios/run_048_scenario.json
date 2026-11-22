@@ -1,0 +1,62 @@
+{
+  "name": "run_048",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 15.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC4",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 8.2886,
+      "packet_bytes": 1500,
+      "start_s": 2.947,
+      "stop_s": 8.624
+    },
+    {
+      "id": 3,
+      "src": "PC4",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 16.3564,
+      "packet_bytes": 1500,
+      "start_s": 0.864,
+      "stop_s": 8.09,
+      "on_duration_s": 0.67,
+      "off_duration_s": 0.638
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_048",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 39.645,
+    "flow_count": 3,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 15.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC4\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 8.2886, \"packet_bytes\": 1500, \"start_s\": 2.947, \"stop_s\": 8.624}, {\"id\": 3, \"src\": \"PC4\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 16.3564, \"packet_bytes\": 1500, \"start_s\": 0.864, \"stop_s\": 8.09, \"on_duration_s\": 0.67, \"off_duration_s\": 0.638}], \"events\": []}"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "run_458",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "RightPC2",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 5.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC2",
+      "dst": "RightPC2",
+      "pattern": "constant",
+      "rate_mbps": 24.6825,
+      "packet_bytes": 1500,
+      "start_s": 1.134,
+      "stop_s": 9.021
+    },
+    {
+      "id": 3,
+      "src": "LeftPC2",
+      "dst": "LeftPC1",
+      "pattern": "constant",
+      "rate_mbps": 28.2077,
+      "packet_bytes": 1000,
+      "start_s": 1.163,
+      "stop_s": 9.159
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_458",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 57.8902,
+    "flow_count": 3,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"RightPC2\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 5.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC2\", \"dst\": \"RightPC2\", \"pattern\": \"constant\", \"rate_mbps\": 24.6825, \"packet_bytes\": 1500, \"start_s\": 1.134, \"stop_s\": 9.021}, {\"id\": 3, \"src\": \"LeftPC2\", \"dst\": \"LeftPC1\", \"pattern\": \"constant\", \"rate_mbps\": 28.2077, \"packet_bytes\": 1000, \"start_s\": 1.163, \"stop_s\": 9.159}], \"events\": []}"
+  }
+}

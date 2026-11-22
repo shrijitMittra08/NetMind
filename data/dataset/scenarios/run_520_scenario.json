@@ -1,0 +1,62 @@
+{
+  "name": "run_520",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "RightPC2",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 50.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R2",
+      "time_s": 3.881
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R2",
+      "time_s": 5.921
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_520",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 50.0,
+    "flow_count": 1,
+    "event_pattern": "router_failure",
+    "event_target": "R2",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R2",
+        "time_s": 3.881
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R2",
+        "time_s": 5.921
+      }
+    ],
+    "disturbance_start_s": 3.881,
+    "disturbance_end_s": 5.921,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"RightPC2\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 50.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R2\", \"time_s\": 3.881}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R2\", \"time_s\": 5.921}]}"
+  }
+}

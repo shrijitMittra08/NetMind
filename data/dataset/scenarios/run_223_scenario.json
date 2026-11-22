@@ -1,0 +1,70 @@
+{
+  "name": "run_223",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 5,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "RightPC1",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 40.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC2",
+      "dst": "RightPC2",
+      "pattern": "constant",
+      "rate_mbps": 7.811,
+      "packet_bytes": 500,
+      "start_s": 1.938,
+      "stop_s": 9.042
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 3.37,
+      "bandwidth_multiplier": 0.28,
+      "extra_loss_rate": 0.0109,
+      "duration_s": 2.031
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_223",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 5,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 47.811,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "R1-R2",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R1",
+        "b": "R2",
+        "time_s": 3.37,
+        "bandwidth_multiplier": 0.28,
+        "extra_loss_rate": 0.0109,
+        "duration_s": 2.031
+      }
+    ],
+    "disturbance_start_s": 3.37,
+    "disturbance_end_s": 5.401,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"RightPC1\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 40.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC2\", \"dst\": \"RightPC2\", \"pattern\": \"constant\", \"rate_mbps\": 7.811, \"packet_bytes\": 500, \"start_s\": 1.938, \"stop_s\": 9.042}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R1\", \"b\": \"R2\", \"time_s\": 3.37, \"bandwidth_multiplier\": 0.28, \"extra_loss_rate\": 0.0109, \"duration_s\": 2.031}]}"
+  }
+}

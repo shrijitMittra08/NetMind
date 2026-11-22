@@ -1,0 +1,64 @@
+{
+  "name": "run_181",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "bursty",
+      "rate_mbps": 40.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 1.032,
+      "off_duration_s": 0.766
+    },
+    {
+      "id": 2,
+      "src": "PC4",
+      "dst": "PC3",
+      "pattern": "bursty",
+      "rate_mbps": 7.3158,
+      "packet_bytes": 1000,
+      "start_s": 0.294,
+      "stop_s": 9.332,
+      "on_duration_s": 1.412,
+      "off_duration_s": 0.48
+    },
+    {
+      "id": 3,
+      "src": "PC3",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 16.1277,
+      "packet_bytes": 1000,
+      "start_s": 2.325,
+      "stop_s": 8.132
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_181",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 63.4435,
+    "flow_count": 3,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"bursty\", \"rate_mbps\": 40.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 1.032, \"off_duration_s\": 0.766}, {\"id\": 2, \"src\": \"PC4\", \"dst\": \"PC3\", \"pattern\": \"bursty\", \"rate_mbps\": 7.3158, \"packet_bytes\": 1000, \"start_s\": 0.294, \"stop_s\": 9.332, \"on_duration_s\": 1.412, \"off_duration_s\": 0.48}, {\"id\": 3, \"src\": \"PC3\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 16.1277, \"packet_bytes\": 1000, \"start_s\": 2.325, \"stop_s\": 8.132}], \"events\": []}"
+  }
+}

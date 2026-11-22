@@ -45,7 +45,7 @@ public:
     }
 
     [[nodiscard]] std::string help() const override {
-        return "Exit Project901";
+        return "Exit NetMind";
     }
 
     void execute(

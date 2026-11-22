@@ -1,0 +1,98 @@
+{
+  "name": "run_307",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 50
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC2",
+      "dst": "RightPC1",
+      "pattern": "poisson",
+      "rate_mbps": 25.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC2",
+      "dst": "LeftPC1",
+      "pattern": "bursty",
+      "rate_mbps": 41.7184,
+      "packet_bytes": 1500,
+      "start_s": 0.77,
+      "stop_s": 8.897,
+      "on_duration_s": 1.017,
+      "off_duration_s": 0.613
+    },
+    {
+      "id": 3,
+      "src": "RightPC2",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 34.7037,
+      "packet_bytes": 1500,
+      "start_s": 0.989,
+      "stop_s": 9.158
+    },
+    {
+      "id": 4,
+      "src": "RightPC2",
+      "dst": "LeftPC1",
+      "pattern": "constant",
+      "rate_mbps": 3.5219,
+      "packet_bytes": 500,
+      "start_s": 1.51,
+      "stop_s": 8.454
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 3.871
+    },
+    {
+      "type": "LINK_RESTORE",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 7.627
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_307",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 104.944,
+    "flow_count": 4,
+    "event_pattern": "link_failure",
+    "event_target": "R1-R2",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R1",
+        "b": "R2",
+        "time_s": 3.871
+      },
+      {
+        "type": "LINK_RESTORE",
+        "a": "R1",
+        "b": "R2",
+        "time_s": 7.627
+      }
+    ],
+    "disturbance_start_s": 3.871,
+    "disturbance_end_s": 7.627,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 50}, \"flows\": [{\"id\": 1, \"src\": \"LeftPC2\", \"dst\": \"RightPC1\", \"pattern\": \"poisson\", \"rate_mbps\": 25.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC2\", \"dst\": \"LeftPC1\", \"pattern\": \"bursty\", \"rate_mbps\": 41.7184, \"packet_bytes\": 1500, \"start_s\": 0.77, \"stop_s\": 8.897, \"on_duration_s\": 1.017, \"off_duration_s\": 0.613}, {\"id\": 3, \"src\": \"RightPC2\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 34.7037, \"packet_bytes\": 1500, \"start_s\": 0.989, \"stop_s\": 9.158}, {\"id\": 4, \"src\": \"RightPC2\", \"dst\": \"LeftPC1\", \"pattern\": \"constant\", \"rate_mbps\": 3.5219, \"packet_bytes\": 500, \"start_s\": 1.51, \"stop_s\": 8.454}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R1\", \"b\": \"R2\", \"time_s\": 3.871}, {\"type\": \"LINK_RESTORE\", \"a\": \"R1\", \"b\": \"R2\", \"time_s\": 7.627}]}"
+  }
+}

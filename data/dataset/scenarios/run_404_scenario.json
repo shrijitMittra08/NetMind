@@ -1,0 +1,70 @@
+{
+  "name": "run_404",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 60.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 6.4285,
+      "packet_bytes": 1000,
+      "start_s": 0.911,
+      "stop_s": 8.437
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R5",
+      "b": "R3",
+      "time_s": 4.109,
+      "bandwidth_multiplier": 0.246,
+      "extra_loss_rate": 0.0141,
+      "duration_s": 3.002
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_404",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 120,
+    "offered_rate_mbps": 66.4285,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "R5-R3",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R5",
+        "b": "R3",
+        "time_s": 4.109,
+        "bandwidth_multiplier": 0.246,
+        "extra_loss_rate": 0.0141,
+        "duration_s": 3.002
+      }
+    ],
+    "disturbance_start_s": 4.109,
+    "disturbance_end_s": 7.111,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 60.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 6.4285, \"packet_bytes\": 1000, \"start_s\": 0.911, \"stop_s\": 8.437}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R5\", \"b\": \"R3\", \"time_s\": 4.109, \"bandwidth_multiplier\": 0.246, \"extra_loss_rate\": 0.0141, \"duration_s\": 3.002}]}"
+  }
+}

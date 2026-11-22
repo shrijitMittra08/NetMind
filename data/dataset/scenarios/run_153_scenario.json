@@ -1,0 +1,74 @@
+{
+  "name": "run_153",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 50
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "poisson",
+      "rate_mbps": 25.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC4",
+      "dst": "PC3",
+      "pattern": "bursty",
+      "rate_mbps": 25.8016,
+      "packet_bytes": 1500,
+      "start_s": 2.317,
+      "stop_s": 7.71,
+      "on_duration_s": 1.403,
+      "off_duration_s": 0.845
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R5",
+      "time_s": 3.033
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R5",
+      "time_s": 6.616
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_153",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 50.8016,
+    "flow_count": 2,
+    "event_pattern": "router_failure",
+    "event_target": "R5",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R5",
+        "time_s": 3.033
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R5",
+        "time_s": 6.616
+      }
+    ],
+    "disturbance_start_s": 3.033,
+    "disturbance_end_s": 6.616,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 50}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC3\", \"pattern\": \"poisson\", \"rate_mbps\": 25.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC4\", \"dst\": \"PC3\", \"pattern\": \"bursty\", \"rate_mbps\": 25.8016, \"packet_bytes\": 1500, \"start_s\": 2.317, \"stop_s\": 7.71, \"on_duration_s\": 1.403, \"off_duration_s\": 0.845}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R5\", \"time_s\": 3.033}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R5\", \"time_s\": 6.616}]}"
+  }
+}

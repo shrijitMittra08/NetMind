@@ -1,0 +1,54 @@
+{
+  "name": "run_348",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC4",
+      "pattern": "bursty",
+      "rate_mbps": 40.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.598,
+      "off_duration_s": 0.522
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "bursty",
+      "rate_mbps": 14.9645,
+      "packet_bytes": 1500,
+      "start_s": 1.222,
+      "stop_s": 9.112,
+      "on_duration_s": 1.138,
+      "off_duration_s": 0.645
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_348",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 54.9645,
+    "flow_count": 2,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC4\", \"pattern\": \"bursty\", \"rate_mbps\": 40.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.598, \"off_duration_s\": 0.522}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"bursty\", \"rate_mbps\": 14.9645, \"packet_bytes\": 1500, \"start_s\": 1.222, \"stop_s\": 9.112, \"on_duration_s\": 1.138, \"off_duration_s\": 0.645}], \"events\": []}"
+  }
+}

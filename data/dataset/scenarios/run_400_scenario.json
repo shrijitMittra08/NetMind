@@ -1,0 +1,66 @@
+{
+  "name": "run_400",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "reconvergence_delay_ms": 200
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 100.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R1",
+      "b": "R5",
+      "time_s": 3.36
+    },
+    {
+      "type": "LINK_RESTORE",
+      "a": "R1",
+      "b": "R5",
+      "time_s": 7.146
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_400",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "dijkstra",
+    "weight": "hops",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 100.0,
+    "flow_count": 1,
+    "event_pattern": "link_failure",
+    "event_target": "R1-R5",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R1",
+        "b": "R5",
+        "time_s": 3.36
+      },
+      {
+        "type": "LINK_RESTORE",
+        "a": "R1",
+        "b": "R5",
+        "time_s": 7.146
+      }
+    ],
+    "disturbance_start_s": 3.36,
+    "disturbance_end_s": 7.146,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 200}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 100.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R1\", \"b\": \"R5\", \"time_s\": 3.36}, {\"type\": \"LINK_RESTORE\", \"a\": \"R1\", \"b\": \"R5\", \"time_s\": 7.146}]}"
+  }
+}

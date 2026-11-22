@@ -1,0 +1,66 @@
+{
+  "name": "run_452",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 120.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 1.256,
+      "off_duration_s": 0.585
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 37.5821,
+      "packet_bytes": 1000,
+      "start_s": 0.989,
+      "stop_s": 7.797
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R2",
+      "b": "R3",
+      "time_s": 3.878
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_452",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 120,
+    "offered_rate_mbps": 157.5821,
+    "flow_count": 2,
+    "event_pattern": "link_failure",
+    "event_target": "R2-R3",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R2",
+        "b": "R3",
+        "time_s": 3.878
+      }
+    ],
+    "disturbance_start_s": 3.878,
+    "disturbance_end_s": 6.428,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 120.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 1.256, \"off_duration_s\": 0.585}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 37.5821, \"packet_bytes\": 1000, \"start_s\": 0.989, \"stop_s\": 7.797}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R2\", \"b\": \"R3\", \"time_s\": 3.878}]}"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "name": "run_431",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "hops",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "bursty",
+      "rate_mbps": 5.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.842,
+      "off_duration_s": 0.59
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 24.9041,
+      "packet_bytes": 500,
+      "start_s": 2.232,
+      "stop_s": 9.674
+    },
+    {
+      "id": 3,
+      "src": "PC4",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 54.8311,
+      "packet_bytes": 500,
+      "start_s": 2.876,
+      "stop_s": 9.16
+    },
+    {
+      "id": 4,
+      "src": "PC3",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 7.4869,
+      "packet_bytes": 1500,
+      "start_s": 0.819,
+      "stop_s": 8.57
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_431",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bfs",
+    "weight": "hops",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 92.2221,
+    "flow_count": 4,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"bursty\", \"rate_mbps\": 5.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.842, \"off_duration_s\": 0.59}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 24.9041, \"packet_bytes\": 500, \"start_s\": 2.232, \"stop_s\": 9.674}, {\"id\": 3, \"src\": \"PC4\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 54.8311, \"packet_bytes\": 500, \"start_s\": 2.876, \"stop_s\": 9.16}, {\"id\": 4, \"src\": \"PC3\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 7.4869, \"packet_bytes\": 1500, \"start_s\": 0.819, \"stop_s\": 8.57}], \"events\": []}"
+  }
+}

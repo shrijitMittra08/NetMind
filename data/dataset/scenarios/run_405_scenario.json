@@ -1,0 +1,80 @@
+{
+  "name": "run_405",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC4",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 10.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 3.5314,
+      "packet_bytes": 1000,
+      "start_s": 1.713,
+      "stop_s": 7.211
+    },
+    {
+      "id": 3,
+      "src": "PC3",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 24.6251,
+      "packet_bytes": 1000,
+      "start_s": 0.317,
+      "stop_s": 7.957
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R3",
+      "b": "R6",
+      "time_s": 3.598,
+      "bandwidth_multiplier": 0.629,
+      "extra_loss_rate": 0.0229,
+      "duration_s": 2.376
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_405",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 38.1565,
+    "flow_count": 3,
+    "event_pattern": "congestion",
+    "event_target": "R3-R6",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R3",
+        "b": "R6",
+        "time_s": 3.598,
+        "bandwidth_multiplier": 0.629,
+        "extra_loss_rate": 0.0229,
+        "duration_s": 2.376
+      }
+    ],
+    "disturbance_start_s": 3.598,
+    "disturbance_end_s": 5.974,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC4\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 10.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 3.5314, \"packet_bytes\": 1000, \"start_s\": 1.713, \"stop_s\": 7.211}, {\"id\": 3, \"src\": \"PC3\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 24.6251, \"packet_bytes\": 1000, \"start_s\": 0.317, \"stop_s\": 7.957}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R3\", \"b\": \"R6\", \"time_s\": 3.598, \"bandwidth_multiplier\": 0.629, \"extra_loss_rate\": 0.0229, \"duration_s\": 2.376}]}"
+  }
+}

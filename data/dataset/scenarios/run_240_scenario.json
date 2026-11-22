@@ -1,0 +1,64 @@
+{
+  "name": "run_240",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC3",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 15.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 20.3636,
+      "packet_bytes": 500,
+      "start_s": 1.344,
+      "stop_s": 8.555
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R2",
+      "b": "R3",
+      "time_s": 3.836
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_240",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 35.363600000000005,
+    "flow_count": 2,
+    "event_pattern": "link_failure",
+    "event_target": "R2-R3",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R2",
+        "b": "R3",
+        "time_s": 3.836
+      }
+    ],
+    "disturbance_start_s": 3.836,
+    "disturbance_end_s": 5.538,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC3\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 15.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 20.3636, \"packet_bytes\": 500, \"start_s\": 1.344, \"stop_s\": 8.555}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R2\", \"b\": \"R3\", \"time_s\": 3.836}]}"
+  }
+}

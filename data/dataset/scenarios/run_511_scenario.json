@@ -1,0 +1,70 @@
+{
+  "name": "run_511",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC4",
+      "dst": "PC3",
+      "pattern": "poisson",
+      "rate_mbps": 30.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 12.1829,
+      "packet_bytes": 1500,
+      "start_s": 0.042,
+      "stop_s": 9.533
+    },
+    {
+      "id": 3,
+      "src": "PC4",
+      "dst": "PC2",
+      "pattern": "poisson",
+      "rate_mbps": 20.5384,
+      "packet_bytes": 1500,
+      "start_s": 2.973,
+      "stop_s": 8.661
+    },
+    {
+      "id": 4,
+      "src": "PC3",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 10.6692,
+      "packet_bytes": 500,
+      "start_s": 2.851,
+      "stop_s": 9.121
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_511",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 73.3905,
+    "flow_count": 4,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC4\", \"dst\": \"PC3\", \"pattern\": \"poisson\", \"rate_mbps\": 30.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 12.1829, \"packet_bytes\": 1500, \"start_s\": 0.042, \"stop_s\": 9.533}, {\"id\": 3, \"src\": \"PC4\", \"dst\": \"PC2\", \"pattern\": \"poisson\", \"rate_mbps\": 20.5384, \"packet_bytes\": 1500, \"start_s\": 2.973, \"stop_s\": 8.661}, {\"id\": 4, \"src\": \"PC3\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 10.6692, \"packet_bytes\": 500, \"start_s\": 2.851, \"stop_s\": 9.121}], \"events\": []}"
+  }
+}

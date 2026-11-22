@@ -1,0 +1,68 @@
+{
+  "name": "run_265",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "hops",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 10.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.592,
+      "off_duration_s": 0.829
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R1",
+      "b": "R5",
+      "time_s": 2.967
+    },
+    {
+      "type": "LINK_RESTORE",
+      "a": "R1",
+      "b": "R5",
+      "time_s": 5.326
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_265",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "bfs",
+    "weight": "hops",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 10.0,
+    "flow_count": 1,
+    "event_pattern": "link_failure",
+    "event_target": "R1-R5",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R1",
+        "b": "R5",
+        "time_s": 2.967
+      },
+      {
+        "type": "LINK_RESTORE",
+        "a": "R1",
+        "b": "R5",
+        "time_s": 5.326
+      }
+    ],
+    "disturbance_start_s": 2.967,
+    "disturbance_end_s": 5.326,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 10.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.592, \"off_duration_s\": 0.829}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R1\", \"b\": \"R5\", \"time_s\": 2.967}, {\"type\": \"LINK_RESTORE\", \"a\": \"R1\", \"b\": \"R5\", \"time_s\": 5.326}]}"
+  }
+}
