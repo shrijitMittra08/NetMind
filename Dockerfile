@@ -25,7 +25,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NETMIND_PORT=8765 \
     NETMIND_CLI=/app/bin/netmind_cli \
     NETMIND_VIEWER_DIR=/app/viewer \
-    NETMIND_DATA_DIR=/app/data
+    NETMIND_DATA_DIR=/app/data \
+    NETMIND_ML_ASSETS=/app/ml
 
 WORKDIR /app/python
 COPY python/requirements.txt ./
@@ -34,7 +35,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --from=simulator /src/build/netmind_cli /app/bin/netmind_cli
 COPY --from=viewer /viewer/dist /app/viewer
 COPY config /app/config
+COPY config /app/config-defaults
 COPY data/dataset /app/data/dataset
+COPY data/models /app/ml/models
+COPY data/plots /app/ml/plots
 COPY python/ ./
 
 RUN useradd --create-home --uid 10001 netmind \
@@ -44,4 +48,4 @@ USER netmind
 EXPOSE 8765
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/health', timeout=4)"
-CMD ["python", "netmind_api.py"]
+CMD ["sh", "-c", "cp -r --update=none /app/config-defaults/. /app/config/ && exec python netmind_api.py"]
