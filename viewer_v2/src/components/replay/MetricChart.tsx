@@ -15,12 +15,16 @@ export function MetricChart({
   time,
   endTime,
   onSeek,
+  flags = [],
+  bands = [],
 }: {
   windows: WindowRow[];
   metric: WindowMetric;
   time: number;
   endTime: number;
   onSeek: (time: number) => void;
+  flags?: number[];
+  bands?: { start: number; end: number }[];
 }) {
   const W = 320;
   const H = 150;
@@ -51,6 +55,9 @@ export function MetricChart({
         onSeek(Math.min(maxT, Math.max(0, ((px - left) / (W - left - right)) * maxT)));
       }}
     >
+      {bands.map((band, i) => (
+        <rect key={`b${i}`} x={x(band.start)} width={Math.max(1, x(Math.min(band.end, maxT)) - x(band.start))} y={top} height={y(0) - top} className="event-band" />
+      ))}
       <line x1={left} x2={W - right} y1={y(0)} y2={y(0)} className="axis" />
       <line x1={left} x2={W - right} y1={y(maxV)} y2={y(maxV)} className="grid" />
       <text x={left - 6} y={y(maxV) + 4} textAnchor="end" className="tick">
@@ -64,6 +71,11 @@ export function MetricChart({
       </text>
       <path d={area} className="area" />
       <path d={path} className="line" />
+      {flags.map((t) => (
+        <rect key={`f${t}`} x={x(t) + 0.3} width={Math.max(1, x(Math.min(t + 1, maxT)) - x(t) - 0.6)} y={y(0) + 2} height={4} className="anomaly-mark">
+          <title>{`Anomaly flagged at ${t.toFixed(0)} s`}</title>
+        </rect>
+      ))}
       <line x1={marker} x2={marker} y1={top} y2={y(0)} className="playhead" />
     </svg>
   );

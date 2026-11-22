@@ -1,5 +1,6 @@
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Shell } from "./components/Shell";
+import { AnomaliesPage } from "./components/anomaly/AnomaliesPage";
 import { InsightsPage } from "./components/insights/InsightsPage";
 import { ReplayPage } from "./components/replay/ReplayPage";
 import { ResultsPage } from "./components/results/ResultsPage";
@@ -16,6 +17,8 @@ function CurrentPage() {
       return <SetupPage />;
     case "results":
       return <ResultsPage />;
+    case "anomalies":
+      return <AnomaliesPage />;
     case "replay":
       return <ReplayPage />;
     case "insights":

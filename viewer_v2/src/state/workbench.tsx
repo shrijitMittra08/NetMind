@@ -10,7 +10,7 @@ import { emptyModel } from "../domain/topology";
 import type { BuilderModel } from "../domain/topology";
 import { load, save } from "./storage";
 
-export type Section = "topology" | "setup" | "results" | "replay" | "insights";
+export type Section = "topology" | "setup" | "results" | "anomalies" | "replay" | "insights";
 export type SetupMode = "interactive" | "script";
 
 interface RunState {

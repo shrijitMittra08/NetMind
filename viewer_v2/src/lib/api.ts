@@ -1,4 +1,6 @@
 import type {
+  AnomalyEvaluation,
+  AnomalyReport,
   ChatTurn,
   GraphRagAnswer,
   GraphRagStatus,
@@ -85,6 +87,13 @@ export const api = {
       overwrite,
     }),
 
+  listScenarios: () => requestJson<{ scenarios: { name: string }[] }>("/api/scenarios"),
+
+  loadScenario: (name: string) =>
+    requestJson<{ scenario: Record<string, unknown>; topology: Topology; topology_name: string }>(
+      `/api/scenarios/${encodeURIComponent(name)}`,
+    ),
+
   resolveScenarioTopology: (scenario: Record<string, unknown>) =>
     post<{ topology: Topology; topology_name: string }>("/api/scenario/resolve", { scenario }),
 
@@ -95,4 +104,8 @@ export const api = {
     post<GraphRagAnswer>("/api/graphrag/query", { run_ids: runIds, question, history }),
 
   graphragStatus: () => requestJson<GraphRagStatus>("/api/graphrag/status"),
+
+  anomaly: (runId: string) => post<AnomalyReport>("/api/ml/anomaly", { run_id: runId }),
+
+  anomalyEvaluation: () => requestJson<AnomalyEvaluation>("/api/ml/anomaly/evaluation"),
 };

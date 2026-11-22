@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChartColumnBig, CircleAlert, PlayCircle, Sparkles, TriangleAlert, CircleCheck } from "lucide-react";
+import { Activity, ChartColumnBig, CircleAlert, PlayCircle, Sparkles, TriangleAlert, CircleCheck } from "lucide-react";
+import { isReport } from "../../domain/anomaly";
 import { algorithmLabel, fmt, fmtSigned } from "../../lib/format";
 import type { BaselineMetric, RunResult, RunSummary } from "../../lib/types";
 import { useWorkbench } from "../../state/workbench";
@@ -145,6 +146,14 @@ export function ResultsPage() {
                 <span>{run.summary.drops}</span>drops
               </div>
             </div>
+            {isReport(run.anomaly) && (
+              <button type="button" className="kpi-anomaly" onClick={() => goTo("anomalies")}>
+                <Activity />
+                {run.anomaly.summary.flagged === 0
+                  ? "No anomalous seconds"
+                  : `${run.anomaly.summary.flagged} anomalous second${run.anomaly.summary.flagged === 1 ? "" : "s"}`}
+              </button>
+            )}
           </article>
         ))}
       </div>
@@ -229,6 +238,9 @@ export function ResultsPage() {
       </section>
 
       <div className="row">
+        <button type="button" className="btn" onClick={() => goTo("anomalies")}>
+          <Activity /> See anomalies
+        </button>
         <button type="button" className="btn" onClick={() => goTo("replay")}>
           <PlayCircle /> Open replay
         </button>

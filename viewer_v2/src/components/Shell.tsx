@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  Activity,
   ChartColumnBig,
   CircleCheck,
   Moon,
@@ -74,6 +75,7 @@ const NAV: { id: Section; label: string; icon: ReactNode; needsRuns?: boolean }[
   { id: "topology", label: "Topology", icon: <Network /> },
   { id: "setup", label: "Simulation", icon: <SlidersHorizontal /> },
   { id: "results", label: "Results", icon: <ChartColumnBig />, needsRuns: true },
+  { id: "anomalies", label: "Anomalies", icon: <Activity /> },
   { id: "replay", label: "Replay", icon: <PlayCircle />, needsRuns: true },
   { id: "insights", label: "Insights", icon: <Sparkles />, needsRuns: true },
 ];
@@ -82,6 +84,7 @@ const SECTION_TITLES: Record<Section, { title: string; subtitle: string }> = {
   topology: { title: "Topology", subtitle: "Build a network on the canvas or import a topology file." },
   setup: { title: "Simulation", subtitle: "Configure traffic and events, or script the run like the CLI." },
   results: { title: "Results", subtitle: "Compare routing algorithms against each other and the ML baseline." },
+  anomalies: { title: "Anomalies", subtitle: "See which seconds of a run looked abnormal, and how well the detector does on held-out runs." },
   replay: { title: "Replay", subtitle: "Watch packets move through the network, step by step." },
   insights: { title: "Insights", subtitle: "Ask about the runs in plain language; answers are built from the run data." },
 };

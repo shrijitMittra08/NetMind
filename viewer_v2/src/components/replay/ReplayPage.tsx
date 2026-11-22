@@ -6,6 +6,7 @@ import { api } from "../../lib/api";
 import { algorithmLabel, fmt } from "../../lib/format";
 import { useWorkbench } from "../../state/workbench";
 import { EmptyState, Segmented, SelectField } from "../ui";
+import { isReport } from "../../domain/anomaly";
 import { MetricChart, WINDOW_METRICS } from "./MetricChart";
 import type { WindowMetric } from "./MetricChart";
 import { ReplayStage } from "./ReplayStage";
@@ -132,6 +133,8 @@ export function ReplayPage() {
   }
 
   const run = runs.find((r) => r.run_id === activeRunId);
+  const anomaly = isReport(run?.anomaly) ? run.anomaly : null;
+  const anomalyFlags = anomaly ? anomaly.windows.filter((w) => w.flagged).map((w) => w.t) : [];
   const node = model?.topology.nodes.find((n) => n.id === selected);
 
   return (
@@ -251,7 +254,20 @@ export function ReplayPage() {
                 </div>
                 <div className="card-body stack" style={{ "--gap": "10px" } as React.CSSProperties}>
                   <SelectField label="Metric" value={metric} options={WINDOW_METRICS} onChange={setMetric} />
-                  <MetricChart windows={model.windows} metric={metric} time={time} endTime={endTime} onSeek={seek} />
+                  <MetricChart
+                    windows={model.windows}
+                    metric={metric}
+                    time={time}
+                    endTime={endTime}
+                    onSeek={seek}
+                    flags={anomalyFlags}
+                    bands={anomaly?.disturbances ?? []}
+                  />
+                  {anomaly && (
+                    <p className="muted small">
+                      Shaded: injected event window. Red ticks: seconds the anomaly detector flagged ({anomalyFlags.length}).
+                    </p>
+                  )}
                 </div>
               </section>
             </div>

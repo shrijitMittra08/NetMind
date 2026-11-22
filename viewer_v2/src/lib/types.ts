@@ -111,6 +111,7 @@ export interface RunResult {
   algorithm: string;
   summary: RunSummary;
   baseline: Baseline;
+  anomaly?: AnomalyResult;
 }
 
 export interface TranscriptEntry {
@@ -162,4 +163,80 @@ export interface RunFile {
 export interface SavedScenario {
   scenario_path: string;
   topology_path: string;
+}
+
+export type AnomalyMetric = "avg_latency_ms" | "loss_pct" | "throughput_mbps" | "max_util_pct";
+
+export interface AnomalyDriver {
+  metric: string;
+  change: "vs_normal" | "vs_recent" | "jump" | "jump3" | "level";
+}
+
+export interface AnomalyWindow {
+  t: number;
+  avg_latency_ms: number;
+  loss_pct: number;
+  throughput_mbps: number;
+  max_util_pct: number;
+  no_delivery: boolean;
+  score: number;
+  flagged: boolean;
+  if_flagged: boolean;
+  disturbed: boolean;
+  driver: AnomalyDriver | null;
+}
+
+export interface AnomalyDisturbance {
+  start: number;
+  end: number;
+  label: string;
+}
+
+export interface AnomalySummary {
+  windows: number;
+  flagged: number;
+  disturbed: number;
+  caught: number;
+  false_alarms: number;
+  if_flagged: number;
+  first_flag_delay_s: number | null;
+}
+
+export interface AnomalyReport {
+  run_id: string;
+  detector: string;
+  comparison: string;
+  threshold: number;
+  window_s: number;
+  duration_s: number;
+  disturbances: AnomalyDisturbance[];
+  windows: AnomalyWindow[];
+  summary: AnomalySummary;
+}
+
+export type AnomalyResult = AnomalyReport | { error: string };
+
+export interface DetectorScores {
+  threshold: number;
+  threshold_source: string;
+  test: { precision: number; recall: number; f1: number; flagged: number; positives: number; windows: number };
+  test_runs: {
+    disturbed_runs: number;
+    detection_rate: number;
+    clean_runs: number;
+    clean_runs_with_false_alarm: number;
+    clean_window_false_alarm_rate: number;
+  };
+  test_recall_by_pattern: Record<string, number>;
+}
+
+export interface AnomalyEvaluation {
+  results: {
+    seed: number;
+    primary: string;
+    split_runs: { train: number; validation: number; test: number };
+    train_normal_windows: number;
+    models: Record<string, DetectorScores>;
+  };
+  plots: { name: string; title: string; url: string }[];
 }

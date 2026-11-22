@@ -17,7 +17,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 import pandas as pd
@@ -30,7 +30,9 @@ from graphrag import tools as qa_tools
 from graphrag.answer_rules import answer_with_rules
 from graphrag.query import answer_question
 from graphrag.session import QASession
+from ml import anomaly as anomaly_ml
 from ml.baseline import ExpectedMetricBaseline, event_pattern_of
+from ml.generate_dataset import disturbance_intervals, label_windows
 
 FROZEN = getattr(sys, "frozen", False)
 RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
@@ -49,6 +51,9 @@ if FROZEN and not (PROJECT_ROOT / "config").exists():
     PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
     shutil.copytree(RESOURCE_ROOT / "config", PROJECT_ROOT / "config")
 DATA_DIR = Path(os.environ.get("NETMIND_DATA_DIR", PROJECT_ROOT / "data")).resolve()
+ML_ASSETS_DIR = (
+    Path(os.environ["NETMIND_ML_ASSETS"]).resolve() if os.environ.get("NETMIND_ML_ASSETS") else None
+)
 if FROZEN and not (DATA_DIR / "dataset").exists():
     shutil.copytree(RESOURCE_ROOT / "seed" / "dataset", DATA_DIR / "dataset")
 SCENARIOS_DIR = PROJECT_ROOT / "config" / "scenarios"
@@ -64,6 +69,8 @@ _GRAPH_CACHE: dict[tuple[str, int], tuple[Any, list[dict[str, Any]]]] = {}
 _QA_CACHE: dict[tuple[str, int], qa_tools.RunContext] = {}
 _BASELINE_MODEL: dict[str, Any] = {}
 _BASELINE_LOCK = threading.Lock()
+_ANOMALY_MODEL: dict[str, Any] = {}
+_ANOMALY_LOCK = threading.Lock()
 
 
 def _run_stamp(run_id: str) -> int:
@@ -555,6 +562,170 @@ def _baseline_for_new_run(run_row: dict[str, Any]) -> dict[str, Any]:
                      
                                                                             
 
+ANOMALY_TRAIN_HINT = (
+    "The anomaly detector has not been trained. Generate the window dataset, then run "
+    "python -m ml.anomaly from the python folder."
+)
+PLOT_TITLES = {
+    "anomaly_f1_comparison.png": "Precision, recall and F1 on held-out runs",
+    "anomaly_timeline.png": "z-score flags on one held-out run per event type",
+    "anomaly_timeline_isolation_forest.png": "IsolationForest flags on the same runs",
+    "s2_anomaly_flags.png": "Both detectors on the S2 link-failure demo",
+    "algorithm_comparison.png": "Mean metrics per algorithm and event type (generated runs)",
+}
+DISTURBANCE_STARTS = ("LINK_FAILURE", "ROUTER_FAILURE", "CONGESTION", "TRAFFIC_BURST")
+
+
+def _ml_file(*parts: str) -> Path:
+    primary = DATA_DIR.joinpath(*parts)
+    if primary.is_file() or ML_ASSETS_DIR is None:
+        return primary
+    bundled = ML_ASSETS_DIR.joinpath(*parts)
+    return bundled if bundled.is_file() else primary
+
+
+def _anomaly_bundle() -> dict[str, Any]:
+    path = _ml_file("models", anomaly_ml.BUNDLE_NAME)
+    if not path.is_file():
+        raise FileNotFoundError(ANOMALY_TRAIN_HINT)
+    stamp = path.stat().st_mtime_ns
+    with _ANOMALY_LOCK:
+        if _ANOMALY_MODEL.get("stamp") != stamp:
+            _ANOMALY_MODEL.update(stamp=stamp, bundle=anomaly_ml.joblib.load(path))
+        return _ANOMALY_MODEL["bundle"]
+
+
+def _run_events(run_id: str) -> tuple[list[dict[str, Any]], float]:
+    manifest = json.loads((DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig"))
+    duration = _num(manifest.get("simulation_time_s")) or 0.0
+    metadata = manifest.get("dataset_metadata")
+    raw = metadata.get("scenario_json") if isinstance(metadata, dict) else None
+    if not isinstance(raw, str) or not raw.strip():
+        return [], duration
+    try:
+        scenario = json.loads(raw)
+    except json.JSONDecodeError:
+        return [], duration
+    events = [event for event in scenario.get("events", []) if isinstance(event, dict)]
+    return events, _num(scenario.get("duration_s")) or duration
+
+
+def _event_label(event: dict[str, Any]) -> str:
+    kind = str(event.get("type", "")).replace("_", " ").lower()
+    if event.get("node"):
+        return f"{kind} {event['node']}"
+    if event.get("a") and event.get("b"):
+        return f"{kind} {event['a']}-{event['b']}"
+    if event.get("src") and event.get("dst"):
+        return f"{kind} {event['src']}->{event['dst']}"
+    return kind
+
+
+def _disturbances(events: list[dict[str, Any]], duration: float) -> list[dict[str, Any]]:
+    starters = sorted(
+        (event for event in events if event.get("type") in DISTURBANCE_STARTS),
+        key=lambda event: float(event.get("time_s", 0.0)),
+    )
+    intervals = disturbance_intervals(events, duration)
+    return [
+        {"start": start, "end": end, "label": _event_label(event)}
+        for (start, end), event in zip(intervals, starters)
+    ]
+
+
+def _driver(feature: str) -> dict[str, str]:
+    for suffix, change in (
+        ("_vs_ref", "vs_normal"),
+        ("_vs_roll3", "vs_recent"),
+        ("_delta1", "jump"),
+        ("_delta3", "jump3"),
+    ):
+        if feature.endswith(suffix):
+            return {"metric": feature[: -len(suffix)], "change": change}
+    return {"metric": feature, "change": "level"}
+
+
+def _anomaly_for_run(run_id: str) -> dict[str, Any]:
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("Invalid run ID")
+    windows_path = DATA_DIR / f"{run_id}_windows.csv"
+    if not windows_path.is_file():
+        raise FileNotFoundError(f"Window file for {run_id} not found")
+    bundle = _anomaly_bundle()
+    events, duration = _run_events(run_id)
+    windows = pd.read_csv(windows_path)
+    windows.insert(0, "run_id", run_id)
+    windows["is_anomaly"] = label_windows(windows, events, duration) if events else 0
+    scored = anomaly_ml.flag_windows(bundle, windows).sort_values("t_start")
+
+    rows = []
+    for row in scored.itertuples(index=False):
+        flagged = bool(row.anomaly_flag)
+        rows.append({
+            "t": float(row.t_start),
+            "avg_latency_ms": float(row.avg_latency_ms),
+            "loss_pct": float(row.loss_pct),
+            "throughput_mbps": float(row.throughput_mbps),
+            "max_util_pct": float(row.max_util_pct),
+            "no_delivery": bool(row.no_delivery),
+            "score": float(row.zscore_score),
+            "flagged": flagged,
+            "if_flagged": bool(row.isolation_forest_flag),
+            "disturbed": bool(row.is_anomaly),
+            "driver": _driver(str(row.zscore_driver)) if flagged else None,
+        })
+
+    disturbances = _disturbances(events, duration)
+    disturbed = [row for row in rows if row["disturbed"]]
+    first_flag = None
+    if disturbances:
+        start = disturbances[0]["start"]
+        after = [row["t"] for row in rows if row["flagged"] and row["t"] + 1.0 > start]
+        first_flag = max(0.0, after[0] - start) if after else None
+    return {
+        "run_id": run_id,
+        "detector": "z-score",
+        "comparison": "IsolationForest",
+        "threshold": float(bundle["zscore_threshold"]),
+        "window_s": 1.0,
+        "duration_s": duration,
+        "disturbances": disturbances,
+        "windows": rows,
+        "summary": {
+            "windows": len(rows),
+            "flagged": sum(row["flagged"] for row in rows),
+            "disturbed": len(disturbed),
+            "caught": sum(row["flagged"] for row in disturbed),
+            "false_alarms": sum(row["flagged"] and not row["disturbed"] for row in rows),
+            "if_flagged": sum(row["if_flagged"] for row in rows),
+            "first_flag_delay_s": first_flag,
+        },
+    }
+
+
+def _anomaly_or_error(run_id: str) -> dict[str, Any]:
+    try:
+        return _anomaly_for_run(run_id)
+    except FileNotFoundError as error:
+        return {"error": str(error)}
+    except Exception as error:
+        return {"error": f"Anomaly detection unavailable: {error}"}
+
+
+def _anomaly_evaluation() -> dict[str, Any]:
+    results_path = _ml_file("plots", "anomaly_results.json")
+    if not results_path.is_file():
+        raise FileNotFoundError(ANOMALY_TRAIN_HINT)
+    results = json.loads(results_path.read_text(encoding="utf-8"))
+    results.pop("features", None)
+    plots = [
+        {"name": name, "title": title, "url": f"/api/ml/plots/{name}"}
+        for name, title in PLOT_TITLES.items()
+        if _ml_file("plots", name).is_file()
+    ]
+    return {"results": results, "plots": plots}
+
+
 def _cli_path() -> Path:
     configured = os.environ.get("NETMIND_CLI")
     if configured:
@@ -678,6 +849,7 @@ def _finish_run(
             _baseline_for_new_run(run_row) if fields["flows"]
             else {"error": "No baseline: the run's traffic flows are not known."}
         ),
+        "anomaly": _anomaly_or_error(run_id),
     }
 
 
@@ -858,6 +1030,10 @@ class GraphQueryRequest(BaseModel):
 
 
 class BaselineRequest(BaseModel):
+    run_id: str
+
+
+class AnomalyRequest(BaseModel):
     run_id: str
 
 
@@ -1061,6 +1237,26 @@ def analyze_baseline(body: BaselineRequest) -> dict[str, Any]:
         raise ValueError("Select a run before comparing the baseline")
 
     return _analyze_expected_baseline(run_id)
+
+
+@app.post("/api/ml/anomaly")
+def analyze_anomaly(body: AnomalyRequest) -> dict[str, Any]:
+    return _anomaly_for_run(body.run_id)
+
+
+@app.get("/api/ml/anomaly/evaluation")
+def anomaly_evaluation() -> dict[str, Any]:
+    return _anomaly_evaluation()
+
+
+@app.get("/api/ml/plots/{name}")
+def get_plot(name: str) -> FileResponse:
+    if name not in PLOT_TITLES:
+        raise ValueError("Unknown plot")
+    path = _ml_file("plots", name)
+    if not path.is_file():
+        raise FileNotFoundError(f"Plot {name} has not been generated")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-cache"})
 
 
 @app.post("/api/gui/run")
