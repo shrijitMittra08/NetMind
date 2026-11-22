@@ -1,0 +1,74 @@
+{
+  "name": "run_191",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 50
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 50.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.947,
+      "off_duration_s": 0.296
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "poisson",
+      "rate_mbps": 9.2111,
+      "packet_bytes": 1000,
+      "start_s": 0.953,
+      "stop_s": 9.451
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 3,
+      "src": "PC1",
+      "dst": "PC2",
+      "time_s": 4.382,
+      "duration_s": 1.587,
+      "rate_mbps": 50.4194,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_191",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 59.2111,
+    "flow_count": 2,
+    "event_pattern": "burst",
+    "event_target": "PC1->PC2",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 3,
+        "src": "PC1",
+        "dst": "PC2",
+        "time_s": 4.382,
+        "duration_s": 1.587,
+        "rate_mbps": 50.4194,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 4.382,
+    "disturbance_end_s": 5.969,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 50}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 50.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.947, \"off_duration_s\": 0.296}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"poisson\", \"rate_mbps\": 9.2111, \"packet_bytes\": 1000, \"start_s\": 0.953, \"stop_s\": 9.451}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 3, \"src\": \"PC1\", \"dst\": \"PC2\", \"time_s\": 4.382, \"duration_s\": 1.587, \"rate_mbps\": 50.4194, \"packet_bytes\": 1000}]}"
+  }
+}

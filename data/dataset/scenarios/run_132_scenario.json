@@ -1,0 +1,60 @@
+{
+  "name": "run_132",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 100.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 3.884,
+      "bandwidth_multiplier": 0.264,
+      "extra_loss_rate": 0.0225,
+      "duration_s": 3.897
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_132",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 100.0,
+    "flow_count": 1,
+    "event_pattern": "congestion",
+    "event_target": "R1-R2",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R1",
+        "b": "R2",
+        "time_s": 3.884,
+        "bandwidth_multiplier": 0.264,
+        "extra_loss_rate": 0.0225,
+        "duration_s": 3.897
+      }
+    ],
+    "disturbance_start_s": 3.884,
+    "disturbance_end_s": 7.781,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 100.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R1\", \"b\": \"R2\", \"time_s\": 3.884, \"bandwidth_multiplier\": 0.264, \"extra_loss_rate\": 0.0225, \"duration_s\": 3.897}]}"
+  }
+}

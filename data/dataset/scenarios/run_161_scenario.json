@@ -1,0 +1,62 @@
+{
+  "name": "run_161",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 80.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.95,
+      "off_duration_s": 0.609
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R1",
+      "b": "R5",
+      "time_s": 4.693,
+      "bandwidth_multiplier": 0.311,
+      "extra_loss_rate": 0.0416,
+      "duration_s": 2.089
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_161",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 80.0,
+    "flow_count": 1,
+    "event_pattern": "congestion",
+    "event_target": "R1-R5",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R1",
+        "b": "R5",
+        "time_s": 4.693,
+        "bandwidth_multiplier": 0.311,
+        "extra_loss_rate": 0.0416,
+        "duration_s": 2.089
+      }
+    ],
+    "disturbance_start_s": 4.693,
+    "disturbance_end_s": 6.782,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 80.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.95, \"off_duration_s\": 0.609}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R1\", \"b\": \"R5\", \"time_s\": 4.693, \"bandwidth_multiplier\": 0.311, \"extra_loss_rate\": 0.0416, \"duration_s\": 2.089}]}"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "run_029",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 5,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 25.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC3",
+      "dst": "PC4",
+      "pattern": "poisson",
+      "rate_mbps": 51.5027,
+      "packet_bytes": 500,
+      "start_s": 2.758,
+      "stop_s": 7.662
+    },
+    {
+      "id": 3,
+      "src": "PC4",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 14.414,
+      "packet_bytes": 1000,
+      "start_s": 0.847,
+      "stop_s": 8.339
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_029",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 5,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 90.91669999999999,
+    "flow_count": 3,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 25.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC3\", \"dst\": \"PC4\", \"pattern\": \"poisson\", \"rate_mbps\": 51.5027, \"packet_bytes\": 500, \"start_s\": 2.758, \"stop_s\": 7.662}, {\"id\": 3, \"src\": \"PC4\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 14.414, \"packet_bytes\": 1000, \"start_s\": 0.847, \"stop_s\": 8.339}], \"events\": []}"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "run_492",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 120.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 15.5312,
+      "packet_bytes": 1000,
+      "start_s": 2.277,
+      "stop_s": 8.235
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R2",
+      "b": "R3",
+      "time_s": 4.469,
+      "bandwidth_multiplier": 0.767,
+      "extra_loss_rate": 0.0446,
+      "duration_s": 1.663
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_492",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 120,
+    "offered_rate_mbps": 135.5312,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "R2-R3",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R2",
+        "b": "R3",
+        "time_s": 4.469,
+        "bandwidth_multiplier": 0.767,
+        "extra_loss_rate": 0.0446,
+        "duration_s": 1.663
+      }
+    ],
+    "disturbance_start_s": 4.469,
+    "disturbance_end_s": 6.132,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 120.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 15.5312, \"packet_bytes\": 1000, \"start_s\": 2.277, \"stop_s\": 8.235}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R2\", \"b\": \"R3\", \"time_s\": 4.469, \"bandwidth_multiplier\": 0.767, \"extra_loss_rate\": 0.0446, \"duration_s\": 1.663}]}"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "run_163",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 25.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 20.3657,
+      "packet_bytes": 500,
+      "start_s": 1.79,
+      "stop_s": 9.303
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "PC3",
+      "b": "R5",
+      "time_s": 3.898,
+      "bandwidth_multiplier": 0.338,
+      "extra_loss_rate": 0.0452,
+      "duration_s": 1.926
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_163",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 45.365700000000004,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "PC3-R5",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "PC3",
+        "b": "R5",
+        "time_s": 3.898,
+        "bandwidth_multiplier": 0.338,
+        "extra_loss_rate": 0.0452,
+        "duration_s": 1.926
+      }
+    ],
+    "disturbance_start_s": 3.898,
+    "disturbance_end_s": 5.824,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 25.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 20.3657, \"packet_bytes\": 500, \"start_s\": 1.79, \"stop_s\": 9.303}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"PC3\", \"b\": \"R5\", \"time_s\": 3.898, \"bandwidth_multiplier\": 0.338, \"extra_loss_rate\": 0.0452, \"duration_s\": 1.926}]}"
+  }
+}

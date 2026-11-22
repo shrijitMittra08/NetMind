@@ -1,0 +1,76 @@
+{
+  "name": "run_042",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 100.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 14.1822,
+      "packet_bytes": 1500,
+      "start_s": 0.018,
+      "stop_s": 7.041
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R3",
+      "b": "R4",
+      "time_s": 4.317
+    },
+    {
+      "type": "LINK_RESTORE",
+      "a": "R3",
+      "b": "R4",
+      "time_s": 6.167
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_042",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 114.1822,
+    "flow_count": 2,
+    "event_pattern": "link_failure",
+    "event_target": "R3-R4",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R3",
+        "b": "R4",
+        "time_s": 4.317
+      },
+      {
+        "type": "LINK_RESTORE",
+        "a": "R3",
+        "b": "R4",
+        "time_s": 6.167
+      }
+    ],
+    "disturbance_start_s": 4.317,
+    "disturbance_end_s": 6.167,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 100.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 14.1822, \"packet_bytes\": 1500, \"start_s\": 0.018, \"stop_s\": 7.041}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R3\", \"b\": \"R4\", \"time_s\": 4.317}, {\"type\": \"LINK_RESTORE\", \"a\": \"R3\", \"b\": \"R4\", \"time_s\": 6.167}]}"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "run_352",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC2",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 15.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC1",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 20.4203,
+      "packet_bytes": 500,
+      "start_s": 1.514,
+      "stop_s": 9.473
+    },
+    {
+      "id": 3,
+      "src": "RightPC1",
+      "dst": "RightPC2",
+      "pattern": "constant",
+      "rate_mbps": 40.8948,
+      "packet_bytes": 1000,
+      "start_s": 1.067,
+      "stop_s": 9.22
+    },
+    {
+      "id": 4,
+      "src": "RightPC2",
+      "dst": "LeftPC1",
+      "pattern": "constant",
+      "rate_mbps": 12.7775,
+      "packet_bytes": 500,
+      "start_s": 1.892,
+      "stop_s": 8.072
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R2",
+      "b": "RightPC2",
+      "time_s": 2.767,
+      "bandwidth_multiplier": 0.257,
+      "extra_loss_rate": 0.0362,
+      "duration_s": 3.085
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_352",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 89.0926,
+    "flow_count": 4,
+    "event_pattern": "congestion",
+    "event_target": "R2-RightPC2",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R2",
+        "b": "RightPC2",
+        "time_s": 2.767,
+        "bandwidth_multiplier": 0.257,
+        "extra_loss_rate": 0.0362,
+        "duration_s": 3.085
+      }
+    ],
+    "disturbance_start_s": 2.767,
+    "disturbance_end_s": 5.852,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"LeftPC2\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 15.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC1\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 20.4203, \"packet_bytes\": 500, \"start_s\": 1.514, \"stop_s\": 9.473}, {\"id\": 3, \"src\": \"RightPC1\", \"dst\": \"RightPC2\", \"pattern\": \"constant\", \"rate_mbps\": 40.8948, \"packet_bytes\": 1000, \"start_s\": 1.067, \"stop_s\": 9.22}, {\"id\": 4, \"src\": \"RightPC2\", \"dst\": \"LeftPC1\", \"pattern\": \"constant\", \"rate_mbps\": 12.7775, \"packet_bytes\": 500, \"start_s\": 1.892, \"stop_s\": 8.072}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R2\", \"b\": \"RightPC2\", \"time_s\": 2.767, \"bandwidth_multiplier\": 0.257, \"extra_loss_rate\": 0.0362, \"duration_s\": 3.085}]}"
+  }
+}

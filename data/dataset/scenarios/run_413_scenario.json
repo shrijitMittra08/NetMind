@@ -1,0 +1,50 @@
+{
+  "name": "run_413",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "poisson",
+      "rate_mbps": 80.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "poisson",
+      "rate_mbps": 13.9921,
+      "packet_bytes": 1000,
+      "start_s": 2.456,
+      "stop_s": 7.967
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_413",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 93.9921,
+    "flow_count": 2,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"poisson\", \"rate_mbps\": 80.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"poisson\", \"rate_mbps\": 13.9921, \"packet_bytes\": 1000, \"start_s\": 2.456, \"stop_s\": 7.967}], \"events\": []}"
+  }
+}

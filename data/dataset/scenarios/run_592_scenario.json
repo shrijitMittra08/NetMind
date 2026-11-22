@@ -1,0 +1,62 @@
+{
+  "name": "run_592",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "hops",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 10.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 5.6721,
+      "packet_bytes": 1000,
+      "start_s": 0.489,
+      "stop_s": 8.725
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R1",
+      "time_s": 2.675
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_592",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+    "algorithm": "dfs",
+    "weight": "hops",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 15.6721,
+    "flow_count": 2,
+    "event_pattern": "router_failure",
+    "event_target": "R1",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R1",
+        "time_s": 2.675
+      }
+    ],
+    "disturbance_start_s": 2.675,
+    "disturbance_end_s": 5.926,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 10.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 5.6721, \"packet_bytes\": 1000, \"start_s\": 0.489, \"stop_s\": 8.725}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R1\", \"time_s\": 2.675}]}"
+  }
+}

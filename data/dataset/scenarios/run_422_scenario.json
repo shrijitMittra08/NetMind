@@ -1,0 +1,50 @@
+{
+  "name": "run_422",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 50.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 39.7182,
+      "packet_bytes": 1000,
+      "start_s": 0.852,
+      "stop_s": 8.247
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_422",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 89.7182,
+    "flow_count": 2,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 50.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 39.7182, \"packet_bytes\": 1000, \"start_s\": 0.852, \"stop_s\": 8.247}], \"events\": []}"
+  }
+}

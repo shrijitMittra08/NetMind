@@ -1,0 +1,62 @@
+{
+  "name": "run_092",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "RightPC2",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 100.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 2,
+      "src": "RightPC2",
+      "dst": "LeftPC2",
+      "time_s": 2.999,
+      "duration_s": 2.139,
+      "rate_mbps": 29.9702,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_092",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 100.0,
+    "flow_count": 1,
+    "event_pattern": "burst",
+    "event_target": "RightPC2->LeftPC2",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 2,
+        "src": "RightPC2",
+        "dst": "LeftPC2",
+        "time_s": 2.999,
+        "duration_s": 2.139,
+        "rate_mbps": 29.9702,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 2.999,
+    "disturbance_end_s": 5.138,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"RightPC2\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 100.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 2, \"src\": \"RightPC2\", \"dst\": \"LeftPC2\", \"time_s\": 2.999, \"duration_s\": 2.139, \"rate_mbps\": 29.9702, \"packet_bytes\": 1000}]}"
+  }
+}

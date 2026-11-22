@@ -1,0 +1,74 @@
+{
+  "name": "run_472",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "bursty",
+      "rate_mbps": 30.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.942,
+      "off_duration_s": 0.423
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 48.3466,
+      "packet_bytes": 1500,
+      "start_s": 2.547,
+      "stop_s": 8.119
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R4",
+      "time_s": 4.24
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R4",
+      "time_s": 6.415
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_472",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\ring_backup.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 78.3466,
+    "flow_count": 2,
+    "event_pattern": "router_failure",
+    "event_target": "R4",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R4",
+        "time_s": 4.24
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R4",
+        "time_s": 6.415
+      }
+    ],
+    "disturbance_start_s": 4.24,
+    "disturbance_end_s": 6.415,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"bursty\", \"rate_mbps\": 30.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.942, \"off_duration_s\": 0.423}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 48.3466, \"packet_bytes\": 1500, \"start_s\": 2.547, \"stop_s\": 8.119}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R4\", \"time_s\": 4.24}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R4\", \"time_s\": 6.415}]}"
+  }
+}

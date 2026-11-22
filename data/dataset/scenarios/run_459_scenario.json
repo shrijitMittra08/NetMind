@@ -1,0 +1,72 @@
+{
+  "name": "run_459",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 200
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC4",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 50.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC3",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 43.4465,
+      "packet_bytes": 1500,
+      "start_s": 0.5,
+      "stop_s": 8.035
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 3,
+      "src": "PC3",
+      "dst": "PC1",
+      "time_s": 2.538,
+      "duration_s": 2.674,
+      "rate_mbps": 88.8122,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_459",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 93.4465,
+    "flow_count": 2,
+    "event_pattern": "burst",
+    "event_target": "PC3->PC1",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 3,
+        "src": "PC3",
+        "dst": "PC1",
+        "time_s": 2.538,
+        "duration_s": 2.674,
+        "rate_mbps": 88.8122,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 2.538,
+    "disturbance_end_s": 5.212,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 200}, \"flows\": [{\"id\": 1, \"src\": \"PC4\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 50.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC3\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 43.4465, \"packet_bytes\": 1500, \"start_s\": 0.5, \"stop_s\": 8.035}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 3, \"src\": \"PC3\", \"dst\": \"PC1\", \"time_s\": 2.538, \"duration_s\": 2.674, \"rate_mbps\": 88.8122, \"packet_bytes\": 1000}]}"
+  }
+}

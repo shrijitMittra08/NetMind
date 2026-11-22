@@ -12,7 +12,6 @@ cmake-build-*
 common
 viewer
 docs
-tests
 *.md
 !viewer_v2/README.md
 

@@ -1,0 +1,92 @@
+{
+  "name": "run_382",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC1",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 50.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "RightPC1",
+      "dst": "LeftPC1",
+      "pattern": "constant",
+      "rate_mbps": 25.111,
+      "packet_bytes": 500,
+      "start_s": 0.442,
+      "stop_s": 7.121
+    },
+    {
+      "id": 3,
+      "src": "LeftPC2",
+      "dst": "RightPC2",
+      "pattern": "constant",
+      "rate_mbps": 24.905,
+      "packet_bytes": 1500,
+      "start_s": 0.931,
+      "stop_s": 8.356
+    },
+    {
+      "id": 4,
+      "src": "RightPC2",
+      "dst": "RightPC1",
+      "pattern": "bursty",
+      "rate_mbps": 47.2797,
+      "packet_bytes": 1000,
+      "start_s": 0.245,
+      "stop_s": 7.123,
+      "on_duration_s": 1.043,
+      "off_duration_s": 0.602
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "LeftPC1",
+      "b": "R1",
+      "time_s": 3.678,
+      "bandwidth_multiplier": 0.497,
+      "extra_loss_rate": 0.0474,
+      "duration_s": 1.764
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_382",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 147.2957,
+    "flow_count": 4,
+    "event_pattern": "congestion",
+    "event_target": "LeftPC1-R1",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "LeftPC1",
+        "b": "R1",
+        "time_s": 3.678,
+        "bandwidth_multiplier": 0.497,
+        "extra_loss_rate": 0.0474,
+        "duration_s": 1.764
+      }
+    ],
+    "disturbance_start_s": 3.678,
+    "disturbance_end_s": 5.442,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"LeftPC1\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 50.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"RightPC1\", \"dst\": \"LeftPC1\", \"pattern\": \"constant\", \"rate_mbps\": 25.111, \"packet_bytes\": 500, \"start_s\": 0.442, \"stop_s\": 7.121}, {\"id\": 3, \"src\": \"LeftPC2\", \"dst\": \"RightPC2\", \"pattern\": \"constant\", \"rate_mbps\": 24.905, \"packet_bytes\": 1500, \"start_s\": 0.931, \"stop_s\": 8.356}, {\"id\": 4, \"src\": \"RightPC2\", \"dst\": \"RightPC1\", \"pattern\": \"bursty\", \"rate_mbps\": 47.2797, \"packet_bytes\": 1000, \"start_s\": 0.245, \"stop_s\": 7.123, \"on_duration_s\": 1.043, \"off_duration_s\": 0.602}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"LeftPC1\", \"b\": \"R1\", \"time_s\": 3.678, \"bandwidth_multiplier\": 0.497, \"extra_loss_rate\": 0.0474, \"duration_s\": 1.764}]}"
+  }
+}

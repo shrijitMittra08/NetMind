@@ -1,0 +1,62 @@
+{
+  "name": "run_522",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC4",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 40.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "time_s": 2.706,
+      "duration_s": 3.903,
+      "rate_mbps": 127.1158,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_522",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 40.0,
+    "flow_count": 1,
+    "event_pattern": "burst",
+    "event_target": "PC1->PC2",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 2,
+        "src": "PC1",
+        "dst": "PC2",
+        "time_s": 2.706,
+        "duration_s": 3.903,
+        "rate_mbps": 127.1158,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 2.706,
+    "disturbance_end_s": 6.609,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC4\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 40.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"time_s\": 2.706, \"duration_s\": 3.903, \"rate_mbps\": 127.1158, \"packet_bytes\": 1000}]}"
+  }
+}

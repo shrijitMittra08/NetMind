@@ -1,0 +1,64 @@
+{
+  "name": "run_555",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "bursty",
+      "rate_mbps": 50.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0,
+      "on_duration_s": 0.609,
+      "off_duration_s": 0.382
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 2,
+      "src": "PC4",
+      "dst": "PC1",
+      "time_s": 3.142,
+      "duration_s": 2.057,
+      "rate_mbps": 41.185,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_555",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dfs",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 50.0,
+    "flow_count": 1,
+    "event_pattern": "burst",
+    "event_target": "PC4->PC1",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 2,
+        "src": "PC4",
+        "dst": "PC1",
+        "time_s": 3.142,
+        "duration_s": 2.057,
+        "rate_mbps": 41.185,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 3.142,
+    "disturbance_end_s": 5.199,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC3\", \"pattern\": \"bursty\", \"rate_mbps\": 50.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0, \"on_duration_s\": 0.609, \"off_duration_s\": 0.382}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 2, \"src\": \"PC4\", \"dst\": \"PC1\", \"time_s\": 3.142, \"duration_s\": 2.057, \"rate_mbps\": 41.185, \"packet_bytes\": 1000}]}"
+  }
+}

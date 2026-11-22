@@ -1,0 +1,62 @@
+{
+  "name": "run_186",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 50.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    }
+  ],
+  "events": [
+    {
+      "type": "TRAFFIC_BURST",
+      "flow_id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "time_s": 3.925,
+      "duration_s": 2.94,
+      "rate_mbps": 133.8083,
+      "packet_bytes": 1000
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_186",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 50.0,
+    "flow_count": 1,
+    "event_pattern": "burst",
+    "event_target": "PC2->PC1",
+    "injected_events": [
+      {
+        "type": "TRAFFIC_BURST",
+        "flow_id": 2,
+        "src": "PC2",
+        "dst": "PC1",
+        "time_s": 3.925,
+        "duration_s": 2.94,
+        "rate_mbps": 133.8083,
+        "packet_bytes": 1000
+      }
+    ],
+    "disturbance_start_s": 3.925,
+    "disturbance_end_s": 6.865,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 50.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}], \"events\": [{\"type\": \"TRAFFIC_BURST\", \"flow_id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"time_s\": 3.925, \"duration_s\": 2.94, \"rate_mbps\": 133.8083, \"packet_bytes\": 1000}]}"
+  }
+}

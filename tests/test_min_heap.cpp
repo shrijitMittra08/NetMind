@@ -54,9 +54,12 @@ TEST_CASE("MinHeap emplace returns the inserted element") {
     int& inserted = heap.emplace(8);
     REQUIRE(inserted == 8);
 
+    // The returned reference is only valid until the heap is modified again:
+    // a later insert may reallocate or reorder the underlying storage.
     heap.emplace(3);
     REQUIRE(heap.top() == 3);
-    REQUIRE(inserted == 8);
+    heap.pop();
+    REQUIRE(heap.top() == 8);
 }
 
 TEST_CASE("MinHeap clear empties the heap") {

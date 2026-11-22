@@ -1,0 +1,72 @@
+{
+  "name": "run_379",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "hops",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 10.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 19.8125,
+      "packet_bytes": 500,
+      "start_s": 1.931,
+      "stop_s": 8.958
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R6",
+      "time_s": 3.159
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R6",
+      "time_s": 5.409
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_379",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "bellman-ford",
+    "weight": "hops",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 10,
+    "offered_rate_mbps": 29.8125,
+    "flow_count": 2,
+    "event_pattern": "router_failure",
+    "event_target": "R6",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R6",
+        "time_s": 3.159
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R6",
+        "time_s": 5.409
+      }
+    ],
+    "disturbance_start_s": 3.159,
+    "disturbance_end_s": 5.409,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 10.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 19.8125, \"packet_bytes\": 500, \"start_s\": 1.931, \"stop_s\": 8.958}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R6\", \"time_s\": 3.159}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R6\", \"time_s\": 5.409}]}"
+  }
+}

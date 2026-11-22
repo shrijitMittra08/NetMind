@@ -1,0 +1,70 @@
+{
+  "name": "run_072",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 5,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "hops",
+    "reconvergence_delay_ms": 50
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 30.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "poisson",
+      "rate_mbps": 58.636,
+      "packet_bytes": 1500,
+      "start_s": 0.73,
+      "stop_s": 7.484
+    }
+  ],
+  "events": [
+    {
+      "type": "CONGESTION",
+      "a": "R2",
+      "b": "R3",
+      "time_s": 3.674,
+      "bandwidth_multiplier": 0.545,
+      "extra_loss_rate": 0.0017,
+      "duration_s": 2.694
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_072",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "dfs",
+    "weight": "hops",
+    "seed": 5,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 88.636,
+    "flow_count": 2,
+    "event_pattern": "congestion",
+    "event_target": "R2-R3",
+    "injected_events": [
+      {
+        "type": "CONGESTION",
+        "a": "R2",
+        "b": "R3",
+        "time_s": 3.674,
+        "bandwidth_multiplier": 0.545,
+        "extra_loss_rate": 0.0017,
+        "duration_s": 2.694
+      }
+    ],
+    "disturbance_start_s": 3.674,
+    "disturbance_end_s": 6.368,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 50}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 30.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"poisson\", \"rate_mbps\": 58.636, \"packet_bytes\": 1500, \"start_s\": 0.73, \"stop_s\": 7.484}], \"events\": [{\"type\": \"CONGESTION\", \"a\": \"R2\", \"b\": \"R3\", \"time_s\": 3.674, \"bandwidth_multiplier\": 0.545, \"extra_loss_rate\": 0.0017, \"duration_s\": 2.694}]}"
+  }
+}

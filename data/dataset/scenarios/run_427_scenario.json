@@ -1,0 +1,72 @@
+{
+  "name": "run_427",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 4,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC2",
+      "dst": "RightPC2",
+      "pattern": "constant",
+      "rate_mbps": 40.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC1",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 13.3351,
+      "packet_bytes": 1000,
+      "start_s": 2.168,
+      "stop_s": 8.987
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R1",
+      "time_s": 4.498
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R1",
+      "time_s": 6.326
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_427",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 4,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 53.3351,
+    "flow_count": 2,
+    "event_pattern": "router_failure",
+    "event_target": "R1",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R1",
+        "time_s": 4.498
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R1",
+        "time_s": 6.326
+      }
+    ],
+    "disturbance_start_s": 4.498,
+    "disturbance_end_s": 6.326,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"LeftPC2\", \"dst\": \"RightPC2\", \"pattern\": \"constant\", \"rate_mbps\": 40.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC1\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 13.3351, \"packet_bytes\": 1000, \"start_s\": 2.168, \"stop_s\": 8.987}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R1\", \"time_s\": 4.498}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R1\", \"time_s\": 6.326}]}"
+  }
+}

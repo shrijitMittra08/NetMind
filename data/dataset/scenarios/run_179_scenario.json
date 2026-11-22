@@ -1,0 +1,52 @@
+{
+  "name": "run_179",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 30.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "bursty",
+      "rate_mbps": 49.2503,
+      "packet_bytes": 1000,
+      "start_s": 2.667,
+      "stop_s": 8.523,
+      "on_duration_s": 1.257,
+      "off_duration_s": 0.462
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_179",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\small4.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 79.25030000000001,
+    "flow_count": 2,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 30.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"bursty\", \"rate_mbps\": 49.2503, \"packet_bytes\": 1000, \"start_s\": 2.667, \"stop_s\": 8.523, \"on_duration_s\": 1.257, \"off_duration_s\": 0.462}], \"events\": []}"
+  }
+}

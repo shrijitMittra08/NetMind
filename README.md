@@ -184,8 +184,7 @@ NetMind/
 
 ## 🐳 Run everything with Docker
 
-> [!WARNING]
-> **Generate the baseline dataset first.** The image includes `data/dataset/`, which `.gitignore` keeps out of the repository. On a fresh clone, `docker compose up --build` fails until you've run [Generate the ML dataset](#-generate-the-ml-dataset). The image also includes the trained anomaly detector in `data/models/` and its plots in `data/plots/`, which are committed.
+The image includes the baseline dataset in `data/dataset/`, the trained anomaly detector in `data/models/` and its plots in `data/plots/`. All three are committed, so a fresh clone builds as is. To use your own dataset, regenerate it with [Generate the ML dataset](#-generate-the-ml-dataset) before building.
 
 With Docker running, start the project from the repository root:
 
@@ -209,6 +208,7 @@ One container builds and runs everything:
 | 🎬 **Demo scenarios** | On every start the container copies any missing files from the image's `config/` into the `netmind-config` volume, so new scenarios such as S1–S4 appear without deleting the volume. Your saved files are never overwritten |
 | 🤖 **GraphRAG LLM** | Settings in `python/.env` are passed in when the container starts and are never copied into the image |
 | 🛑 **Stop** | `docker compose down` keeps your data. `docker compose down -v` also deletes the volumes |
+| 🧪 **C++ tests** | `docker build --target cpp-test .` builds and runs the C++ test suite on Linux, without building the full image |
 
 ---
 
@@ -356,7 +356,7 @@ Vite proxies `/api` requests to the local API on port `8765`.
 
 ## 📊 Generate the ML dataset
 
-The baseline, its evaluation and the Docker image all need a generated dataset. Build the `release` preset first, then run from the repository root:
+A baseline dataset is committed in `data/dataset/`. To regenerate it, build the `release` preset first, then run from the repository root:
 
 ```sh
 python python/ml/generate_dataset.py \
@@ -415,7 +415,7 @@ A second is labelled anomalous when it overlaps an injected disturbance: from a 
 
 ## 🧪 Data and tests
 
-Generated simulation runs and datasets are local artifacts and are not included in the repository. The exceptions are the trained anomaly detector in `data/models/` and its plots in `data/plots/`, which are committed so the workbench and Docker image work without retraining. Topology and scenario examples are kept under `config/`.
+Generated simulation runs and datasets are local artifacts and are not included in the repository. The exceptions are the baseline dataset in `data/dataset/`, the trained anomaly detector in `data/models/` and its plots in `data/plots/`, which are committed so the workbench and Docker image work without regenerating or retraining. Topology and scenario examples are kept under `config/`.
 
 | Suite | Framework | Command |
 |---|---|---|

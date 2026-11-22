@@ -1,0 +1,86 @@
+{
+  "name": "run_177",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 1,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC4",
+      "dst": "PC3",
+      "pattern": "poisson",
+      "rate_mbps": 80.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 7.185,
+      "packet_bytes": 500,
+      "start_s": 0.607,
+      "stop_s": 9.843
+    },
+    {
+      "id": 3,
+      "src": "PC4",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 22.2343,
+      "packet_bytes": 500,
+      "start_s": 0.602,
+      "stop_s": 9.479
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R5",
+      "b": "R3",
+      "time_s": 3.972
+    },
+    {
+      "type": "LINK_RESTORE",
+      "a": "R5",
+      "b": "R3",
+      "time_s": 6.786
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_177",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "dijkstra",
+    "weight": "latency",
+    "seed": 1,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 109.4193,
+    "flow_count": 3,
+    "event_pattern": "link_failure",
+    "event_target": "R5-R3",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R5",
+        "b": "R3",
+        "time_s": 3.972
+      },
+      {
+        "type": "LINK_RESTORE",
+        "a": "R5",
+        "b": "R3",
+        "time_s": 6.786
+      }
+    ],
+    "disturbance_start_s": 3.972,
+    "disturbance_end_s": 6.786,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dijkstra\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC4\", \"dst\": \"PC3\", \"pattern\": \"poisson\", \"rate_mbps\": 80.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 7.185, \"packet_bytes\": 500, \"start_s\": 0.607, \"stop_s\": 9.843}, {\"id\": 3, \"src\": \"PC4\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 22.2343, \"packet_bytes\": 500, \"start_s\": 0.602, \"stop_s\": 9.479}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R5\", \"b\": \"R3\", \"time_s\": 3.972}, {\"type\": \"LINK_RESTORE\", \"a\": \"R5\", \"b\": \"R3\", \"time_s\": 6.786}]}"
+  }
+}

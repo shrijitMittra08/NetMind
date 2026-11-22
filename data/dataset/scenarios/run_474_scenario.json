@@ -1,0 +1,92 @@
+{
+  "name": "run_474",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC3",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 80.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC4",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 17.7459,
+      "packet_bytes": 1000,
+      "start_s": 1.584,
+      "stop_s": 9.343
+    },
+    {
+      "id": 3,
+      "src": "PC2",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 17.9634,
+      "packet_bytes": 1500,
+      "start_s": 1.915,
+      "stop_s": 8.543
+    },
+    {
+      "id": 4,
+      "src": "PC1",
+      "dst": "PC4",
+      "pattern": "constant",
+      "rate_mbps": 6.6011,
+      "packet_bytes": 1500,
+      "start_s": 1.218,
+      "stop_s": 9.046
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R5",
+      "time_s": 4.165
+    },
+    {
+      "type": "ROUTER_RESTORE",
+      "node": "R5",
+      "time_s": 6.524
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_474",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 122.3104,
+    "flow_count": 4,
+    "event_pattern": "router_failure",
+    "event_target": "R5",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R5",
+        "time_s": 4.165
+      },
+      {
+        "type": "ROUTER_RESTORE",
+        "node": "R5",
+        "time_s": 6.524
+      }
+    ],
+    "disturbance_start_s": 4.165,
+    "disturbance_end_s": 6.524,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC3\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 80.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC4\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 17.7459, \"packet_bytes\": 1000, \"start_s\": 1.584, \"stop_s\": 9.343}, {\"id\": 3, \"src\": \"PC2\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 17.9634, \"packet_bytes\": 1500, \"start_s\": 1.915, \"stop_s\": 8.543}, {\"id\": 4, \"src\": \"PC1\", \"dst\": \"PC4\", \"pattern\": \"constant\", \"rate_mbps\": 6.6011, \"packet_bytes\": 1500, \"start_s\": 1.218, \"stop_s\": 9.046}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R5\", \"time_s\": 4.165}, {\"type\": \"ROUTER_RESTORE\", \"node\": \"R5\", \"time_s\": 6.524}]}"
+  }
+}

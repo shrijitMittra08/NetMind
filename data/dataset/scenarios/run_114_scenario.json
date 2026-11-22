@@ -1,0 +1,64 @@
+{
+  "name": "run_114",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "dfs",
+    "weight": "hops",
+    "reconvergence_delay_ms": 50
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "constant",
+      "rate_mbps": 80.0,
+      "packet_bytes": 1500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 58.303,
+      "packet_bytes": 500,
+      "start_s": 2.788,
+      "stop_s": 8.971
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R3",
+      "b": "R4",
+      "time_s": 4.904
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_114",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "dfs",
+    "weight": "hops",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 80,
+    "offered_rate_mbps": 138.303,
+    "flow_count": 2,
+    "event_pattern": "link_failure",
+    "event_target": "R3-R4",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R3",
+        "b": "R4",
+        "time_s": 4.904
+      }
+    ],
+    "disturbance_start_s": 4.904,
+    "disturbance_end_s": 7.264,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"dfs\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 50}, \"flows\": [{\"id\": 1, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"constant\", \"rate_mbps\": 80.0, \"packet_bytes\": 1500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 58.303, \"packet_bytes\": 500, \"start_s\": 2.788, \"stop_s\": 8.971}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R3\", \"b\": \"R4\", \"time_s\": 4.904}]}"
+  }
+}

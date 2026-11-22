@@ -1,0 +1,72 @@
+{
+  "name": "run_258",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "latency",
+    "reconvergence_delay_ms": 0
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "constant",
+      "rate_mbps": 100.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC3",
+      "pattern": "constant",
+      "rate_mbps": 29.872,
+      "packet_bytes": 1000,
+      "start_s": 2.172,
+      "stop_s": 7.794
+    },
+    {
+      "id": 3,
+      "src": "PC4",
+      "dst": "PC1",
+      "pattern": "poisson",
+      "rate_mbps": 8.2508,
+      "packet_bytes": 1000,
+      "start_s": 0.72,
+      "stop_s": 7.599
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R5",
+      "time_s": 4.394
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_258",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\medium10.json",
+    "algorithm": "bfs",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 100,
+    "offered_rate_mbps": 138.1228,
+    "flow_count": 3,
+    "event_pattern": "router_failure",
+    "event_target": "R5",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R5",
+        "time_s": 4.394
+      }
+    ],
+    "disturbance_start_s": 4.394,
+    "disturbance_end_s": 6.051,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 0}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"constant\", \"rate_mbps\": 100.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC3\", \"pattern\": \"constant\", \"rate_mbps\": 29.872, \"packet_bytes\": 1000, \"start_s\": 2.172, \"stop_s\": 7.794}, {\"id\": 3, \"src\": \"PC4\", \"dst\": \"PC1\", \"pattern\": \"poisson\", \"rate_mbps\": 8.2508, \"packet_bytes\": 1000, \"start_s\": 0.72, \"stop_s\": 7.599}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R5\", \"time_s\": 4.394}]}"
+  }
+}

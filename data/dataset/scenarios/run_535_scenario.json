@@ -1,0 +1,62 @@
+{
+  "name": "run_535",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+  "seed": 2,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "hops",
+    "reconvergence_delay_ms": 50
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "PC2",
+      "dst": "PC1",
+      "pattern": "poisson",
+      "rate_mbps": 50.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "PC1",
+      "dst": "PC2",
+      "pattern": "poisson",
+      "rate_mbps": 9.5679,
+      "packet_bytes": 1500,
+      "start_s": 0.525,
+      "stop_s": 8.406
+    }
+  ],
+  "events": [
+    {
+      "type": "ROUTER_FAILURE",
+      "node": "R6",
+      "time_s": 4.792
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_535",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\diamond_weighted.json",
+    "algorithm": "bellman-ford",
+    "weight": "hops",
+    "seed": 2,
+    "load_pct_of_path_bottleneck": 50,
+    "offered_rate_mbps": 59.5679,
+    "flow_count": 2,
+    "event_pattern": "router_failure",
+    "event_target": "R6",
+    "injected_events": [
+      {
+        "type": "ROUTER_FAILURE",
+        "node": "R6",
+        "time_s": 4.792
+      }
+    ],
+    "disturbance_start_s": 4.792,
+    "disturbance_end_s": 6.517,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 50}, \"flows\": [{\"id\": 1, \"src\": \"PC2\", \"dst\": \"PC1\", \"pattern\": \"poisson\", \"rate_mbps\": 50.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"PC1\", \"dst\": \"PC2\", \"pattern\": \"poisson\", \"rate_mbps\": 9.5679, \"packet_bytes\": 1500, \"start_s\": 0.525, \"stop_s\": 8.406}], \"events\": [{\"type\": \"ROUTER_FAILURE\", \"node\": \"R6\", \"time_s\": 4.792}]}"
+  }
+}

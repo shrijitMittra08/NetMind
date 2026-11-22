@@ -1,0 +1,64 @@
+{
+  "name": "run_414",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 5,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bfs",
+    "weight": "hops",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "RightPC2",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 60.0,
+      "packet_bytes": 1000,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC2",
+      "dst": "RightPC1",
+      "pattern": "constant",
+      "rate_mbps": 20.3748,
+      "packet_bytes": 500,
+      "start_s": 0.257,
+      "stop_s": 8.018
+    }
+  ],
+  "events": [
+    {
+      "type": "LINK_FAILURE",
+      "a": "R1",
+      "b": "R2",
+      "time_s": 4.193
+    }
+  ],
+  "dataset_metadata": {
+    "run_id": "run_414",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bfs",
+    "weight": "hops",
+    "seed": 5,
+    "load_pct_of_path_bottleneck": 120,
+    "offered_rate_mbps": 80.3748,
+    "flow_count": 2,
+    "event_pattern": "link_failure",
+    "event_target": "R1-R2",
+    "injected_events": [
+      {
+        "type": "LINK_FAILURE",
+        "a": "R1",
+        "b": "R2",
+        "time_s": 4.193
+      }
+    ],
+    "disturbance_start_s": 4.193,
+    "disturbance_end_s": 6.688,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bfs\", \"weight\": \"hops\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"RightPC2\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 60.0, \"packet_bytes\": 1000, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC2\", \"dst\": \"RightPC1\", \"pattern\": \"constant\", \"rate_mbps\": 20.3748, \"packet_bytes\": 500, \"start_s\": 0.257, \"stop_s\": 8.018}], \"events\": [{\"type\": \"LINK_FAILURE\", \"a\": \"R1\", \"b\": \"R2\", \"time_s\": 4.193}]}"
+  }
+}

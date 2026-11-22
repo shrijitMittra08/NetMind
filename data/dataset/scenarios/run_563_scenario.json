@@ -1,0 +1,50 @@
+{
+  "name": "run_563",
+  "topology": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+  "seed": 3,
+  "duration_s": 10.0,
+  "routing": {
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "reconvergence_delay_ms": 500
+  },
+  "flows": [
+    {
+      "id": 1,
+      "src": "LeftPC1",
+      "dst": "LeftPC2",
+      "pattern": "constant",
+      "rate_mbps": 30.0,
+      "packet_bytes": 500,
+      "start_s": 0.0,
+      "stop_s": 10.0
+    },
+    {
+      "id": 2,
+      "src": "LeftPC1",
+      "dst": "RightPC2",
+      "pattern": "poisson",
+      "rate_mbps": 24.2082,
+      "packet_bytes": 1000,
+      "start_s": 1.355,
+      "stop_s": 7.241
+    }
+  ],
+  "events": [],
+  "dataset_metadata": {
+    "run_id": "run_563",
+    "topology_path": "C:\\Users\\shrij\\OneDrive\\Desktop\\DS_CPP_PBL\\netmind\\config\\topologies\\dumbbell.json",
+    "algorithm": "bellman-ford",
+    "weight": "latency",
+    "seed": 3,
+    "load_pct_of_path_bottleneck": 30,
+    "offered_rate_mbps": 54.208200000000005,
+    "flow_count": 2,
+    "event_pattern": "none",
+    "event_target": null,
+    "injected_events": [],
+    "disturbance_start_s": null,
+    "disturbance_end_s": null,
+    "scenario_json": "{\"duration_s\": 10.0, \"routing\": {\"algorithm\": \"bellman-ford\", \"weight\": \"latency\", \"reconvergence_delay_ms\": 500}, \"flows\": [{\"id\": 1, \"src\": \"LeftPC1\", \"dst\": \"LeftPC2\", \"pattern\": \"constant\", \"rate_mbps\": 30.0, \"packet_bytes\": 500, \"start_s\": 0.0, \"stop_s\": 10.0}, {\"id\": 2, \"src\": \"LeftPC1\", \"dst\": \"RightPC2\", \"pattern\": \"poisson\", \"rate_mbps\": 24.2082, \"packet_bytes\": 1000, \"start_s\": 1.355, \"stop_s\": 7.241}], \"events\": []}"
+  }
+}

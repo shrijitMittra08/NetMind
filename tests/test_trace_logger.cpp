@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -12,7 +13,11 @@ std::string readFile(const std::filesystem::path& path) {
     std::ifstream input(path);
     REQUIRE(input.good());
 
-    return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    std::string content{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    // Compare content, not platform line endings: the golden file may be checked out
+    // with CRLF (Windows, or a Docker context copied from Windows) or LF (Linux CI).
+    content.erase(std::remove(content.begin(), content.end(), '\r'), content.end());
+    return content;
 }
 
 std::string resolveNodeName(netmind::NodeId id) {
