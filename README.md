@@ -87,7 +87,7 @@ The CLI can also run a text command script or a scenario file without interactio
   | 🗺️ **Topology** | Build a topology, or import a topology or a scenario file (topology + settings) |
   | 🎛️ **Simulation** | Configure and run simulations, either interactively or as a CLI script; save, download and import scenario files |
   | 📊 **Results** | Compare runs and see the expected-baseline results |
-  | 📈 **Anomalies** | See which seconds of each run the detector flagged and why, plus how the detector scored on held-out runs, with the evaluation plots |
+  | 📈 **Anomalies** | Enabled after a simulation runs. Shows which seconds of the current run the detector flagged and why, in four per-metric plots; the **i** button shows how the detector was evaluated |
   | ⏯️ **Replay** | Load a run into the replay viewer |
   | 💬 **Insights** | Ask GraphRAG questions about the runs |
 
@@ -120,7 +120,7 @@ Both fitted detectors and their thresholds are saved together in `data/models/an
 | Detector (held-out runs) | Precision | Recall | F1 | False alarms on clean runs |
 |---|---|---|---|---|
 | ✅ z-score (used) | 0.60 | 0.58 | 0.59 | 3 % |
-| IsolationForest | 0.39 | 0.71 | 0.51 | 21 % |
+| IsolationForest | 0.39 | 0.71 | 0.51 | 20 % |
 | z-score, fixed \|z\| > 3 | 0.43 | 0.74 | 0.54 | 16 % |
 
 ### 💬 GraphRAG

@@ -1559,6 +1559,21 @@ svg.inline {
   font-variant-numeric: tabular-nums;
 }
 
+.anomaly-chart {
+  margin: 0;
+  padding: 10px 12px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.anomaly-chart figcaption {
+  margin-bottom: 2px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .anomaly-chart svg {
   display: block;
   width: 100%;
@@ -1671,33 +1686,6 @@ svg.inline {
   background: var(--muted);
 }
 
-.plot-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
-
-.plot {
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #ffffff;
-}
-
-.plot img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.plot figcaption {
-  padding: 8px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-2);
-  font-size: 12px;
-}
 
 .metric-chart .anomaly-mark {
   fill: var(--danger);
@@ -1763,4 +1751,94 @@ svg.inline {
 .scenario-pick:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+.anomaly-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.info-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.info-button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.info-button:hover,
+.info-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+
+.info-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.info-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  gap: 10px;
+  width: min(440px, 86vw);
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.info-popover p {
+  margin: 0;
+}
+
+.info-close {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.info-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.info-close svg {
+  width: 15px;
+  height: 15px;
+}
+
+table.data.compact th,
+table.data.compact td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.danger-text {
+  color: var(--danger);
 }

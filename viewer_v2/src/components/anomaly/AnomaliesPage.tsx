@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-import { Activity, CircleAlert, CircleCheck, ImageIcon, LoaderCircle, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { api } from "../../lib/api";
 import { algorithmLabel, fmt } from "../../lib/format";
-import type { AnomalyEvaluation, AnomalyMetric, AnomalyResult, RunResult } from "../../lib/types";
+import type { AnomalyEvaluation, AnomalyReport, AnomalyResult, RunResult } from "../../lib/types";
 import { describeSpan, flagSpans, isReport, verdict } from "../../domain/anomaly";
 import { useWorkbench } from "../../state/workbench";
-import { EmptyState, Segmented } from "../ui";
-import { ANOMALY_METRICS, AnomalyChart } from "./AnomalyChart";
+import { Segmented } from "../ui";
+import { ANOMALY_METRICS, AnomalyChart, AnomalyReadout } from "./AnomalyChart";
 
 const DETECTOR_LABELS: Record<string, string> = {
   zscore: "z-score (used)",
@@ -14,16 +14,9 @@ const DETECTOR_LABELS: Record<string, string> = {
   zscore_fixed_3sigma: "z-score, fixed |z| > 3",
 };
 
-const PATTERN_LABELS: Record<string, string> = {
-  burst: "Traffic burst",
-  congestion: "Congestion",
-  link_failure: "Link failure",
-  router_failure: "Router failure",
-};
-
 const pct = (value: number | undefined) => (value === undefined || !Number.isFinite(value) ? "—" : `${(value * 100).toFixed(0)}%`);
 
-function useRunAnomaly(run: RunResult | undefined): { result: AnomalyResult | null; loading: boolean } {
+function useRunAnomaly(run: RunResult | undefined): AnomalyResult | null {
   const [fetched, setFetched] = useState<Record<string, AnomalyResult>>({});
   const runId = run?.run_id;
   const attached = run?.anomaly;
@@ -40,80 +33,118 @@ function useRunAnomaly(run: RunResult | undefined): { result: AnomalyResult | nu
     };
   }, [runId, attached, fetched]);
 
-  if (!run) return { result: null, loading: false };
-  const result = attached ?? fetched[run.run_id] ?? null;
-  return { result, loading: result === null };
+  if (!run) return null;
+  return attached ?? fetched[run.run_id] ?? null;
 }
 
-function RunDetection() {
-  const { runs } = useWorkbench();
-  const [runId, setRunId] = useState(runs[0]?.run_id ?? "");
-  const [metric, setMetric] = useState<AnomalyMetric>("loss_pct");
-  const [showComparison, setShowComparison] = useState(false);
-  const run = runs.find((r) => r.run_id === runId) ?? runs[0];
-  const { result, loading } = useRunAnomaly(run);
+function EvaluationInfo() {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<{ data: AnomalyEvaluation | null; error: string }>({ data: null, error: "" });
+  const box = useRef<HTMLDivElement>(null);
 
-  if (!run) {
-    return (
-      <section className="card">
-        <EmptyState icon={<Activity />} title="No runs yet">
-          <p>Run a simulation to see which seconds the detector flags. The evaluation below works without a run.</p>
-        </EmptyState>
-      </section>
-    );
-  }
+  useEffect(() => {
+    if (!open || state.data || state.error) return;
+    let alive = true;
+    api
+      .anomalyEvaluation()
+      .then((data) => alive && setState({ data, error: "" }))
+      .catch((error: Error) => alive && setState({ data: null, error: error.message }));
+    return () => {
+      alive = false;
+    };
+  }, [open, state]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (event: MouseEvent) => {
+      if (box.current && !box.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const { data, error } = state;
   return (
-    <section className="card">
-      <div className="card-head">
-        <div>
-          <h3>Detected anomalies</h3>
-          <p>Each second of the run is scored by the z-score detector; a second is flagged when one metric moves far outside what normal runs show.</p>
-        </div>
-        <div className="spacer" />
-        {runs.length > 1 && (
-          <Segmented
-            label="Run"
-            value={run.run_id}
-            onChange={setRunId}
-            options={runs.map((r) => ({ value: r.run_id, label: algorithmLabel(r.algorithm) }))}
-          />
-        )}
-      </div>
-      <div className="card-body stack" style={{ "--gap": "16px" } as React.CSSProperties}>
-        {loading && (
-          <p className="muted">
-            <LoaderCircle className="spin inline" /> Scoring the run…
-          </p>
-        )}
-        {result && !isReport(result) && (
-          <div className="notice danger">
-            <CircleAlert />
-            {result.error}
+    <div className="info-anchor" ref={box}>
+      <button
+        type="button"
+        className="info-button"
+        aria-label="How the detector was evaluated"
+        aria-expanded={open}
+        title="How the detector was evaluated"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Info />
+      </button>
+      {open && (
+        <div className="info-popover" role="dialog" aria-label="How the detector was evaluated">
+          <div className="row">
+            <strong>How the detector was evaluated</strong>
+            <div className="spacer" />
+            <button type="button" className="info-close" aria-label="Close" onClick={() => setOpen(false)}>
+              <X />
+            </button>
           </div>
-        )}
-        {isReport(result) && <RunReport report={result} metric={metric} setMetric={setMetric} showComparison={showComparison} setShowComparison={setShowComparison} />}
-      </div>
-    </section>
+          {!data && !error && (
+            <p className="muted small">
+              <LoaderCircle className="spin inline" /> Loading…
+            </p>
+          )}
+          {error && <p className="small danger-text">{error}</p>}
+          {data && (
+            <>
+              <p className="small">
+                Fitted on normal simulated runs only, thresholds tuned on {data.results.split_runs.validation} validation runs, and
+                scored on {data.results.split_runs.test} held-out runs it never saw.
+              </p>
+              <table className="data compact">
+                <thead>
+                  <tr>
+                    <th>Detector</th>
+                    <th className="num">Precision</th>
+                    <th className="num">Recall</th>
+                    <th className="num">F1</th>
+                    <th className="num">False alarms</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(data.results.models).map(([name, m]) => (
+                    <tr key={name}>
+                      <td>{DETECTOR_LABELS[name] ?? name}</td>
+                      <td className="num">{fmt(m.test.precision, 2)}</td>
+                      <td className="num">{fmt(m.test.recall, 2)}</td>
+                      <td className={`num${name === data.results.primary ? " best" : ""}`}>{fmt(m.test.f1, 2)}</td>
+                      <td className="num">{pct(m.test_runs.clean_window_false_alarm_rate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted small">
+                False alarms are the share of seconds flagged in runs with no injected event. Recall stays below 100% because some
+                events change nothing measurable.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
-function RunReport({
-  report,
-  metric,
-  setMetric,
-  showComparison,
-  setShowComparison,
-}: {
-  report: Extract<AnomalyResult, { windows: unknown }>;
-  metric: AnomalyMetric;
-  setMetric: (metric: AnomalyMetric) => void;
-  showComparison: boolean;
-  setShowComparison: (value: boolean) => void;
-}) {
+function RunReport({ report }: { report: AnomalyReport }) {
+  const [showComparison, setShowComparison] = useState(false);
+  const [hoverT, setHoverT] = useState<number | null>(null);
   const v = verdict(report);
   const spans = flagSpans(report.windows, report.window_s);
   const s = report.summary;
+
   return (
     <>
       <div className={`notice ${v.tone === "neutral" ? "" : v.tone}`}>
@@ -138,33 +169,44 @@ function RunReport({
         </div>
       </div>
       <div className="row wrap">
-        <Segmented label="Metric" value={metric} onChange={setMetric} options={ANOMALY_METRICS.map((m) => ({ value: m.value, label: m.label }))} />
+        <div className="anomaly-legend">
+          <span>
+            <i className="swatch band" /> injected event window
+          </span>
+          <span>
+            <i className="swatch flag" /> flagged inside the event
+          </span>
+          <span>
+            <i className="swatch outside" /> flagged outside it
+          </span>
+          {showComparison && (
+            <span>
+              <i className="swatch compare" /> IsolationForest flag
+            </span>
+          )}
+        </div>
         <div className="spacer" />
         <label className="check">
           <input type="checkbox" checked={showComparison} onChange={(e) => setShowComparison(e.target.checked)} />
           Compare with IsolationForest ({s.if_flagged} flagged)
         </label>
       </div>
-      <AnomalyChart report={report} metric={metric} showComparison={showComparison} />
-      <div className="anomaly-legend">
-        <span>
-          <i className="swatch band" /> injected event window
-        </span>
-        <span>
-          <i className="swatch flag" /> flagged inside the event
-        </span>
-        <span>
-          <i className="swatch outside" /> flagged outside it
-        </span>
-        {showComparison && (
-          <span>
-            <i className="swatch compare" /> IsolationForest flag
-          </span>
-        )}
+      <div className="anomaly-grid">
+        {ANOMALY_METRICS.map((m) => (
+          <AnomalyChart
+            key={m.value}
+            report={report}
+            metric={m.value}
+            showComparison={showComparison}
+            hoverT={hoverT}
+            onHover={setHoverT}
+          />
+        ))}
       </div>
-      {spans.length > 0 && (
-        <details className="disclosure" open={spans.length <= 6}>
-          <summary>What was flagged ({spans.length} period{spans.length === 1 ? "" : "s"})</summary>
+      <AnomalyReadout report={report} hoverT={hoverT} />
+      {spans.length > 0 ? (
+        <div>
+          <strong className="small">What was flagged</strong>
           <ul className="facts">
             {spans.map((span) => (
               <li key={span.start}>
@@ -176,149 +218,63 @@ function RunReport({
               </li>
             ))}
           </ul>
-        </details>
+        </div>
+      ) : (
+        <p className="muted small">No second of this run was flagged.</p>
       )}
       {report.disturbances.length > 0 && s.false_alarms > 0 && (
         <p className="muted small">
-          Flags just after an event often mark real after-effects, such as routes reconverging after a restore, that fall outside the labelled window.
+          Flags just after an event often mark real after-effects, such as routes reconverging after a restore, that fall outside
+          the labelled window.
         </p>
       )}
     </>
   );
 }
 
-function Evaluation() {
-  const [state, setState] = useState<{ data: AnomalyEvaluation | null; error: string }>({ data: null, error: "" });
+export function AnomaliesPage() {
+  const { runs, focusRunId, setFocusRunId } = useWorkbench();
+  const run = runs.find((r) => r.run_id === focusRunId) ?? runs[0];
+  const result = useRunAnomaly(run);
 
-  useEffect(() => {
-    let alive = true;
-    api
-      .anomalyEvaluation()
-      .then((data) => alive && setState({ data, error: "" }))
-      .catch((error: Error) => alive && setState({ data: null, error: error.message }));
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  const { data, error } = state;
-  const models = data ? Object.entries(data.results.models) : [];
-  const patterns = data ? Object.keys(data.results.models[data.results.primary]?.test_recall_by_pattern ?? {}) : [];
+  if (!run) return null;
 
   return (
     <section className="card">
       <div className="card-head">
         <div>
-          <h3>How the detector was evaluated</h3>
-          <p>
-            Trained on normal simulated runs only, thresholds tuned on validation runs, scored on held-out runs that the detectors never saw.
-          </p>
+          <div className="row">
+            <h3>
+              {algorithmLabel(run.algorithm)} run <span className="muted mono small">{run.run_id}</span>
+            </h3>
+            <EvaluationInfo />
+          </div>
+          <p>Each second of this run is scored by the z-score detector; a second is flagged when one metric moves far outside what normal runs show.</p>
         </div>
+        <div className="spacer" />
+        {runs.length > 1 && (
+          <Segmented
+            label="Algorithm"
+            value={run.run_id}
+            onChange={setFocusRunId}
+            options={runs.map((r) => ({ value: r.run_id, label: algorithmLabel(r.algorithm) }))}
+          />
+        )}
       </div>
-      <div className="card-body stack" style={{ "--gap": "18px" } as React.CSSProperties}>
-        {!data && !error && (
+      <div className="card-body stack" style={{ "--gap": "16px" } as React.CSSProperties}>
+        {result === null && (
           <p className="muted">
-            <LoaderCircle className="spin inline" /> Loading the evaluation…
+            <LoaderCircle className="spin inline" /> Scoring the run…
           </p>
         )}
-        {error && (
+        {result && !isReport(result) && (
           <div className="notice danger">
             <CircleAlert />
-            {error}
+            {result.error}
           </div>
         )}
-        {data && (
-          <>
-            <p className="muted small">
-              {data.results.split_runs.train} training, {data.results.split_runs.validation} validation and {data.results.split_runs.test} test
-              runs; {data.results.train_normal_windows} normal seconds used for fitting.
-            </p>
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Detector</th>
-                    <th className="num">Precision</th>
-                    <th className="num">Recall</th>
-                    <th className="num">F1</th>
-                    <th className="num">Disturbed runs caught</th>
-                    <th className="num">False alarms on clean runs</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {models.map(([name, m]) => (
-                    <tr key={name}>
-                      <td>{DETECTOR_LABELS[name] ?? name}</td>
-                      <td className="num">{fmt(m.test.precision, 2)}</td>
-                      <td className="num">{fmt(m.test.recall, 2)}</td>
-                      <td className={`num${name === data.results.primary ? " best" : ""}`}>{fmt(m.test.f1, 2)}</td>
-                      <td className="num">{pct(m.test_runs.detection_rate)}</td>
-                      <td className="num">{pct(m.test_runs.clean_window_false_alarm_rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {patterns.length > 0 && (
-              <div className="table-wrap">
-                <table className="data">
-                  <thead>
-                    <tr>
-                      <th>Recall by event type</th>
-                      {models.map(([name]) => (
-                        <th key={name} className="num">
-                          {DETECTOR_LABELS[name] ?? name}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {patterns.map((pattern) => (
-                      <tr key={pattern}>
-                        <td>{PATTERN_LABELS[pattern] ?? pattern}</td>
-                        {models.map(([name, m]) => (
-                          <td key={name} className="num">
-                            {pct(m.test_recall_by_pattern[pattern])}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="muted small">
-              Recall is capped below 100%: some injected events, such as a failure on a link no flow uses, change nothing measurable.
-            </p>
-            {data.plots.length > 0 ? (
-              <div className="plot-gallery">
-                {data.plots.map((plot) => (
-                  <figure key={plot.name} className="plot">
-                    <a href={plot.url} target="_blank" rel="noreferrer" title="Open full size">
-                      <img src={plot.url} alt={plot.title} loading="lazy" />
-                    </a>
-                    <figcaption>{plot.title}</figcaption>
-                  </figure>
-                ))}
-              </div>
-            ) : (
-              <div className="notice">
-                <ImageIcon />
-                No plots yet. Run python -m ml.anomaly from the python folder to generate them.
-              </div>
-            )}
-          </>
-        )}
+        {isReport(result) && <RunReport key={result.run_id} report={result} />}
       </div>
     </section>
-  );
-}
-
-export function AnomaliesPage() {
-  return (
-    <div className="stack" style={{ "--gap": "20px" } as React.CSSProperties}>
-      <RunDetection />
-      <Evaluation />
-    </div>
   );
 }

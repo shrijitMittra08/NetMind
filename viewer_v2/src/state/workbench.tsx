@@ -53,6 +53,8 @@ interface Workbench {
   problems: string[];
 
   runs: RunResult[];
+  focusRunId: string | null;
+  setFocusRunId: (runId: string) => void;
   run: RunState;
   startRun: () => Promise<void>;
 }
@@ -74,6 +76,7 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [exportResults, setExportResults] = useState(true);
   const [scriptResult, setScriptResult] = useState<ScriptRunResult | null>(null);
   const [runs, setRuns] = useState<RunResult[]>([]);
+  const [focusRunId, setFocusRunId] = useState<string | null>(null);
   const [run, setRun] = useState<RunState>({ status: "idle", startedAt: 0, label: "", error: "" });
 
   useEffect(() => {
@@ -157,11 +160,15 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
       if (scripted) {
         const result = await api.runScript(topology, script, exportResults, parsedScript.settings);
         setScriptResult(result);
-        if (result.runs.length > 0) setRuns(result.runs);
+        if (result.runs.length > 0) {
+          setRuns(result.runs);
+          setFocusRunId(result.runs[0]!.run_id);
+        }
       } else {
         const ordered = ALGORITHMS.filter((name) => algorithms.includes(name));
         const result = await api.runSimulation(topology, topologyName, settings, ordered);
         setRuns(result.runs);
+        setFocusRunId(result.runs[0]?.run_id ?? null);
         setSection("results");
       }
       setRun((current) => ({ ...current, status: "idle" }));
@@ -197,6 +204,8 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     activeSettings,
     problems,
     runs,
+    focusRunId,
+    setFocusRunId,
     run,
     startRun,
   };

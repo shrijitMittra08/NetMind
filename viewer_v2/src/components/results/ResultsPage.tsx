@@ -106,7 +106,7 @@ function BaselineGauge({ metric }: { metric: BaselineMetric }) {
 }
 
 export function ResultsPage() {
-  const { runs, goTo, scriptResult, setupMode } = useWorkbench();
+  const { runs, goTo, scriptResult, setupMode, setFocusRunId } = useWorkbench();
   const [metricKey, setMetricKey] = useState<MetricKey>("latency_ms");
   const metric = METRICS.find((m) => m.key === metricKey)!;
 
@@ -147,7 +147,14 @@ export function ResultsPage() {
               </div>
             </div>
             {isReport(run.anomaly) && (
-              <button type="button" className="kpi-anomaly" onClick={() => goTo("anomalies")}>
+              <button
+                type="button"
+                className="kpi-anomaly"
+                onClick={() => {
+                  setFocusRunId(run.run_id);
+                  goTo("anomalies");
+                }}
+              >
                 <Activity />
                 {run.anomaly.summary.flagged === 0
                   ? "No anomalous seconds"
