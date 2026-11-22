@@ -2,6 +2,7 @@ pytest
 networkx
 pandas
 scikit-learn
+matplotlib
 uvicorn
 fastapi
 langgraph==1.2.20

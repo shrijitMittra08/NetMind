@@ -30,6 +30,10 @@ from ml import scenario_model
 ALGORITHMS = ("bfs", "dfs", "dijkstra", "bellman-ford")
 LOAD_PERCENTAGES = (10, 30, 50, 80, 100, 120)
 EVENT_PATTERNS = ("none", "link_failure", "router_failure", "congestion", "burst")
+DISTURBANCE_PAIRS = {
+    "LINK_FAILURE": "LINK_RESTORE",
+    "ROUTER_FAILURE": "ROUTER_RESTORE",
+}
 RUN_FILE_SUFFIXES = (
     ".json",
     "_trace.csv",
@@ -266,6 +270,47 @@ def build_scenario(task: RunTask, packet_bytes: int | None = None) -> dict[str, 
     }
 
 
+def _event_target(event: dict[str, Any]) -> str:
+    if "node" in event:
+        return str(event["node"])
+    return "-".join(sorted((str(event.get("a", "")), str(event.get("b", "")))))
+
+
+def disturbance_intervals(events: list[dict[str, Any]], duration_s: float) -> list[tuple[float, float]]:
+    intervals: list[tuple[float, float]] = []
+    ordered = sorted(events, key=lambda event: float(event.get("time_s", 0.0)))
+    for index, event in enumerate(ordered):
+        kind = str(event.get("type", ""))
+        start = float(event.get("time_s", 0.0))
+        if kind in DISTURBANCE_PAIRS:
+            restore = DISTURBANCE_PAIRS[kind]
+            end = next(
+                (float(later["time_s"]) for later in ordered[index + 1:]
+                 if later.get("type") == restore and _event_target(later) == _event_target(event)),
+                duration_s,
+            )
+        elif kind in ("CONGESTION", "TRAFFIC_BURST"):
+            end = start + float(event.get("duration_s", 0.0))
+        else:
+            continue
+        intervals.append((start, min(end, duration_s)))
+    return intervals
+
+
+def label_windows(
+    windows: pd.DataFrame,
+    events: list[dict[str, Any]],
+    duration_s: float,
+    window_s: float = 1.0,
+) -> pd.Series:
+    intervals = disturbance_intervals(events, duration_s)
+    starts = windows["t_start"].astype(float)
+    labels = pd.Series(0, index=windows.index, dtype="int64")
+    for begin, end in intervals:
+        labels |= ((starts < end) & (starts + window_s > begin)).astype("int64")
+    return labels
+
+
 def build_tasks(
     topologies: list[TopologyInfo],
     seeds: list[int],
@@ -336,7 +381,7 @@ def run_task(
     runs_directory: Path,
     packet_bytes: int | None,
     keep_runs: bool = True,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], pd.DataFrame]:
     scenarios_directory = dataset_directory / "scenarios"
     work_directory = dataset_directory / ".work"
     scenarios_directory.mkdir(parents=True, exist_ok=True)
@@ -389,8 +434,15 @@ def run_task(
                                                                                   
         produced = read_run(simulator_output, "run_001")
         run_row = {"run_id": task.run_id, **produced.network.iloc[0].to_dict(), **scenario["dataset_metadata"]}
+        windows = produced.windows.copy()
+        windows.insert(0, "run_id", task.run_id)
+        metadata = scenario["dataset_metadata"]
+        for key in ("topology_path", "algorithm", "weight", "seed",
+                    "load_pct_of_path_bottleneck", "event_pattern", "event_target"):
+            windows[key] = metadata[key]
+        windows["is_anomaly"] = label_windows(windows, scenario["events"], task.duration_s)
         if not keep_runs:
-            return run_row
+            return run_row, windows
 
         for suffix in RUN_FILE_SUFFIXES:
             source = simulator_output / f"run_001{suffix}"
@@ -405,7 +457,7 @@ def run_task(
                 )
             shutil.copy2(source, target)
 
-    return run_row
+    return run_row, windows
 
 
 def generate_dataset(
@@ -453,20 +505,22 @@ def generate_dataset(
 
     finished = 0
 
-    def run_one(task: RunTask) -> dict[str, Any]:
+    def run_one(task: RunTask) -> tuple[dict[str, Any], pd.DataFrame]:
         nonlocal finished
-        row = run_task(task, executable, dataset_directory, runs_directory, packet_bytes, keep_runs)
+        result = run_task(task, executable, dataset_directory, runs_directory, packet_bytes, keep_runs)
         finished += 1
         if finished % 25 == 0 or finished == len(tasks):
             print(f"{finished}/{len(tasks)} runs done", flush=True)
-        return row
+        return result
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
         results = list(executor.map(run_one, tasks))
 
-    runs_frame = pd.DataFrame(results)
+    runs_frame = pd.DataFrame([row for row, _ in results])
+    windows_frame = pd.concat([windows for _, windows in results], ignore_index=True)
 
     runs_frame.to_csv(dataset_directory / "runs_all.csv", index=False)
+    windows_frame.to_csv(dataset_directory / "windows_all.csv", index=False)
     return runs_frame
 
 
