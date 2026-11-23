@@ -54,6 +54,7 @@ netmind::Graph makeGraph() {
 
 }             
 
+// Checks that export writes flows, links, windows, network and manifest files with the right columns
 TEST_CASE("Exporters write metric files using the agreed schemas") {
     const auto uniqueSuffix =
         std::chrono::steady_clock::now().time_since_epoch().count();

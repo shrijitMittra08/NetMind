@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <stdexcept>
 
+// Checks that every element starts in its own separate group
 TEST_CASE("UnionFind starts with one component per element") {
     netmind::UnionFind sets(5);
 
@@ -16,6 +17,7 @@ TEST_CASE("UnionFind starts with one component per element") {
     }
 }
 
+// Checks that joining elements connects them and lowers the group count
 TEST_CASE("UnionFind joins and detects connected elements") {
     netmind::UnionFind sets(5);
 
@@ -26,6 +28,7 @@ TEST_CASE("UnionFind joins and detects connected elements") {
     REQUIRE(sets.componentCount() == 3);
 }
 
+// Checks that joining two already-joined elements returns false and keeps the count the same
 TEST_CASE("UnionFind does not reduce the count for a repeated union") {
     netmind::UnionFind sets(3);
 
@@ -34,6 +37,7 @@ TEST_CASE("UnionFind does not reduce the count for a repeated union") {
     REQUIRE(sets.componentCount() == 2);
 }
 
+// Checks that using an index that is too large throws an out of range error
 TEST_CASE("UnionFind rejects indices outside its range") {
     netmind::UnionFind sets(2);
 
@@ -42,6 +46,7 @@ TEST_CASE("UnionFind rejects indices outside its range") {
     REQUIRE_THROWS_AS(sets.connected(2, 0), std::out_of_range);
 }
 
+// Checks that an empty union-find has size zero and rejects any lookup
 TEST_CASE("UnionFind handles an empty collection") {
     netmind::UnionFind sets(0);
 

@@ -12,6 +12,5 @@ export function load<T>(key: string, fallback: T): T {
 export function save(key: string, value: unknown): void {
   try {
     window.localStorage.setItem(PREFIX + key, JSON.stringify(value));
-  } catch {
-  }
+  } catch {}
 }

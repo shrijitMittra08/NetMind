@@ -1,5 +1,7 @@
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { ChangeEvent, CSSProperties, ReactNode } from "react";
+
+export const TIGHT_STACK_STYLE = { "--gap": "8px" } as CSSProperties;
 
 interface NumberFieldProps {
   label: string;
@@ -14,10 +16,21 @@ interface NumberFieldProps {
 export function NumberField({ label, value, onChange, step = "any", min, max, hint }: NumberFieldProps) {
   const [draft, setDraft] = useState(String(value));
   const [synced, setSynced] = useState(value);
+
   if (value !== synced) {
     setSynced(value);
     setDraft(String(value));
   }
+
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    setDraft(event.target.value);
+    const next = event.target.valueAsNumber;
+    if (!Number.isNaN(next)) {
+      setSynced(next);
+      onChange(next);
+    }
+  }
+
   return (
     <label className="field">
       <span>{label}</span>
@@ -28,14 +41,7 @@ export function NumberField({ label, value, onChange, step = "any", min, max, hi
         min={min}
         max={max}
         value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          const next = event.target.valueAsNumber;
-          if (!Number.isNaN(next)) {
-            setSynced(next);
-            onChange(next);
-          }
-        }}
+        onChange={handleChange}
         onBlur={() => setDraft(String(value))}
       />
       {hint && <small className="hint">{hint}</small>}
@@ -43,28 +49,12 @@ export function NumberField({ label, value, onChange, step = "any", min, max, hi
   );
 }
 
-interface TextFieldProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  hint?: string;
-}
-
-export function TextField({ label, value, onChange, placeholder, hint }: TextFieldProps) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-      {hint && <small className="hint">{hint}</small>}
-    </label>
-  );
-}
+type SelectOption<T extends string> = T | { value: T; label: string };
 
 interface SelectFieldProps<T extends string> {
   label: string;
   value: T | "";
-  options: readonly (T | { value: T; label: string })[];
+  options: readonly SelectOption<T>[];
   onChange: (value: T) => void;
   placeholder?: string;
 }

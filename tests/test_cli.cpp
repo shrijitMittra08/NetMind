@@ -34,6 +34,7 @@ public:
 
 }             
 
+// Checks that the tokenizer keeps a quoted name with spaces as one argument
 TEST_CASE("CLI tokenizer keeps quoted names together") {
     const auto tokens =
         netmind::cli::CommandLineInterface::tokenize(
@@ -45,6 +46,7 @@ TEST_CASE("CLI tokenizer keeps quoted names together") {
     CHECK(tokens[2] == "Router One");
 }
 
+// Checks that the tokenizer keeps backslashes of a quoted Windows path unchanged
 TEST_CASE("CLI tokenizer preserves Windows paths inside quotes") {
     const auto tokens =
         netmind::cli::CommandLineInterface::tokenize(
@@ -55,12 +57,14 @@ TEST_CASE("CLI tokenizer preserves Windows paths inside quotes") {
     CHECK(tokens[1] == R"(C:\Users\shrij\Downloads\netmind.json)");
 }
 
+// Checks that the tokenizer throws an error when a quote is never closed
 TEST_CASE("CLI tokenizer reports an unclosed quoted argument") {
     CHECK_THROWS_AS(
         netmind::cli::CommandLineInterface::tokenize("load \"topology.json"),
         std::invalid_argument);
 }
 
+// Checks that the CLI runs the multiword command and passes it the remaining arguments
 TEST_CASE("CLI dispatches the longest matching multiword command") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);
@@ -72,6 +76,7 @@ TEST_CASE("CLI dispatches the longest matching multiword command") {
     CHECK(output.str() == "args: [Router One]\n");
 }
 
+// Checks that the help output lists commands in alphabetical order
 TEST_CASE("CLI help lists registered commands in sorted order") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);
@@ -88,6 +93,7 @@ TEST_CASE("CLI help lists registered commands in sorted order") {
     CHECK(exitPosition < helpPosition);
 }
 
+// Checks that an unknown command prints an error and the CLI keeps reading the next lines
 TEST_CASE("CLI reports unknown commands and continues reading") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);
@@ -102,6 +108,7 @@ TEST_CASE("CLI reports unknown commands and continues reading") {
     CHECK(session.exitRequested());
 }
 
+// Checks that the CLI stops reading input after the exit command
 TEST_CASE("CLI stops after the exit command") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);

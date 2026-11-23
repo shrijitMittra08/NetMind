@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { CircleAlert, Download, Eraser, Link2, MousePointer2, Trash2, TriangleAlert, Upload, Waypoints } from "lucide-react";
 import {
   CANVAS,
@@ -17,28 +17,81 @@ import { saveTextFile } from "../../lib/saveFile";
 import type { NodeType } from "../../lib/types";
 import { useWorkbench } from "../../state/workbench";
 
-const R = 24;
+const NODE_RADIUS = 24;
+const DRAG_THRESHOLD_PX = 5;
+const FREE_SPOT = { perRow: 7, left: 120, top: 100, columnGap: 120, rowGap: 135 };
+const LINK_FIELDS = [
+  ["bandwidthMbps", "Bandwidth (Mbps)", "any"],
+  ["latencyMs", "Latency (ms)", "any"],
+  ["lossRate", "Loss rate (0–1)", "0.001"],
+  ["queueCapacity", "Queue capacity (packets)", "1"],
+] as const;
+
 type Selection = { kind: "node"; id: number } | { kind: "link"; uid: number } | null;
 type Tool = "select" | "connect";
 
+function toSafeFileName(text: string): string {
+  return text.trim().replace(/\.json$/i, "").replace(/[^A-Za-z0-9_-]+/g, "_") || "topology";
+}
+
+function withStates(base: string, states: { selected: boolean; pending?: boolean; invalid: boolean }): string {
+  let className = base;
+  if (states.selected) className += " selected";
+  if (states.pending) className += " pending";
+  if (states.invalid) className += " invalid";
+  return className;
+}
+
+function validationClassName(errorCount: number, issueCount: number): string {
+  if (errorCount > 0) return "has-errors";
+  if (issueCount > 0) return "has-warnings";
+  return "ok";
+}
+
 function NodeGlyph({ node, selected, pending, invalid }: { node: BuilderNode; selected: boolean; pending: boolean; invalid: boolean }) {
-  const cls = `b-node ${node.type.toLowerCase()}${selected ? " selected" : ""}${pending ? " pending" : ""}${invalid ? " invalid" : ""}`;
   return (
-    <g className={cls} transform={`translate(${node.x} ${node.y})`}>
-      <circle className="halo" r={R + 7} />
+    <g className={withStates(`b-node ${node.type.toLowerCase()}`, { selected, pending, invalid })} transform={`translate(${node.x} ${node.y})`}>
+      <circle className="halo" r={NODE_RADIUS + 7} />
       {node.type === "SWITCH" ? (
-        <rect className="body" x={-R} y={-R * 0.72} width={R * 2} height={R * 1.44} rx={9} />
+        <rect className="body" x={-NODE_RADIUS} y={-NODE_RADIUS * 0.72} width={NODE_RADIUS * 2} height={NODE_RADIUS * 1.44} rx={9} />
       ) : (
-        <circle className="body" r={R} />
+        <circle className="body" r={NODE_RADIUS} />
       )}
       <text className="glyph" textAnchor="middle" dy="0.35em">
         {NODE_KINDS[node.type].prefix}
       </text>
-      <text className="name" textAnchor="middle" y={R + 17}>
+      <text className="name" textAnchor="middle" y={NODE_RADIUS + 17}>
         {node.name}
       </text>
-      <text className="ip" textAnchor="middle" y={R + 31}>
+      <text className="ip" textAnchor="middle" y={NODE_RADIUS + 31}>
         {node.ip}
+      </text>
+    </g>
+  );
+}
+
+interface LinkWireProps {
+  link: BuilderLink;
+  from: BuilderNode;
+  to: BuilderNode;
+  selected: boolean;
+  invalid: boolean;
+  onSelect: () => void;
+}
+
+function LinkWire({ link, from, to, selected, invalid, onSelect }: LinkWireProps) {
+  return (
+    <g
+      className={withStates("b-link", { selected, invalid })}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+    >
+      <line className="hit" x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+      <line className="wire" x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+      <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 8} textAnchor="middle">
+        {link.bandwidthMbps} Mbps · {link.latencyMs} ms
       </text>
     </g>
   );
@@ -48,7 +101,7 @@ export function Builder() {
   const { builder: model, setBuilder: setModel, builderFileName, setBuilderFileName, topology, topologyName, applyTopology, goTo } =
     useWorkbench();
   const svgRef = useRef<SVGSVGElement>(null);
-  const drag = useRef<{ id: number; dx: number; dy: number } | null>(null);
+  const nodeDrag = useRef<{ id: number; dx: number; dy: number } | null>(null);
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection>(null);
   const [linkFrom, setLinkFrom] = useState<number | null>(null);
@@ -57,11 +110,11 @@ export function Builder() {
   const [applied, setApplied] = useState(false);
 
   const issues = useMemo(() => validateTopology(model), [model]);
-  const errors = issues.filter((issue) => issue.level === "error");
+  const errorCount = issues.filter((issue) => issue.level === "error").length;
   const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
   const selectedNode = selection?.kind === "node" ? nodeById.get(selection.id) : undefined;
   const selectedLink = selection?.kind === "link" ? model.links.find((link) => link.uid === selection.uid) : undefined;
-  const fileName = builderFileName.trim().replace(/\.json$/i, "").replace(/[^A-Za-z0-9_-]+/g, "_") || "topology";
+  const fileName = toSafeFileName(builderFileName);
 
   const edit: typeof setModel = (update) => {
     setApplied(false);
@@ -75,8 +128,8 @@ export function Builder() {
     point.y = clientY;
     const mapped = point.matrixTransform(svg.getScreenCTM()!.inverse());
     return {
-      x: Math.min(CANVAS.width - R, Math.max(R, mapped.x)),
-      y: Math.min(CANVAS.height - R * 2, Math.max(R, mapped.y)),
+      x: Math.min(CANVAS.width - NODE_RADIUS, Math.max(NODE_RADIUS, mapped.x)),
+      y: Math.min(CANVAS.height - NODE_RADIUS * 2, Math.max(NODE_RADIUS, mapped.y)),
     };
   }
 
@@ -87,8 +140,10 @@ export function Builder() {
   }
 
   function addAtFreeSpot(type: NodeType) {
-    const i = model.nodes.length;
-    place(type, 120 + (i % 7) * 120, 100 + Math.floor(i / 7) * 135);
+    const count = model.nodes.length;
+    const column = count % FREE_SPOT.perRow;
+    const row = Math.floor(count / FREE_SPOT.perRow);
+    place(type, FREE_SPOT.left + column * FREE_SPOT.columnGap, FREE_SPOT.top + row * FREE_SPOT.rowGap);
   }
 
   function startPaletteDrag(event: ReactPointerEvent, type: NodeType) {
@@ -96,60 +151,76 @@ export function Builder() {
     event.preventDefault();
     const origin = { x: event.clientX, y: event.clientY };
     let moved = false;
-    const move = (e: PointerEvent) => {
-      if (!moved && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > 5) moved = true;
+
+    const handleMove = (e: PointerEvent) => {
+      if (!moved && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) > DRAG_THRESHOLD_PX) moved = true;
       if (moved) setGhost({ type, x: e.clientX, y: e.clientY });
     };
-    const up = (e: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
+
+    const handleUp = (e: PointerEvent) => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
       setGhost(null);
-      if (!moved) return addAtFreeSpot(type);
+      if (!moved) {
+        addAtFreeSpot(type);
+        return;
+      }
       const rect = svgRef.current!.getBoundingClientRect();
       if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
         const { x, y } = toCanvas(e.clientX, e.clientY);
         place(type, x, y);
       }
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+  }
+
+  function handleConnectClick(node: BuilderNode) {
+    if (linkFrom === null) {
+      setLinkFrom(node.id);
+      setHint(`Now click the node to connect ${node.name} to.`);
+      return;
+    }
+    if (linkFrom === node.id) {
+      setLinkFrom(null);
+      setHint("");
+      return;
+    }
+    const next = addLink(model, linkFrom, node.id);
+    if (next === model) {
+      setHint("Those two nodes are already linked.");
+    } else {
+      edit(next);
+      setSelection({ kind: "link", uid: next.links[next.links.length - 1]!.uid });
+      setHint("Linked. Click another node to start the next link.");
+    }
+    setLinkFrom(null);
   }
 
   function onNodePointerDown(event: ReactPointerEvent<SVGGElement>, node: BuilderNode) {
     event.stopPropagation();
     if (tool === "connect") {
-      if (linkFrom === null) {
-        setLinkFrom(node.id);
-        setHint(`Now click the node to connect ${node.name} to.`);
-      } else if (linkFrom !== node.id) {
-        const next = addLink(model, linkFrom, node.id);
-        if (next === model) setHint("Those two nodes are already linked.");
-        else {
-          edit(next);
-          setSelection({ kind: "link", uid: next.links[next.links.length - 1]!.uid });
-          setHint("Linked. Click another node to start the next link.");
-        }
-        setLinkFrom(null);
-      } else {
-        setLinkFrom(null);
-        setHint("");
-      }
+      handleConnectClick(node);
       return;
     }
     setSelection({ kind: "node", id: node.id });
     const start = toCanvas(event.clientX, event.clientY);
-    drag.current = { id: node.id, dx: node.x - start.x, dy: node.y - start.y };
+    nodeDrag.current = { id: node.id, dx: node.x - start.x, dy: node.y - start.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function onNodePointerMove(event: ReactPointerEvent) {
-    const current = drag.current;
+    const current = nodeDrag.current;
     if (!current) return;
     const { x, y } = toCanvas(event.clientX, event.clientY);
-    edit((m) => ({
-      ...m,
-      nodes: m.nodes.map((n) => (n.id === current.id ? { ...n, x: Math.round(x + current.dx), y: Math.round(y + current.dy) } : n)),
-    }));
+    const newX = Math.round(x + current.dx);
+    const newY = Math.round(y + current.dy);
+    edit((m) => ({ ...m, nodes: m.nodes.map((n) => (n.id === current.id ? { ...n, x: newX, y: newY } : n)) }));
+  }
+
+  function endNodeDrag() {
+    nodeDrag.current = null;
   }
 
   const updateNode = (id: number, patch: Partial<BuilderNode>) =>
@@ -163,15 +234,32 @@ export function Builder() {
     setSelection(null);
   }
 
+  function clearSelection() {
+    setSelection(null);
+    setLinkFrom(null);
+  }
+
+  function onCanvasKeyDown(event: ReactKeyboardEvent<SVGSVGElement>) {
+    if ((event.key === "Delete" || event.key === "Backspace") && selection) {
+      event.preventDefault();
+      deleteSelection();
+    } else if (event.key === "Escape") {
+      clearSelection();
+    }
+  }
+
   function chooseTool(next: Tool) {
     setTool(next);
     setLinkFrom(null);
     setHint(next === "connect" ? "Click a node, then the node to connect it to." : "");
   }
 
-  function applyToSimulation() {
-    applyTopology(toTopology(model), `${fileName}.json`);
-    setApplied(true);
+  function loadActiveTopology() {
+    if (!topology) return;
+    edit(fromTopology(topology));
+    setBuilderFileName(topologyName.replace(/\.json$/i, "") || "topology");
+    setSelection(null);
+    setHint(`Loaded ${topologyName || "the active topology"} into the builder.`);
   }
 
   return (
@@ -217,19 +305,8 @@ export function Builder() {
             role="application"
             aria-label="Topology canvas"
             tabIndex={0}
-            onPointerDown={() => {
-              setSelection(null);
-              setLinkFrom(null);
-            }}
-            onKeyDown={(event) => {
-              if ((event.key === "Delete" || event.key === "Backspace") && selection) {
-                event.preventDefault();
-                deleteSelection();
-              } else if (event.key === "Escape") {
-                setSelection(null);
-                setLinkFrom(null);
-              }
-            }}
+            onPointerDown={clearSelection}
+            onKeyDown={onCanvasKeyDown}
           >
             <defs>
               <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
@@ -237,7 +314,6 @@ export function Builder() {
               </pattern>
             </defs>
             <rect width={CANVAS.width} height={CANVAS.height} fill="url(#dots)" />
-
             {model.nodes.length === 0 && (
               <g className="canvas-empty">
                 <text x={CANVAS.width / 2} y={CANVAS.height / 2 - 8} textAnchor="middle">
@@ -248,38 +324,29 @@ export function Builder() {
                 </text>
               </g>
             )}
-
             {model.links.map((link) => {
-              const a = nodeById.get(link.a);
-              const b = nodeById.get(link.b);
-              if (!a || !b) return null;
-              const selected = selection?.kind === "link" && selection.uid === link.uid;
-              const invalid = issues.some((issue) => issue.linkUid === link.uid);
+              const from = nodeById.get(link.a);
+              const to = nodeById.get(link.b);
+              if (!from || !to) return null;
               return (
-                <g
+                <LinkWire
                   key={link.uid}
-                  className={`b-link${selected ? " selected" : ""}${invalid ? " invalid" : ""}`}
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    setSelection({ kind: "link", uid: link.uid });
-                  }}
-                >
-                  <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
-                  <line className="wire" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
-                  <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 8} textAnchor="middle">
-                    {link.bandwidthMbps} Mbps · {link.latencyMs} ms
-                  </text>
-                </g>
+                  link={link}
+                  from={from}
+                  to={to}
+                  selected={selection?.kind === "link" && selection.uid === link.uid}
+                  invalid={issues.some((issue) => issue.linkUid === link.uid)}
+                  onSelect={() => setSelection({ kind: "link", uid: link.uid })}
+                />
               );
             })}
-
             {model.nodes.map((node) => (
               <g
                 key={node.id}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 onPointerMove={onNodePointerMove}
-                onPointerUp={() => (drag.current = null)}
-                onPointerCancel={() => (drag.current = null)}
+                onPointerUp={endNodeDrag}
+                onPointerCancel={endNodeDrag}
               >
                 <NodeGlyph
                   node={node}
@@ -300,9 +367,7 @@ export function Builder() {
             <h3>Properties</h3>
           </div>
           <div className="card-body stack">
-            {!selectedNode && !selectedLink && (
-              <p className="muted">Select a node or link on the canvas to edit it.</p>
-            )}
+            {!selectedNode && !selectedLink && <p className="muted">Select a node or link on the canvas to edit it.</p>}
             {selectedNode && (
               <>
                 <span className={`badge kind-${selectedNode.type.toLowerCase()}`}>
@@ -326,14 +391,7 @@ export function Builder() {
                 <span className="badge">
                   <Waypoints /> {nodeById.get(selectedLink.a)?.name} — {nodeById.get(selectedLink.b)?.name}
                 </span>
-                {(
-                  [
-                    ["bandwidthMbps", "Bandwidth (Mbps)", "any"],
-                    ["latencyMs", "Latency (ms)", "any"],
-                    ["lossRate", "Loss rate (0–1)", "0.001"],
-                    ["queueCapacity", "Queue capacity (packets)", "1"],
-                  ] as const
-                ).map(([key, label, step]) => (
+                {LINK_FIELDS.map(([key, label, step]) => (
                   <label className="field" key={key}>
                     <span>{label}</span>
                     <input
@@ -354,7 +412,7 @@ export function Builder() {
         </aside>
       </div>
 
-      <div className={`validation ${errors.length ? "has-errors" : issues.length ? "has-warnings" : "ok"}`} aria-live="polite">
+      <div className={`validation ${validationClassName(errorCount, issues.length)}`} aria-live="polite">
         {issues.length === 0 ? (
           <span className="badge success">Topology is valid</span>
         ) : (
@@ -374,28 +432,27 @@ export function Builder() {
           <span>File name</span>
           <input value={builderFileName} onChange={(e) => setBuilderFileName(e.target.value)} />
         </label>
-        <button type="button" className="btn primary" disabled={errors.length > 0} onClick={applyToSimulation}>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={errorCount > 0}
+          onClick={() => {
+            applyTopology(toTopology(model), `${fileName}.json`);
+            setApplied(true);
+          }}
+        >
           <Upload /> Use this topology
         </button>
         <button
           type="button"
           className="btn"
-          disabled={errors.length > 0}
+          disabled={errorCount > 0}
           onClick={() => void saveTextFile(JSON.stringify(toTopology(model), null, 2), `${fileName}.json`, "application/json")}
         >
           <Download /> Download .json
         </button>
         {topology && (
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => {
-              edit(fromTopology(topology));
-              setBuilderFileName(topologyName.replace(/\.json$/i, "") || "topology");
-              setSelection(null);
-              setHint(`Loaded ${topologyName || "the active topology"} into the builder.`);
-            }}
-          >
+          <button type="button" className="btn ghost" onClick={loadActiveTopology}>
             Edit active topology
           </button>
         )}
@@ -420,7 +477,6 @@ export function Builder() {
           </button>
         </div>
       )}
-
       {ghost && (
         <div className={`palette-ghost ${ghost.type.toLowerCase()}`} style={{ left: ghost.x, top: ghost.y }}>
           {NODE_KINDS[ghost.type].prefix}

@@ -43,6 +43,7 @@ netmind::Graph makeTwoHostGraph() {
 
 }             
 
+// Checks flow latency, jitter, loss and throughput, with unfinished packets left out of loss
 TEST_CASE("MetricsCollector calculates flow metrics and excludes unfinished "
           "packets from loss") {
     netmind::Graph graph;
@@ -107,6 +108,7 @@ TEST_CASE("MetricsCollector calculates flow metrics and excludes unfinished "
     CHECK(near(metrics.network().avgLatencyMs, 11.5));
 }
 
+// Checks that queue size, utilization and downtime are averaged over time for a channel
 TEST_CASE("MetricsCollector calculates time-weighted queue and channel values") {
     auto graph = makeTwoHostGraph();
     netmind::MetricsCollector metrics(graph);
@@ -154,6 +156,7 @@ TEST_CASE("MetricsCollector calculates time-weighted queue and channel values") 
     CHECK(near(result->downtimeS, 0.5));
 }
 
+// Checks that round-trip time is measured from an echo reply's original send time
 TEST_CASE("MetricsCollector calculates RTT from an echo reply origin time") {
     netmind::Graph graph;
     netmind::MetricsCollector metrics(graph);
@@ -177,6 +180,7 @@ TEST_CASE("MetricsCollector calculates RTT from an echo reply origin time") {
     CHECK(near(flow.avgRttMs, 250.0));
 }
 
+// Checks that recovery time is measured from link failure until the next delivered packet
 TEST_CASE("MetricsCollector records recovery after the link is restored") {
     netmind::Graph graph;
     netmind::MetricsCollector metrics(graph);

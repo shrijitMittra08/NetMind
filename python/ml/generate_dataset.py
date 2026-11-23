@@ -1,5 +1,3 @@
-"""Generate reproducible NetMind simulation runs for ML experiments."""
-
 from __future__ import annotations
 
 import argparse
@@ -16,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-                                                                       
 _PYTHON_ROOT = Path(__file__).resolve().parents[1]
 if str(_PYTHON_ROOT) not in sys.path:
     sys.path.insert(0, str(_PYTHON_ROOT))
@@ -26,21 +23,15 @@ import pandas as pd
 from common.io import RunData, read_run
 from ml import scenario_model
 
-
 ALGORITHMS = ("bfs", "dfs", "dijkstra", "bellman-ford")
 LOAD_PERCENTAGES = (10, 30, 50, 80, 100, 120)
 EVENT_PATTERNS = ("none", "link_failure", "router_failure", "congestion", "burst")
-DISTURBANCE_PAIRS = {
-    "LINK_FAILURE": "LINK_RESTORE",
-    "ROUTER_FAILURE": "ROUTER_RESTORE",
-}
-RUN_FILE_SUFFIXES = (
-    ".json",
-    "_trace.csv",
-    "_flows.csv",
-    "_links.csv",
-    "_windows.csv",
-    "_network.csv",
+DISTURBANCE_PAIRS = {"LINK_FAILURE": "LINK_RESTORE", "ROUTER_FAILURE": "ROUTER_RESTORE"}
+RUN_FILE_SUFFIXES = (".json", "_trace.csv", "_flows.csv", "_links.csv", "_windows.csv", "_network.csv")
+RUN_NUMBER_PATTERN = re.compile(r"^run_(\d+)(?:_|\.|$)")
+WINDOW_METADATA_COLUMNS = (
+    "topology_path", "algorithm", "weight", "seed",
+    "load_pct_of_path_bottleneck", "event_pattern", "event_target",
 )
 
 
@@ -66,46 +57,7 @@ class RunTask:
     duration_s: float
 
 
-def load_topology(path: str | Path) -> TopologyInfo:
-    topology_path = Path(path).expanduser().resolve()
-    if not topology_path.is_file():
-        raise FileNotFoundError(f"Topology file not found: {topology_path}")
-
-    try:
-        document = json.loads(topology_path.read_text(encoding="utf-8-sig"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError(f"Could not read topology {topology_path}: {error}") from error
-
-    if not isinstance(document, dict):
-        raise ValueError(f"Expected a topology JSON object: {topology_path}")
-
-    nodes = document.get("nodes")
-    links = document.get("links")
-    if not isinstance(nodes, list) or not isinstance(links, list) or not links:
-        raise ValueError(
-            f"Topology must contain nodes and at least one link: {topology_path}"
-        )
-
-    id_to_name: dict[int, str] = {}
-    hosts: list[str] = []
-    routers: list[str] = []
-
-    for node in nodes:
-        if not isinstance(node, dict):
-            raise ValueError(f"Invalid node entry in {topology_path}: {node!r}")
-        try:
-            node_id = int(node["id"])
-            name = str(node["name"])
-        except (KeyError, TypeError, ValueError) as error:
-            raise ValueError(f"Invalid node id/name in {topology_path}") from error
-
-        id_to_name[node_id] = name
-        node_type = str(node.get("type", "")).upper()
-        if node_type == "HOST":
-            hosts.append(name)
-        elif node_type == "ROUTER":
-            routers.append(name)
-
+def _link_bandwidths(topology_path: Path, links: list[Any]) -> list[float]:
     bandwidths: list[float] = []
     for link in links:
         try:
@@ -114,30 +66,50 @@ def load_topology(path: str | Path) -> TopologyInfo:
             int(link["b"])
         except (KeyError, TypeError, ValueError) as error:
             raise ValueError(f"Invalid link in {topology_path}: {link!r}") from error
-
         if bandwidth <= 0:
             raise ValueError(f"Link bandwidth must be positive in {topology_path}")
         bandwidths.append(bandwidth)
+    return bandwidths
 
+
+def load_topology(path: str | Path) -> TopologyInfo:
+    topology_path = Path(path).expanduser().resolve()
+    if not topology_path.is_file():
+        raise FileNotFoundError(f"Topology file not found: {topology_path}")
+    try:
+        document = json.loads(topology_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"Could not read topology {topology_path}: {error}") from error
+    if not isinstance(document, dict):
+        raise ValueError(f"Expected a topology JSON object: {topology_path}")
+    nodes = document.get("nodes")
+    links = document.get("links")
+    if not isinstance(nodes, list) or not isinstance(links, list) or not links:
+        raise ValueError(f"Topology must contain nodes and at least one link: {topology_path}")
+
+    id_to_name: dict[int, str] = {}
+    hosts: list[str] = []
+    routers: list[str] = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            raise ValueError(f"Invalid node entry in {topology_path}: {node!r}")
+        try:
+            node_id = int(node["id"])
+            name = str(node["name"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(f"Invalid node id/name in {topology_path}") from error
+        id_to_name[node_id] = name
+        node_type = str(node.get("type", "")).upper()
+        if node_type == "HOST":
+            hosts.append(name)
+        elif node_type == "ROUTER":
+            routers.append(name)
+
+    bandwidths = _link_bandwidths(topology_path, links)
     if len(hosts) < 2:
         raise ValueError(f"Topology needs at least two hosts: {topology_path}")
-
-    return TopologyInfo(
-        path=topology_path,
-        nodes=tuple(nodes),
-        links=tuple(links),
-        hosts=tuple(hosts),
-        routers=tuple(routers),
-        id_to_name=id_to_name,
-        minimum_bandwidth_mbps=min(bandwidths),
-    )
-
-
-def _node_name(topology: TopologyInfo, node_id: int) -> str:
-    try:
-        return topology.id_to_name[int(node_id)]
-    except KeyError as error:
-        raise ValueError(f"Node {node_id} is missing from topology {topology.path}") from error
+    return TopologyInfo(path=topology_path, nodes=tuple(nodes), links=tuple(links), hosts=tuple(hosts),
+                        routers=tuple(routers), id_to_name=id_to_name, minimum_bandwidth_mbps=min(bandwidths))
 
 
 def _path_links(model: scenario_model.Topology, path: list[int] | None) -> list[scenario_model.Link]:
@@ -146,9 +118,100 @@ def _path_links(model: scenario_model.Topology, path: list[int] | None) -> list[
     return [model.link_between(a, b) for a, b in zip(path, path[1:])]
 
 
+def _bottleneck(model: scenario_model.Topology, path: list[int] | None) -> float:
+    return min(link.bandwidth_mbps for link in _path_links(model, path))
+
+
 def _pick(rng: random.Random, preferred: list[Any], fallback: list[Any], preferred_share: float) -> Any:
     pool = preferred if preferred and rng.random() < preferred_share else fallback
     return rng.choice(pool)
+
+
+def _build_flows(rng: random.Random, task: RunTask, model: scenario_model.Topology, router: scenario_model.Router,
+                 chosen: list[tuple[int, int]],
+                 packet_bytes: int | None) -> tuple[list[dict[str, Any]], list[list[int]]]:
+    duration = task.duration_s
+    flows, paths = [], []
+    for index, (src, dst) in enumerate(chosen, start=1):
+        path = router.path(src, dst)
+        paths.append(path)
+        bottleneck = _bottleneck(model, path)
+        is_first = index == 1
+        share = task.load_pct / 100.0 if is_first else rng.uniform(0.05, 0.6)
+        flow: dict[str, Any] = {
+            "id": index,
+            "src": model.names[src],
+            "dst": model.names[dst],
+            "pattern": "constant",
+            "rate_mbps": round(bottleneck * share, 4),
+            "packet_bytes": packet_bytes or rng.choice((500, 1000, 1500)),
+            "start_s": 0.0 if is_first else round(rng.uniform(0, 0.3 * duration), 3),
+            "stop_s": duration if is_first else round(rng.uniform(0.7 * duration, duration), 3),
+        }
+        kind = rng.random()
+        if kind < 0.15:
+            flow["pattern"] = "poisson"
+        elif kind < 0.30:
+            flow["pattern"] = "bursty"
+            flow["on_duration_s"] = round(rng.uniform(0.5, 1.5), 3)
+            flow["off_duration_s"] = round(rng.uniform(0.2, 1.0), 3)
+        flows.append(flow)
+    return flows, paths
+
+
+def _build_events(rng: random.Random, pattern: str, model: scenario_model.Topology, router: scenario_model.Router,
+                  paths: list[list[int]], chosen: list[tuple[int, int]], pairs: list[tuple[int, int]],
+                  flow_count: int, start: float, end: float,
+                  packet_bytes: int | None) -> tuple[list[dict[str, Any]], str | None]:
+    used_by_index: dict[int, scenario_model.Link] = {}
+    for path in paths:
+        for link in _path_links(model, path):
+            used_by_index[link.index] = link
+    used_links = list(used_by_index.values())
+    core_links = [l for l in model.links if model.kinds[l.a] != "HOST" and model.kinds[l.b] != "HOST"]
+    used_core = [l for l in used_links if l in core_links]
+    routers = [n for n, kind in model.kinds.items() if kind == "ROUTER"]
+    used_routers = sorted({n for path in paths for n in path if model.kinds[n] == "ROUTER"})
+
+    events: list[dict[str, Any]] = []
+    target: str | None = None
+    if pattern == "link_failure":
+        link = _pick(rng, used_core or used_links, core_links or list(model.links), 0.6)
+        a, b = model.names[link.a], model.names[link.b]
+        target = f"{a}-{b}"
+        events.append({"type": "LINK_FAILURE", "a": a, "b": b, "time_s": start})
+        if rng.random() < 0.9:
+            events.append({"type": "LINK_RESTORE", "a": a, "b": b, "time_s": end})
+    elif pattern == "router_failure":
+        if not routers:
+            raise ValueError("Router failure requested for a topology without routers")
+        target = model.names[_pick(rng, used_routers, routers, 0.6)]
+        events.append({"type": "ROUTER_FAILURE", "node": target, "time_s": start})
+        if rng.random() < 0.9:
+            events.append({"type": "ROUTER_RESTORE", "node": target, "time_s": end})
+    elif pattern == "congestion":
+        link = _pick(rng, used_links, list(model.links), 0.7)
+        a, b = model.names[link.a], model.names[link.b]
+        target = f"{a}-{b}"
+        events.append({
+            "type": "CONGESTION", "a": a, "b": b, "time_s": start,
+            "bandwidth_multiplier": round(rng.uniform(0.2, 0.8), 3),
+            "extra_loss_rate": round(rng.uniform(0.0, 0.05), 4),
+            "duration_s": round(end - start, 3),
+        })
+    elif pattern == "burst":
+        src, dst = chosen[0] if rng.random() < 0.5 else rng.choice(pairs)
+        bottleneck = _bottleneck(model, router.path(src, dst))
+        target = f"{model.names[src]}->{model.names[dst]}"
+        events.append({
+            "type": "TRAFFIC_BURST", "flow_id": flow_count + 1,
+            "src": model.names[src], "dst": model.names[dst], "time_s": start,
+            "duration_s": round(end - start, 3), "rate_mbps": round(bottleneck * rng.uniform(0.5, 2.0), 4),
+            "packet_bytes": packet_bytes or 1000,
+        })
+    elif pattern != "none":
+        raise ValueError(f"Unsupported event pattern: {pattern}")
+    return events, target
 
 
 def build_scenario(task: RunTask, packet_bytes: int | None = None) -> dict[str, Any]:
@@ -163,86 +226,17 @@ def build_scenario(task: RunTask, packet_bytes: int | None = None) -> dict[str, 
     if not pairs:
         raise ValueError(f"No routable host pair in {task.topology.path}")
     rng.shuffle(pairs)
-    flow_count = min(len(pairs), rng.choice((1, 1, 2, 2, 3, 4)))
-    chosen = pairs[:flow_count]
-
-    flows, paths = [], []
-    for index, (src, dst) in enumerate(chosen, start=1):
-        path = router.path(src, dst)
-        paths.append(path)
-        bottleneck = min(link.bandwidth_mbps for link in _path_links(model, path))
-        share = task.load_pct / 100.0 if index == 1 else rng.uniform(0.05, 0.6)
-        flow: dict[str, Any] = {
-            "id": index,
-            "src": model.names[src],
-            "dst": model.names[dst],
-            "pattern": "constant",
-            "rate_mbps": round(bottleneck * share, 4),
-            "packet_bytes": packet_bytes or rng.choice((500, 1000, 1500)),
-            "start_s": 0.0 if index == 1 else round(rng.uniform(0, 0.3 * duration), 3),
-            "stop_s": duration if index == 1 else round(rng.uniform(0.7 * duration, duration), 3),
-        }
-        kind = rng.random()
-        if kind < 0.15:
-            flow["pattern"] = "poisson"
-        elif kind < 0.30:
-            flow["pattern"] = "bursty"
-            flow["on_duration_s"] = round(rng.uniform(0.5, 1.5), 3)
-            flow["off_duration_s"] = round(rng.uniform(0.2, 1.0), 3)
-        flows.append(flow)
-
-    used_links = list({link.index: link for path in paths for link in _path_links(model, path)}.values())
-    core_links = [l for l in model.links if model.kinds[l.a] != "HOST" and model.kinds[l.b] != "HOST"]
-    used_core = [l for l in used_links if l in core_links]
-    routers = [n for n, kind in model.kinds.items() if kind == "ROUTER"]
-    used_routers = sorted({n for path in paths for n in path if model.kinds[n] == "ROUTER"})
+    chosen = pairs[:min(len(pairs), rng.choice((1, 1, 2, 2, 3, 4)))]
+    flows, paths = _build_flows(rng, task, model, router, chosen, packet_bytes)
 
     start = round(rng.uniform(0.2, 0.5) * duration, 3)
     end = round(min(duration * 0.95, start + rng.uniform(0.15, 0.4) * duration), 3)
-    events: list[dict[str, Any]] = []
-    target: str | None = None
     pattern = task.event_pattern
-    if pattern == "link_failure":
-        link = _pick(rng, used_core or used_links, core_links or list(model.links), 0.6)
-        a, b = model.names[link.a], model.names[link.b]
-        target = f"{a}-{b}"
-        events.append({"type": "LINK_FAILURE", "a": a, "b": b, "time_s": start})
-        if rng.random() < 0.9:
-            events.append({"type": "LINK_RESTORE", "a": a, "b": b, "time_s": end})
-    elif pattern == "router_failure":
-        if not routers:
-            raise ValueError("Router failure requested for a topology without routers")
-        node = model.names[_pick(rng, used_routers, routers, 0.6)]
-        target = node
-        events.append({"type": "ROUTER_FAILURE", "node": node, "time_s": start})
-        if rng.random() < 0.9:
-            events.append({"type": "ROUTER_RESTORE", "node": node, "time_s": end})
-    elif pattern == "congestion":
-        link = _pick(rng, used_links, list(model.links), 0.7)
-        a, b = model.names[link.a], model.names[link.b]
-        target = f"{a}-{b}"
-        events.append({
-            "type": "CONGESTION", "a": a, "b": b, "time_s": start,
-            "bandwidth_multiplier": round(rng.uniform(0.2, 0.8), 3),
-            "extra_loss_rate": round(rng.uniform(0.0, 0.05), 4),
-            "duration_s": round(end - start, 3),
-        })
-    elif pattern == "burst":
-        src, dst = chosen[0] if rng.random() < 0.5 else rng.choice(pairs)
-        bottleneck = min(link.bandwidth_mbps for link in _path_links(model, router.path(src, dst)))
-        target = f"{model.names[src]}->{model.names[dst]}"
-        events.append({
-            "type": "TRAFFIC_BURST", "flow_id": len(flows) + 1,
-            "src": model.names[src], "dst": model.names[dst], "time_s": start,
-            "duration_s": round(end - start, 3), "rate_mbps": round(bottleneck * rng.uniform(0.5, 2.0), 4),
-            "packet_bytes": packet_bytes or 1000,
-        })
-    elif pattern != "none":
-        raise ValueError(f"Unsupported event pattern: {pattern}")
+    events, target = _build_events(rng, pattern, model, router, paths, chosen, pairs, len(flows), start, end,
+                                   packet_bytes)
 
     reconvergence = 0 if rng.random() < 0.7 else rng.choice((50, 200, 500))
     routing = {"algorithm": task.algorithm, "weight": weight, "reconvergence_delay_ms": reconvergence}
-    offered = sum(flow["rate_mbps"] for flow in flows)
     return {
         "name": task.run_id,
         "topology": str(task.topology.path),
@@ -258,7 +252,7 @@ def build_scenario(task: RunTask, packet_bytes: int | None = None) -> dict[str, 
             "weight": weight,
             "seed": task.seed,
             "load_pct_of_path_bottleneck": task.load_pct,
-            "offered_rate_mbps": offered,
+            "offered_rate_mbps": sum(flow["rate_mbps"] for flow in flows),
             "flow_count": len(flows),
             "event_pattern": pattern,
             "event_target": target,
@@ -276,6 +270,14 @@ def _event_target(event: dict[str, Any]) -> str:
     return "-".join(sorted((str(event.get("a", "")), str(event.get("b", "")))))
 
 
+def _restore_time(later_events: list[dict[str, Any]], failure: dict[str, Any], duration_s: float) -> float:
+    restore = DISTURBANCE_PAIRS[str(failure.get("type", ""))]
+    for later in later_events:
+        if later.get("type") == restore and _event_target(later) == _event_target(failure):
+            return float(later["time_s"])
+    return duration_s
+
+
 def disturbance_intervals(events: list[dict[str, Any]], duration_s: float) -> list[tuple[float, float]]:
     intervals: list[tuple[float, float]] = []
     ordered = sorted(events, key=lambda event: float(event.get("time_s", 0.0)))
@@ -283,12 +285,7 @@ def disturbance_intervals(events: list[dict[str, Any]], duration_s: float) -> li
         kind = str(event.get("type", ""))
         start = float(event.get("time_s", 0.0))
         if kind in DISTURBANCE_PAIRS:
-            restore = DISTURBANCE_PAIRS[kind]
-            end = next(
-                (float(later["time_s"]) for later in ordered[index + 1:]
-                 if later.get("type") == restore and _event_target(later) == _event_target(event)),
-                duration_s,
-            )
+            end = _restore_time(ordered[index + 1:], event, duration_s)
         elif kind in ("CONGESTION", "TRAFFIC_BURST"):
             end = start + float(event.get("duration_s", 0.0))
         else:
@@ -297,28 +294,17 @@ def disturbance_intervals(events: list[dict[str, Any]], duration_s: float) -> li
     return intervals
 
 
-def label_windows(
-    windows: pd.DataFrame,
-    events: list[dict[str, Any]],
-    duration_s: float,
-    window_s: float = 1.0,
-) -> pd.Series:
-    intervals = disturbance_intervals(events, duration_s)
+def label_windows(windows: pd.DataFrame, events: list[dict[str, Any]], duration_s: float,
+                  window_s: float = 1.0) -> pd.Series:
     starts = windows["t_start"].astype(float)
     labels = pd.Series(0, index=windows.index, dtype="int64")
-    for begin, end in intervals:
+    for begin, end in disturbance_intervals(events, duration_s):
         labels |= ((starts < end) & (starts + window_s > begin)).astype("int64")
     return labels
 
 
-def build_tasks(
-    topologies: list[TopologyInfo],
-    seeds: list[int],
-    duration_s: float,
-    max_runs: int,
-    random_state: int,
-    run_id_start: int = 1,
-) -> list[RunTask]:
+def build_tasks(topologies: list[TopologyInfo], seeds: list[int], duration_s: float, max_runs: int,
+                random_state: int, run_id_start: int = 1) -> list[RunTask]:
     if not topologies:
         raise ValueError("Provide at least one topology")
     if not seeds:
@@ -330,58 +316,75 @@ def build_tasks(
     if run_id_start <= 0:
         raise ValueError("run_id_start must be positive")
 
-    combinations = [
-        (topology, algorithm, load_pct, event_pattern, seed)
-        for topology, algorithm, load_pct, event_pattern, seed in itertools.product(
-            topologies,
-            ALGORITHMS,
-            LOAD_PERCENTAGES,
-            EVENT_PATTERNS,
-            seeds,
-        )
-        if event_pattern != "router_failure" or topology.routers
-    ]
+    combinations = []
+    for combination in itertools.product(topologies, ALGORITHMS, LOAD_PERCENTAGES, EVENT_PATTERNS, seeds):
+        topology, _, _, event_pattern, _ = combination
+        if event_pattern != "router_failure" or topology.routers:
+            combinations.append(combination)
     random.Random(random_state).shuffle(combinations)
-    selected = combinations[:max_runs]
 
-    return [
-        RunTask(
-            run_id=f"run_{run_id_start + index:03d}",
-            topology=topology,
-            algorithm=algorithm,
-            load_pct=load_pct,
-            event_pattern=event_pattern,
-            seed=seed,
-            duration_s=duration_s,
-        )
-        for index, (topology, algorithm, load_pct, event_pattern, seed)
-        in enumerate(selected)
-    ]
+    tasks = []
+    for index, (topology, algorithm, load_pct, event_pattern, seed) in enumerate(combinations[:max_runs]):
+        tasks.append(RunTask(run_id=f"run_{run_id_start + index:03d}", topology=topology, algorithm=algorithm,
+                             load_pct=load_pct, event_pattern=event_pattern, seed=seed, duration_s=duration_s))
+    return tasks
 
 
 def next_run_number(*directories: Path) -> int:
-    pattern = re.compile(r"^run_(\d+)(?:_|\.|$)")
     highest = 0
-
     for directory in directories:
         if not directory.is_dir():
             continue
         for path in directory.iterdir():
-            match = pattern.match(path.name)
+            match = RUN_NUMBER_PATTERN.match(path.name)
             if match:
                 highest = max(highest, int(match.group(1)))
-
     return highest + 1
 
 
-def run_task(
-    task: RunTask,
-    cli_path: Path,
-    dataset_directory: Path,
-    runs_directory: Path,
-    packet_bytes: int | None,
-    keep_runs: bool = True,
-) -> tuple[dict[str, Any], pd.DataFrame]:
+def _run_simulator(task: RunTask, cli_path: Path, scenario_path: Path, simulator_output: Path) -> None:
+    command = [str(cli_path), "--scenario", str(scenario_path), "--out", str(simulator_output), "--quiet"]
+    result = subprocess.run(command, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Simulator failed for {task.run_id} with exit code "
+            f"{result.returncode}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+
+def _add_metadata_to_manifest(task: RunTask, simulator_output: Path, scenario: dict[str, Any]) -> None:
+    generated_manifest = simulator_output / "run_001.json"
+    if not generated_manifest.is_file():
+        raise RuntimeError(f"Simulator did not export expected files for {task.run_id}")
+    manifest = json.loads(generated_manifest.read_text(encoding="utf-8"))
+    manifest["dataset_metadata"] = scenario["dataset_metadata"]
+    generated_manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def _dataset_rows(task: RunTask, scenario: dict[str, Any], produced: RunData) -> tuple[dict[str, Any], pd.DataFrame]:
+    metadata = scenario["dataset_metadata"]
+    run_row = {"run_id": task.run_id, **produced.network.iloc[0].to_dict(), **metadata}
+    windows = produced.windows.copy()
+    windows.insert(0, "run_id", task.run_id)
+    for key in WINDOW_METADATA_COLUMNS:
+        windows[key] = metadata[key]
+    windows["is_anomaly"] = label_windows(windows, scenario["events"], task.duration_s)
+    return run_row, windows
+
+
+def _copy_run_files(task: RunTask, simulator_output: Path, runs_directory: Path) -> None:
+    for suffix in RUN_FILE_SUFFIXES:
+        source = simulator_output / f"run_001{suffix}"
+        target = runs_directory / f"{task.run_id}{suffix}"
+        if not source.is_file():
+            raise RuntimeError(f"Simulator did not create required file: {source.name}")
+        if target.exists():
+            raise FileExistsError(f"Refusing to overwrite existing run file: {target}")
+        shutil.copy2(source, target)
+
+
+def run_task(task: RunTask, cli_path: Path, dataset_directory: Path, runs_directory: Path, packet_bytes: int | None,
+             keep_runs: bool = True) -> tuple[dict[str, Any], pd.DataFrame]:
     scenarios_directory = dataset_directory / "scenarios"
     work_directory = dataset_directory / ".work"
     scenarios_directory.mkdir(parents=True, exist_ok=True)
@@ -393,86 +396,20 @@ def run_task(
     scenario_path = scenarios_directory / f"{task.run_id}_scenario.json"
     scenario_path.write_text(json.dumps(scenario, indent=2), encoding="utf-8")
 
-    with tempfile.TemporaryDirectory(
-        prefix=f"{task.run_id}_",
-        dir=work_directory,
-    ) as temporary:
+    with tempfile.TemporaryDirectory(prefix=f"{task.run_id}_", dir=work_directory) as temporary:
         simulator_output = Path(temporary) / "simulator_output"
-        command = [
-            str(cli_path),
-            "--scenario",
-            str(scenario_path),
-            "--out",
-            str(simulator_output),
-            "--quiet",
-        ]
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Simulator failed for {task.run_id} with exit code "
-                f"{result.returncode}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-            )
-
-        generated_manifest = simulator_output / "run_001.json"
-        if not generated_manifest.is_file():
-            raise RuntimeError(
-                f"Simulator did not export expected files for {task.run_id}"
-            )
-
-        manifest = json.loads(generated_manifest.read_text(encoding="utf-8"))
-        manifest["dataset_metadata"] = scenario["dataset_metadata"]
-        generated_manifest.write_text(
-            json.dumps(manifest, indent=2),
-            encoding="utf-8",
-        )
-
-                                                                                  
-        produced = read_run(simulator_output, "run_001")
-        run_row = {"run_id": task.run_id, **produced.network.iloc[0].to_dict(), **scenario["dataset_metadata"]}
-        windows = produced.windows.copy()
-        windows.insert(0, "run_id", task.run_id)
-        metadata = scenario["dataset_metadata"]
-        for key in ("topology_path", "algorithm", "weight", "seed",
-                    "load_pct_of_path_bottleneck", "event_pattern", "event_target"):
-            windows[key] = metadata[key]
-        windows["is_anomaly"] = label_windows(windows, scenario["events"], task.duration_s)
-        if not keep_runs:
-            return run_row, windows
-
-        for suffix in RUN_FILE_SUFFIXES:
-            source = simulator_output / f"run_001{suffix}"
-            target = runs_directory / f"{task.run_id}{suffix}"
-            if not source.is_file():
-                raise RuntimeError(
-                    f"Simulator did not create required file: {source.name}"
-                )
-            if target.exists():
-                raise FileExistsError(
-                    f"Refusing to overwrite existing run file: {target}"
-                )
-            shutil.copy2(source, target)
-
+        _run_simulator(task, cli_path, scenario_path, simulator_output)
+        _add_metadata_to_manifest(task, simulator_output, scenario)
+        run_row, windows = _dataset_rows(task, scenario, read_run(simulator_output, "run_001"))
+        if keep_runs:
+            _copy_run_files(task, simulator_output, runs_directory)
     return run_row, windows
 
 
-def generate_dataset(
-    cli_path: str | Path,
-    topology_paths: list[str | Path],
-    output_directory: str | Path,
-    max_runs: int = 300,
-    seeds: list[int] | None = None,
-    workers: int = 1,
-    duration_s: float = 10.0,
-    packet_bytes: int | None = None,
-    random_state: int = 42,
-    runs_output_directory: str | Path | None = None,
-    keep_runs: bool = True,
-) -> pd.DataFrame:
+def generate_dataset(cli_path: str | Path, topology_paths: list[str | Path], output_directory: str | Path,
+                     max_runs: int = 300, seeds: list[int] | None = None, workers: int = 1, duration_s: float = 10.0,
+                     packet_bytes: int | None = None, random_state: int = 42,
+                     runs_output_directory: str | Path | None = None, keep_runs: bool = True) -> pd.DataFrame:
     executable = Path(cli_path).expanduser().resolve()
     if not executable.is_file():
         raise FileNotFoundError(f"Project901 CLI executable not found: {executable}")
@@ -490,18 +427,9 @@ def generate_dataset(
     runs_directory.mkdir(parents=True, exist_ok=True)
 
     topologies = [load_topology(path) for path in topology_paths]
-    starting_number = next_run_number(
-        runs_directory,
-        dataset_directory / "scenarios",
-    )
-    tasks = build_tasks(
-        topologies,
-        seeds if seeds is not None else [1, 2, 3, 4, 5],
-        duration_s,
-        max_runs,
-        random_state,
-        run_id_start=starting_number,
-    )
+    starting_number = next_run_number(runs_directory, dataset_directory / "scenarios")
+    tasks = build_tasks(topologies, seeds if seeds is not None else [1, 2, 3, 4, 5], duration_s, max_runs,
+                        random_state, run_id_start=starting_number)
 
     finished = 0
 
@@ -518,26 +446,17 @@ def generate_dataset(
 
     runs_frame = pd.DataFrame([row for row, _ in results])
     windows_frame = pd.concat([windows for _, windows in results], ignore_index=True)
-
     runs_frame.to_csv(dataset_directory / "runs_all.csv", index=False)
     windows_frame.to_csv(dataset_directory / "windows_all.csv", index=False)
     return runs_frame
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="Generate reproducible NetMind simulation runs for ML experiments.")
     parser.add_argument("--cli", required=True, help="Path to netmind_cli executable")
-    parser.add_argument(
-        "--topologies",
-        required=True,
-        nargs="+",
-        help="Topology JSON files to include",
-    )
+    parser.add_argument("--topologies", required=True, nargs="+", help="Topology JSON files to include")
     parser.add_argument("--output", required=True, help="Dataset CSV/scenario directory")
-    parser.add_argument(
-        "--runs-output",
-        help="Directory for individual run exports; defaults to the parent of --output",
-    )
+    parser.add_argument("--runs-output", help="Directory for individual run exports; defaults to the parent of --output")
     parser.add_argument("--max-runs", type=int, default=300)
     parser.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3, 4, 5])
     parser.add_argument("--workers", type=int, default=1)
@@ -550,28 +469,12 @@ def main() -> None:
     args = parser.parse_args()
 
     runs = generate_dataset(
-        cli_path=args.cli,
-        topology_paths=args.topologies,
-        output_directory=args.output,
-        max_runs=args.max_runs,
-        seeds=args.seeds,
-        workers=args.workers,
-        duration_s=args.duration,
-        packet_bytes=args.packet_bytes,
-        random_state=args.random_state,
-        runs_output_directory=args.runs_output,
-        keep_runs=not args.discard_runs,
+        cli_path=args.cli, topology_paths=args.topologies, output_directory=args.output, max_runs=args.max_runs,
+        seeds=args.seeds, workers=args.workers, duration_s=args.duration, packet_bytes=args.packet_bytes,
+        random_state=args.random_state, runs_output_directory=args.runs_output, keep_runs=not args.discard_runs,
     )
-    run_directory = (
-        Path(args.runs_output).resolve()
-        if args.runs_output
-        else Path(args.output).resolve().parent
-    )
-    print(
-        f"Generated {len(runs)} runs.\n"
-        f"Run files: {run_directory}\n"
-        f"Dataset files: {Path(args.output).resolve()}"
-    )
+    run_directory = Path(args.runs_output).resolve() if args.runs_output else Path(args.output).resolve().parent
+    print(f"Generated {len(runs)} runs.\nRun files: {run_directory}\nDataset files: {Path(args.output).resolve()}")
 
 
 if __name__ == "__main__":

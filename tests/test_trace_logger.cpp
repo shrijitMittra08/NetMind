@@ -14,8 +14,6 @@ std::string readFile(const std::filesystem::path& path) {
     REQUIRE(input.good());
 
     std::string content{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
-    // Compare content, not platform line endings: the golden file may be checked out
-    // with CRLF (Windows, or a Docker context copied from Windows) or LF (Linux CI).
     content.erase(std::remove(content.begin(), content.end(), '\r'), content.end());
     return content;
 }
@@ -53,6 +51,7 @@ std::string resolveChannelName(const netmind::ChannelId& channel) {
 
 }
 
+// Checks that the trace file written for a set of logged events matches the saved golden trace
 TEST_CASE("TraceLogger output matches the golden trace") {
     const std::filesystem::path outputPath =
         std::filesystem::temp_directory_path() / "netmind_trace_logger_golden_test.csv";

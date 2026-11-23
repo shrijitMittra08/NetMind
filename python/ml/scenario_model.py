@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import heapq
 import json
+from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ALGORITHMS = ("bfs", "dfs", "dijkstra", "bellman-ford")
-WEIGHTS = ("latency", "hops")
 FIXED_POINT_ROUNDS = 30
+_OVERLOAD_MARGIN = 1.001
+_TINY_INTERVAL_S = 1e-12
+
+Channel = tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -43,8 +47,7 @@ class Topology:
 
 @lru_cache(maxsize=64)
 def _load_topology_cached(path: str, stamp: int) -> Topology:
-    document = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    return parse_topology(document)
+    return parse_topology(json.loads(Path(path).read_text(encoding="utf-8-sig")))
 
 
 def load_topology(path: str | Path) -> Topology:
@@ -55,22 +58,28 @@ def load_topology(path: str | Path) -> Topology:
 
 
 def parse_topology(document: dict[str, Any]) -> Topology:
-    nodes, links = document.get("nodes"), document.get("links")
+    nodes = document.get("nodes")
+    links = document.get("links")
     if not isinstance(nodes, list) or not isinstance(links, list) or not links:
         raise ValueError("Topology must contain nodes and links")
+
     names = {int(node["id"]): str(node["name"]) for node in nodes}
     kinds = {int(node["id"]): str(node.get("type", "")).upper() for node in nodes}
     parsed = []
     for index, link in enumerate(links, start=1):
-        a, b = int(link["a"]), int(link["b"])
+        a = int(link["a"])
+        b = int(link["b"])
         if a not in names or b not in names:
             raise ValueError(f"Link references an unknown node: {link!r}")
         bandwidth = float(link["bandwidthMbps"])
         if bandwidth <= 0:
             raise ValueError(f"Link bandwidth must be positive: {link!r}")
-        parsed.append(Link(index, a, b, bandwidth, float(link.get("latencyMs", 0.0)),
-                           float(link.get("lossRate", 0.0)), int(link.get("queueCapacity", 64))))
-    return Topology(names, {name: node for node, name in names.items()}, kinds, tuple(parsed))
+        parsed.append(Link(index=index, a=a, b=b, bandwidth_mbps=bandwidth,
+                           latency_ms=float(link.get("latencyMs", 0.0)),
+                           loss_rate=float(link.get("lossRate", 0.0)),
+                           queue_capacity=int(link.get("queueCapacity", 64))))
+    ids = {name: node for node, name in names.items()}
+    return Topology(names, ids, kinds, tuple(parsed))
 
 
 @dataclass(frozen=True)
@@ -90,27 +99,28 @@ def _neighbours(topology: Topology, state: GraphState, node: int) -> list[tuple[
     return sorted(result, key=lambda item: item[0])
 
 
-def _weight(link: Link, weight: str) -> float:
-    return 1.0 if weight == "hops" else link.latency_ms
+def _neighbour_ids(topology: Topology, state: GraphState, node: int) -> list[int]:
+    return [neighbour for neighbour, _ in _neighbours(topology, state, node)]
 
 
 def _bfs_table(topology: Topology, state: GraphState, source: int) -> dict[int, int]:
-    first: dict[int, int] = {}
-    seen, queue = {source}, [source]
+    first_hop: dict[int, int] = {}
+    seen = {source}
+    queue = deque([source])
     while queue:
-        current = queue.pop(0)
-        for neighbour, _ in _neighbours(topology, state, current):
+        current = queue.popleft()
+        for neighbour in _neighbour_ids(topology, state, current):
             if neighbour in seen:
                 continue
             seen.add(neighbour)
-            first[neighbour] = neighbour if current == source else first[current]
+            first_hop[neighbour] = neighbour if current == source else first_hop[current]
             queue.append(neighbour)
-    return first
+    return first_hop
 
 
 def _shortest_path_table(topology: Topology, state: GraphState, source: int, weight: str) -> dict[int, int]:
     distance: dict[int, float] = {source: 0.0}
-    first: dict[int, int] = {}
+    first_hop: dict[int, int] = {}
     pending = [(0.0, source)]
     while pending:
         current_distance, current = heapq.heappop(pending)
@@ -119,14 +129,18 @@ def _shortest_path_table(topology: Topology, state: GraphState, source: int, wei
         for neighbour, link in _neighbours(topology, state, current):
             if neighbour == source:
                 continue
-            candidate = current_distance + _weight(link, weight)
-            candidate_first = neighbour if current == source else first[current]
+            candidate = current_distance + (1.0 if weight == "hops" else link.latency_ms)
+            candidate_first = neighbour if current == source else first_hop[current]
             known = distance.get(neighbour)
-            if known is None or candidate < known or (candidate == known and candidate_first < first.get(neighbour, candidate_first + 1)):
+            if known is None or candidate < known:
+                better = True
+            else:
+                better = candidate == known and candidate_first < first_hop[neighbour]
+            if better:
                 distance[neighbour] = candidate
-                first[neighbour] = candidate_first
+                first_hop[neighbour] = candidate_first
                 heapq.heappush(pending, (candidate, neighbour))
-    return first
+    return first_hop
 
 
 def _dfs_forest(topology: Topology, state: GraphState) -> dict[int, int]:
@@ -135,18 +149,19 @@ def _dfs_forest(topology: Topology, state: GraphState) -> dict[int, int]:
         if start in state.down_nodes or start in parent:
             continue
         parent[start] = start
-        stack = [(start, [n for n, _ in _neighbours(topology, state, start)], 0)]
+        stack = [[start, _neighbour_ids(topology, state, start), 0]]
         while stack:
-            node, neighbours, position = stack[-1]
+            entry = stack[-1]
+            node, neighbours, position = entry
             if position >= len(neighbours):
                 stack.pop()
                 continue
-            stack[-1] = (node, neighbours, position + 1)
+            entry[2] = position + 1
             neighbour = neighbours[position]
             if neighbour in parent:
                 continue
             parent[neighbour] = node
-            stack.append((neighbour, [n for n, _ in _neighbours(topology, state, neighbour)], 0))
+            stack.append([neighbour, _neighbour_ids(topology, state, neighbour), 0])
     return parent
 
 
@@ -156,38 +171,41 @@ def _tree_path(parent: dict[int, int], source: int, destination: int) -> list[in
     ancestors = [source]
     while parent[ancestors[-1]] != ancestors[-1]:
         ancestors.append(parent[ancestors[-1]])
-    index = {node: position for position, node in enumerate(ancestors)}
+    position_of = {node: position for position, node in enumerate(ancestors)}
+
     tail = [destination]
-    while tail[-1] not in index:
+    while tail[-1] not in position_of:
         up = parent[tail[-1]]
         if up == tail[-1]:
             return None
         tail.append(up)
-    return ancestors[: index[tail[-1]] + 1] + list(reversed(tail[:-1]))
+    return ancestors[: position_of[tail[-1]] + 1] + list(reversed(tail[:-1]))
 
 
 class Router:
-
     def __init__(self, topology: Topology, state: GraphState, algorithm: str, weight: str):
         algorithm = algorithm.strip().lower()
         if algorithm not in ALGORITHMS:
             raise ValueError(f"Unsupported routing algorithm: {algorithm!r}")
-        self.topology, self.state, self.algorithm, self.weight = topology, state, algorithm, weight
+        self.topology = topology
+        self.state = state
+        self.algorithm = algorithm
+        self.weight = weight
         self._tables: dict[int, dict[int, int]] = {}
         self._forest = _dfs_forest(topology, state) if algorithm == "dfs" else None
 
     def _next_hop(self, node: int, destination: int) -> int | None:
         if self.topology.kinds.get(node) == "HOST":
-            gateways = _neighbours(self.topology, self.state, node)
-            return gateways[0][0] if gateways else None
+            gateways = _neighbour_ids(self.topology, self.state, node)
+            return gateways[0] if gateways else None
         if self._forest is not None:
             path = _tree_path(self._forest, node, destination)
             return path[1] if path and len(path) > 1 else None
         if node not in self._tables:
-            self._tables[node] = (
-                _bfs_table(self.topology, self.state, node) if self.algorithm == "bfs"
-                else _shortest_path_table(self.topology, self.state, node, self.weight)
-            )
+            if self.algorithm == "bfs":
+                self._tables[node] = _bfs_table(self.topology, self.state, node)
+            else:
+                self._tables[node] = _shortest_path_table(self.topology, self.state, node, self.weight)
         return self._tables[node].get(destination)
 
     def path(self, source: int, destination: int) -> list[int] | None:
@@ -229,53 +247,90 @@ class Interval:
 
 
 def _duty(flow: dict[str, Any]) -> float:
-    if str(flow.get("pattern", "constant")).lower() == "bursty":
-        on, off = float(flow.get("on_duration_s", 1.0)), float(flow.get("off_duration_s", 0.0))
-        return on / (on + off) if on + off > 0 else 1.0
-    return 1.0
+    if str(flow.get("pattern", "constant")).lower() != "bursty":
+        return 1.0
+    on = float(flow.get("on_duration_s", 1.0))
+    off = float(flow.get("off_duration_s", 0.0))
+    return on / (on + off) if on + off > 0 else 1.0
 
 
 def _demands(topology: Topology, scenario: dict[str, Any], duration: float) -> list[Demand]:
     demands = []
     for flow in scenario.get("flows", []):
-        src, dst = topology.ids.get(str(flow["src"])), topology.ids.get(str(flow["dst"]))
+        src = topology.ids.get(str(flow["src"]))
+        dst = topology.ids.get(str(flow["dst"]))
         if src is None or dst is None:
             raise ValueError(f"Flow refers to an unknown host: {flow!r}")
-        demands.append(Demand(src, dst, float(flow.get("rate_mbps", 0.0)), 8.0 * float(flow.get("packet_bytes", 1000)),
-                              float(flow.get("start_s", 0.0)), float(flow.get("stop_s", duration)), duty=_duty(flow)))
+        demands.append(Demand(src=src, dst=dst, rate_mbps=float(flow.get("rate_mbps", 0.0)),
+                              packet_bits=8.0 * float(flow.get("packet_bytes", 1000)),
+                              start=float(flow.get("start_s", 0.0)), stop=float(flow.get("stop_s", duration)),
+                              duty=_duty(flow)))
     for event in scenario.get("events", []):
-        if str(event.get("type")) == "TRAFFIC_BURST":
-            start = float(event["time_s"])
-            demands.append(Demand(topology.ids[str(event["src"])], topology.ids[str(event["dst"])],
-                                  float(event["rate_mbps"]), 8.0 * float(event.get("packet_bytes", 1000)),
-                                  start, start + float(event["duration_s"]), burst=True))
+        if str(event.get("type")) != "TRAFFIC_BURST":
+            continue
+        start = float(event["time_s"])
+        demands.append(Demand(src=topology.ids[str(event["src"])], dst=topology.ids[str(event["dst"])],
+                              rate_mbps=float(event["rate_mbps"]),
+                              packet_bits=8.0 * float(event.get("packet_bytes", 1000)),
+                              start=start, stop=start + float(event["duration_s"]), burst=True))
     return demands
 
 
 def _state_changes(topology: Topology, scenario: dict[str, Any]) -> list[tuple[float, str, Any]]:
     changes = []
     for event in scenario.get("events", []):
-        kind, time = str(event.get("type")), float(event.get("time_s", 0.0))
+        kind = str(event.get("type"))
+        time = float(event.get("time_s", 0.0))
         if kind in ("LINK_FAILURE", "LINK_RESTORE", "CONGESTION"):
             link = topology.link_between(topology.ids[str(event["a"])], topology.ids[str(event["b"])])
             if link is None:
                 raise ValueError(f"Event refers to an unknown link: {event!r}")
             if kind == "CONGESTION":
                 end = time + float(event.get("duration_s", 0.0))
-                changes.append((time, "congest", (link.index, float(event.get("bandwidth_multiplier", 1.0)),
-                                                  float(event.get("extra_loss_rate", 0.0)))))
+                multiplier = float(event.get("bandwidth_multiplier", 1.0))
+                extra_loss = float(event.get("extra_loss_rate", 0.0))
+                changes.append((time, "congest", (link.index, multiplier, extra_loss)))
                 changes.append((end, "uncongest", link.index))
+            elif kind == "LINK_FAILURE":
+                changes.append((time, "link_down", link.index))
             else:
-                changes.append((time, "link_down" if kind == "LINK_FAILURE" else "link_up", link.index))
-        elif kind in ("ROUTER_FAILURE", "ROUTER_RESTORE"):
-            node = topology.ids[str(event["node"])]
-            changes.append((time, "node_down" if kind == "ROUTER_FAILURE" else "node_up", node))
+                changes.append((time, "link_up", link.index))
+        elif kind == "ROUTER_FAILURE":
+            changes.append((time, "node_down", topology.ids[str(event["node"])]))
+        elif kind == "ROUTER_RESTORE":
+            changes.append((time, "node_up", topology.ids[str(event["node"])]))
     return sorted(changes, key=lambda change: change[0])
 
 
-def _intervals(topology: Topology, scenario: dict[str, Any], duration: float, delay_s: float) -> list[Interval]:
-    changes = _state_changes(topology, scenario)
-    demands = _demands(topology, scenario, duration)
+def _state_at(changes: list[tuple[float, str, Any]],
+              time: float) -> tuple[GraphState, dict[int, float], dict[int, float]]:
+    down_links: set[int] = set()
+    down_nodes: set[int] = set()
+    capacity_factor: dict[int, float] = {}
+    extra_loss: dict[int, float] = {}
+    for change_time, kind, value in changes:
+        if change_time > time:
+            break
+        if kind == "link_down":
+            down_links.add(value)
+        elif kind == "link_up":
+            down_links.discard(value)
+        elif kind == "node_down":
+            down_nodes.add(value)
+        elif kind == "node_up":
+            down_nodes.discard(value)
+        elif kind == "congest":
+            link_index, multiplier, loss = value
+            capacity_factor[link_index] = multiplier
+            extra_loss[link_index] = loss
+        elif kind == "uncongest":
+            capacity_factor.pop(value, None)
+            extra_loss.pop(value, None)
+    return GraphState(frozenset(down_links), frozenset(down_nodes)), capacity_factor, extra_loss
+
+
+def _intervals(changes: list[tuple[float, str, Any]], demands: list[Demand], duration: float,
+               delay_s: float) -> list[Interval]:
     cuts = {0.0, duration}
     for time, _, _ in changes:
         cuts.update({time, time + delay_s})
@@ -283,36 +338,13 @@ def _intervals(topology: Topology, scenario: dict[str, Any], duration: float, de
         cuts.update({demand.start, demand.stop})
     cuts = sorted(cut for cut in cuts if 0.0 <= cut <= duration)
 
-    def state_at(time: float) -> tuple[GraphState, dict[int, float], dict[int, float]]:
-        down_links: set[int] = set()
-        down_nodes: set[int] = set()
-        factor: dict[int, float] = {}
-        extra: dict[int, float] = {}
-        for change_time, kind, value in changes:
-            if change_time > time:
-                break
-            if kind == "link_down":
-                down_links.add(value)
-            elif kind == "link_up":
-                down_links.discard(value)
-            elif kind == "node_down":
-                down_nodes.add(value)
-            elif kind == "node_up":
-                down_nodes.discard(value)
-            elif kind == "congest":
-                factor[value[0]], extra[value[0]] = value[1], value[2]
-            elif kind == "uncongest":
-                factor.pop(value, None)
-                extra.pop(value, None)
-        return GraphState(frozenset(down_links), frozenset(down_nodes)), factor, extra
-
     intervals = []
     for start, end in zip(cuts, cuts[1:]):
-        if end - start <= 1e-12:
+        if end - start <= _TINY_INTERVAL_S:
             continue
-        physical, factor, extra = state_at(start)
-        routing, _, _ = state_at(start - delay_s) if delay_s > 0 else (physical, None, None)
-        intervals.append(Interval(start, end, physical, routing, factor, extra))
+        physical, capacity_factor, extra_loss = _state_at(changes, start)
+        routing = _state_at(changes, start - delay_s)[0] if delay_s > 0 else physical
+        intervals.append(Interval(start, end, physical, routing, capacity_factor, extra_loss))
     return intervals
 
 
@@ -324,8 +356,166 @@ class Estimate:
     features: dict[str, float]
 
 
-def _channel(link: Link, a: int, b: int) -> tuple[int, int]:
-    return (link.index, 0 if a == link.a else 1)
+@dataclass
+class _Totals:
+    sent_packets: float = 0.0
+    delivered_packets: float = 0.0
+    delivered_bits: float = 0.0
+    latency_packet_ms: float = 0.0
+    offered_bits: float = 0.0
+    burst_bits: float = 0.0
+    rerouted_bits: float = 0.0
+    unreachable_bits: float = 0.0
+    congested_path_bits: float = 0.0
+    stretch_bits_ms: float = 0.0
+    max_utilisation: float = 0.0
+    saturated_time: float = 0.0
+    disturbed_time: float = 0.0
+
+
+def _capacity(link: Link, interval: Interval) -> float:
+    return link.bandwidth_mbps * interval.capacity_factor.get(link.index, 1.0)
+
+
+def _survival(link: Link, interval: Interval) -> float:
+    return (1.0 - link.loss_rate) * (1.0 - interval.extra_loss.get(link.index, 0.0))
+
+
+def _path_latency_ms(topology: Topology, path: list[int]) -> float:
+    return sum(topology.link_between(a, b).latency_ms for a, b in zip(path, path[1:]))
+
+
+def _route_for(topology: Topology, router: Router, interval: Interval,
+               demand: Demand) -> tuple[list[int] | None, list[tuple[Link, Channel]] | None]:
+    path = router.path(demand.src, demand.dst)
+    if path is None:
+        return None, None
+    if any(node in interval.physical.down_nodes for node in path):
+        return path, None
+    route = []
+    for a, b in zip(path, path[1:]):
+        link = topology.link_between(a, b)
+        if link is None or link.index in interval.physical.down_links:
+            return path, None
+        route.append((link, (link.index, 0 if a == link.a else 1)))
+    return path, route
+
+
+def _count_offered_traffic(topology: Topology, interval: Interval, demand: Demand, path: list[int] | None,
+                           route: list[tuple[Link, Channel]] | None, baseline_path: list[int] | None,
+                           totals: _Totals) -> None:
+    usable = route is not None
+    bits = demand.mean_rate_mbps * 1e6 * (interval.end - interval.start)
+    totals.offered_bits += bits
+    if demand.burst:
+        totals.burst_bits += bits
+    if path is None:
+        totals.unreachable_bits += bits
+    if baseline_path is not None and (path != baseline_path or not usable):
+        totals.rerouted_bits += bits
+    if usable and baseline_path is not None:
+        stretch = _path_latency_ms(topology, path) - _path_latency_ms(topology, baseline_path)
+        totals.stretch_bits_ms += bits * stretch
+    if usable and any(link.index in interval.capacity_factor for link, _ in route):
+        totals.congested_path_bits += bits
+
+
+def _push_flow_rates(active: list[Demand], routes: dict[int, list[tuple[Link, Channel]] | None],
+                     links_by_index: dict[int, Link],
+                     interval: Interval) -> tuple[dict[Channel, float], dict[Channel, float]]:
+    passing: dict[Channel, float] = {}
+    for _ in range(FIXED_POINT_ROUNDS):
+        arrivals: dict[Channel, float] = {}
+        for demand in active:
+            rate = demand.rate_mbps
+            for link, channel in routes[id(demand)] or []:
+                arrivals[channel] = arrivals.get(channel, 0.0) + rate
+                rate *= passing.get(channel, 1.0) * _survival(link, interval)
+
+        updated: dict[Channel, float] = {}
+        for channel, load in arrivals.items():
+            if load > 0:
+                updated[channel] = min(1.0, _capacity(links_by_index[channel[0]], interval) / load)
+            else:
+                updated[channel] = 1.0
+        if updated == passing:
+            break
+        passing = updated
+    return arrivals, passing
+
+
+def _count_utilisation(arrivals: dict[Channel, float], links_by_index: dict[int, Link], interval: Interval,
+                       totals: _Totals) -> None:
+    for channel, load in arrivals.items():
+        utilisation = load / _capacity(links_by_index[channel[0]], interval)
+        totals.max_utilisation = max(totals.max_utilisation, utilisation)
+        if utilisation > _OVERLOAD_MARGIN:
+            totals.saturated_time += interval.end - interval.start
+
+
+def _count_delivery(demand: Demand, route: list[tuple[Link, Channel]] | None, arrivals: dict[Channel, float],
+                    passing: dict[Channel, float], interval: Interval, totals: _Totals) -> None:
+    packets = demand.mean_rate_mbps * 1e6 * (interval.end - interval.start) / demand.packet_bits
+    totals.sent_packets += packets
+    if not route:
+        return
+    fraction = 1.0
+    latency = 0.0
+    for link, channel in route:
+        capacity = _capacity(link, interval)
+        transmit_ms = demand.packet_bits / (capacity * 1e3)
+        latency += link.latency_ms + transmit_ms
+        if arrivals.get(channel, 0.0) > capacity * _OVERLOAD_MARGIN:
+            latency += link.queue_capacity * transmit_ms
+        fraction *= passing.get(channel, 1.0) * _survival(link, interval)
+    delivered = packets * fraction
+    totals.delivered_packets += delivered
+    totals.delivered_bits += delivered * demand.packet_bits
+    totals.latency_packet_ms += delivered * latency
+
+
+def _add_interval(topology: Topology, links_by_index: dict[int, Link], interval: Interval, demands: list[Demand],
+                  router_for: Callable[[GraphState], Router], baseline_paths: dict[int, list[int] | None],
+                  totals: _Totals) -> None:
+    physical = interval.physical
+    if physical.down_links or physical.down_nodes or interval.capacity_factor:
+        totals.disturbed_time += interval.end - interval.start
+    active = [d for d in demands if d.start <= interval.start < d.stop and d.rate_mbps > 0]
+    if not active:
+        return
+    router = router_for(interval.routing)
+
+    routes: dict[int, list[tuple[Link, Channel]] | None] = {}
+    for demand in active:
+        path, route = _route_for(topology, router, interval, demand)
+        routes[id(demand)] = route
+        _count_offered_traffic(topology, interval, demand, path, route, baseline_paths[id(demand)], totals)
+    arrivals, passing = _push_flow_rates(active, routes, links_by_index, interval)
+    _count_utilisation(arrivals, links_by_index, interval, totals)
+    for demand in active:
+        _count_delivery(demand, routes[id(demand)], arrivals, passing, interval, totals)
+
+
+def _share(bits: float, offered_bits: float) -> float:
+    return bits / offered_bits if offered_bits > 0 else 0.0
+
+
+def _path_summary(topology: Topology, demands: list[Demand],
+                  baseline_paths: dict[int, list[int] | None]) -> tuple[float, float, float]:
+    weights: list[float] = []
+    paths: list[list[int]] = []
+    for demand in demands:
+        path = baseline_paths[id(demand)]
+        if not demand.burst and path:
+            weights.append(demand.mean_rate_mbps)
+            paths.append(path)
+    if not paths:
+        return 0.0, 0.0, 0.0
+    pairs = list(zip(weights, paths))
+    mean_hops = sum(w * (len(p) - 1) for w, p in pairs) / sum(weights)
+    mean_latency = sum(w * _path_latency_ms(topology, p) for w, p in pairs) / sum(weights)
+    bottleneck = min(min(topology.link_between(a, b).bandwidth_mbps for a, b in zip(p, p[1:])) for p in paths)
+    return mean_hops, mean_latency, bottleneck
 
 
 def estimate(topology: Topology, scenario: dict[str, Any]) -> Estimate:
@@ -335,7 +525,8 @@ def estimate(topology: Topology, scenario: dict[str, Any]) -> Estimate:
     weight = str(routing.get("weight", "latency")).lower()
     delay_s = float(routing.get("reconvergence_delay_ms", 0.0) or 0.0) / 1000.0
     demands = _demands(topology, scenario, duration)
-    intervals = _intervals(topology, scenario, duration, delay_s)
+    intervals = _intervals(_state_changes(topology, scenario), demands, duration, delay_s)
+
     routers: dict[GraphState, Router] = {}
 
     def router_for(state: GraphState) -> Router:
@@ -345,144 +536,50 @@ def estimate(topology: Topology, scenario: dict[str, Any]) -> Estimate:
 
     baseline_router = router_for(GraphState())
     baseline_paths = {id(d): baseline_router.path(d.src, d.dst) for d in demands}
-
-    sent_packets = delivered_packets = delivered_bits = latency_packet_ms = 0.0
-    offered_bits = burst_bits = 0.0
-    hit_bits = unreachable_bits = congested_path_bits = 0.0
-    stretch_bits_ms = 0.0
-    max_utilisation = 0.0
-    saturated_time = 0.0
-    disturbed_time = 0.0
-
+    links_by_index = {link.index: link for link in topology.links}
+    totals = _Totals()
     for interval in intervals:
-        length = interval.end - interval.start
-        active = [d for d in demands if d.start <= interval.start < d.stop and d.rate_mbps > 0]
-        if interval.physical.down_links or interval.physical.down_nodes or interval.capacity_factor:
-            disturbed_time += length
-        if not active:
-            continue
-        router = router_for(interval.routing)
-        links_by_index = {link.index: link for link in topology.links}
+        _add_interval(topology, links_by_index, interval, demands, router_for, baseline_paths, totals)
 
-        hops: dict[int, list[tuple[Link, tuple[int, int]]] | None] = {}
-        for demand in active:
-            path = router.path(demand.src, demand.dst)
-            usable = path is not None and not any(n in interval.physical.down_nodes for n in path)
-            route = []
-            if usable:
-                for a, b in zip(path, path[1:]):
-                    link = topology.link_between(a, b)
-                    if link is None or link.index in interval.physical.down_links:
-                        usable = False
-                        break
-                    route.append((link, _channel(link, a, b)))
-            hops[id(demand)] = route if usable else None
+    loss = 0.0
+    if totals.sent_packets > 0:
+        loss = 100.0 * (totals.sent_packets - totals.delivered_packets) / totals.sent_packets
+    throughput = totals.delivered_bits / (duration * 1e6) if duration > 0 else 0.0
+    latency = totals.latency_packet_ms / totals.delivered_packets if totals.delivered_packets > 0 else 0.0
+    features = _features(topology, demands, baseline_paths, totals, duration, algorithm, weight, delay_s)
+    return Estimate(latency, throughput, loss, features)
 
-            bits = demand.mean_rate_mbps * 1e6 * length
-            offered_bits += bits
-            if demand.burst:
-                burst_bits += bits
-            base = baseline_paths[id(demand)]
-            if path is None:
-                unreachable_bits += bits
-            if base is not None and (path != base or not usable):
-                hit_bits += bits
-            if usable and base is not None:
-                stretch = sum(l.latency_ms for l, _ in route) - sum(
-                    topology.link_between(a, b).latency_ms for a, b in zip(base, base[1:]))
-                stretch_bits_ms += bits * stretch
-            if usable and any(l.index in interval.capacity_factor for l, _ in route):
-                congested_path_bits += bits
 
-        def capacity(link: Link) -> float:
-            return link.bandwidth_mbps * interval.capacity_factor.get(link.index, 1.0)
-
-        def survive(link: Link) -> float:
-            return (1.0 - link.loss_rate) * (1.0 - interval.extra_loss.get(link.index, 0.0))
-
-        passing: dict[tuple[int, int], float] = {}
-        for _ in range(FIXED_POINT_ROUNDS):
-            arrivals: dict[tuple[int, int], float] = {}
-            for demand in active:
-                route = hops[id(demand)]
-                if not route:
-                    continue
-                rate = demand.rate_mbps
-                for link, channel in route:
-                    arrivals[channel] = arrivals.get(channel, 0.0) + rate
-                    rate *= passing.get(channel, 1.0) * survive(link)
-            updated = {
-                channel: min(1.0, capacity(links_by_index[channel[0]]) / load) if load > 0 else 1.0
-                for channel, load in arrivals.items()
-            }
-            if updated == passing:
-                break
-            passing = updated
-
-        for channel, load in arrivals.items():
-            utilisation = load / capacity(links_by_index[channel[0]])
-            max_utilisation = max(max_utilisation, utilisation)
-            if utilisation > 1.001:
-                saturated_time += length
-
-        for demand in active:
-            packets = demand.mean_rate_mbps * 1e6 * length / demand.packet_bits
-            sent_packets += packets
-            route = hops[id(demand)]
-            if not route:
-                continue
-            fraction, latency = 1.0, 0.0
-            for link, channel in route:
-                cap = capacity(link)
-                transmit_ms = demand.packet_bits / (cap * 1e3)
-                latency += link.latency_ms + transmit_ms
-                if arrivals.get(channel, 0.0) > cap * 1.001:
-                    latency += link.queue_capacity * transmit_ms
-                fraction *= passing.get(channel, 1.0) * survive(link)
-            delivered = packets * fraction
-            delivered_packets += delivered
-            delivered_bits += delivered * demand.packet_bits
-            latency_packet_ms += delivered * latency
-
-    loss = 100.0 * (sent_packets - delivered_packets) / sent_packets if sent_packets > 0 else 0.0
-    throughput = delivered_bits / (duration * 1e6) if duration > 0 else 0.0
-    latency = latency_packet_ms / delivered_packets if delivered_packets > 0 else 0.0
-
-    reachable = [(d, p) for d, p in ((d, baseline_paths[id(d)]) for d in demands if not d.burst) if p]
-    weights = [d.mean_rate_mbps for d, _ in reachable] or [1.0]
-    paths = [p for _, p in reachable]
-    hops_mean = sum(w * (len(p) - 1) for w, p in zip(weights, paths)) / sum(weights) if paths else 0.0
-    path_latency = sum(
-        w * sum(topology.link_between(a, b).latency_ms for a, b in zip(p, p[1:])) for w, p in zip(weights, paths)
-    ) / sum(weights) if paths else 0.0
-    bottleneck = min(
-        (min(topology.link_between(a, b).bandwidth_mbps for a, b in zip(p, p[1:])) for p in paths), default=0.0
-    )
-    node_count, link_count = len(topology.names), len(topology.links)
-    share = (lambda bits: bits / offered_bits) if offered_bits > 0 else (lambda bits: 0.0)
-
-    return Estimate(latency, throughput, loss, {
+def _features(topology: Topology, demands: list[Demand], baseline_paths: dict[int, list[int] | None],
+              totals: _Totals, duration: float, algorithm: str, weight: str, delay_s: float) -> dict[str, float]:
+    mean_hops, mean_latency, bottleneck = _path_summary(topology, demands, baseline_paths)
+    flows = [d for d in demands if not d.burst]
+    node_count = len(topology.names)
+    link_count = len(topology.links)
+    offered_bits = totals.offered_bits
+    features = {
         "node_count": float(node_count),
         "link_count": float(link_count),
         "average_degree": 2.0 * link_count / node_count if node_count else 0.0,
-        "flow_count": float(sum(1 for d in demands if not d.burst)),
-        "offered_rate_mbps": sum(d.mean_rate_mbps for d in demands if not d.burst),
-        "bursty_flow_share": (sum(1 for d in demands if not d.burst and d.duty < 1.0)
-                              / max(1, sum(1 for d in demands if not d.burst))),
+        "flow_count": float(len(flows)),
+        "offered_rate_mbps": sum(d.mean_rate_mbps for d in flows),
+        "bursty_flow_share": sum(1 for d in flows if d.duty < 1.0) / max(1, len(flows)),
         "duration_s": duration,
-        "mean_path_hops": hops_mean,
-        "mean_path_latency_ms": path_latency,
+        "mean_path_hops": mean_hops,
+        "mean_path_latency_ms": mean_latency,
         "min_path_bottleneck_mbps": bottleneck,
-        "max_channel_utilisation": max_utilisation,
-        "saturated_time_share": saturated_time / duration if duration > 0 else 0.0,
-        "disturbed_time_share": disturbed_time / duration if duration > 0 else 0.0,
-        "rerouted_traffic_share": share(hit_bits),
-        "unreachable_traffic_share": share(unreachable_bits),
-        "congested_path_share": share(congested_path_bits),
-        "burst_traffic_share": share(burst_bits),
-        "reroute_stretch_ms": stretch_bits_ms / offered_bits if offered_bits > 0 else 0.0,
+        "max_channel_utilisation": totals.max_utilisation,
+        "saturated_time_share": totals.saturated_time / duration if duration > 0 else 0.0,
+        "disturbed_time_share": totals.disturbed_time / duration if duration > 0 else 0.0,
+        "rerouted_traffic_share": _share(totals.rerouted_bits, offered_bits),
+        "unreachable_traffic_share": _share(totals.unreachable_bits, offered_bits),
+        "congested_path_share": _share(totals.congested_path_bits, offered_bits),
+        "burst_traffic_share": _share(totals.burst_bits, offered_bits),
+        "reroute_stretch_ms": _share(totals.stretch_bits_ms, offered_bits),
         "reconvergence_delay_ms": delay_s * 1000.0,
         "weight_hops": float(weight == "hops"),
         "weight_adaptive": float(weight == "latency+congestion"),
-        **{f"algorithm_{name}": float(algorithm == name) for name in ALGORITHMS},
-    })
+    }
+    for name in ALGORITHMS:
+        features[f"algorithm_{name}"] = float(algorithm == name)
+    return features

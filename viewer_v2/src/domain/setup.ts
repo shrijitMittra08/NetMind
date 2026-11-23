@@ -21,8 +21,9 @@ export const EVENT_LABELS: Record<EventType, string> = {
   TRAFFIC_BURST: "Traffic burst",
 };
 
-const hostNames = (topology: Topology | null) =>
-  (topology?.nodes ?? []).filter((node) => node.type === "HOST").map((node) => node.name);
+function hostNames(topology: Topology | null): string[] {
+  return (topology?.nodes ?? []).filter((node) => node.type === "HOST").map((node) => node.name);
+}
 
 export function makeFlow(topology: Topology | null): FlowDraft {
   const hosts = hostNames(topology);
@@ -41,13 +42,14 @@ export function makeFlow(topology: Topology | null): FlowDraft {
 
 export function makeEvent(topology: Topology | null, type: EventType = "LINK_FAILURE"): EventDraft {
   const hosts = hostNames(topology);
-  const [a, b] = (topology && linkNamePairs(topology)[0]) ?? ["", ""];
+  const [a, b] = (topology ? linkNamePairs(topology)[0] : undefined) ?? ["", ""];
+  const firstRouter = topology?.nodes.find((node) => node.type === "ROUTER");
   return {
     type,
     time_s: 2,
     a,
     b,
-    node: topology?.nodes.find((node) => node.type === "ROUTER")?.name ?? "",
+    node: firstRouter?.name ?? "",
     bandwidth_multiplier: 0.5,
     extra_loss_rate: 0.01,
     duration_s: 1,
@@ -63,9 +65,13 @@ export function findSetupProblems(topology: Topology | null, settings: SimSettin
   const isHost = (name: string) => nodes.some((node) => node.name === name && node.type === "HOST");
   const isRouter = (name: string) => nodes.some((node) => node.name === name && node.type === "ROUTER");
   const links = topology ? linkNamePairs(topology) : [];
-  const hasLink = (a: string, b: string) =>
-    links.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  const hasLink = (a: string, b: string) => links.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
   const problems: string[] = [];
+  const checkHosts = (label: string, src: string, dst: string) => {
+    if (!isHost(src)) problems.push(`${label}: choose a source host.`);
+    if (!isHost(dst)) problems.push(`${label}: choose a destination host.`);
+    if (src && src === dst) problems.push(`${label}: source and destination must differ.`);
+  };
 
   if (!topology) problems.push("Load or build a topology first.");
   if (!(settings.config.duration_s > 0)) problems.push("The simulation duration must be greater than 0.");
@@ -74,9 +80,7 @@ export function findSetupProblems(topology: Topology | null, settings: SimSettin
 
   settings.flows.forEach((flow, i) => {
     const label = `Flow ${i + 1}`;
-    if (!isHost(flow.src)) problems.push(`${label}: choose a source host.`);
-    if (!isHost(flow.dst)) problems.push(`${label}: choose a destination host.`);
-    if (flow.src && flow.src === flow.dst) problems.push(`${label}: source and destination must differ.`);
+    checkHosts(label, flow.src, flow.dst);
     if (!(flow.rate_mbps > 0)) problems.push(`${label}: rate must be greater than 0.`);
     if (!(flow.packet_bytes > 0)) problems.push(`${label}: packet size must be greater than 0.`);
     if (!(flow.stop_s > flow.start_s)) problems.push(`${label}: stop time must be after start time.`);
@@ -89,9 +93,7 @@ export function findSetupProblems(topology: Topology | null, settings: SimSettin
     } else if (ROUTER_EVENTS.includes(item.type)) {
       if (!isRouter(item.node)) problems.push(`${label}: choose a router.`);
     } else {
-      if (!isHost(item.src)) problems.push(`${label}: choose a source host.`);
-      if (!isHost(item.dst)) problems.push(`${label}: choose a destination host.`);
-      if (item.src && item.src === item.dst) problems.push(`${label}: source and destination must differ.`);
+      checkHosts(label, item.src, item.dst);
     }
     if (!(item.time_s >= 0)) problems.push(`${label}: time cannot be negative.`);
   });
@@ -102,16 +104,17 @@ export function repairForTopology(topology: Topology, settings: SimSettings): Si
   const hosts = hostNames(topology);
   const known = new Set(topology.nodes.map((node) => node.name));
   const keep = (name: string) => (known.has(name) ? name : "");
+  let flows = settings.flows;
+  if (hosts.length >= 2) {
+    flows = flows.map((flow) => ({
+      ...flow,
+      src: hosts.includes(flow.src) ? flow.src : hosts[0]!,
+      dst: hosts.includes(flow.dst) ? flow.dst : hosts[1]!,
+    }));
+  }
   return {
     config: settings.config,
-    flows:
-      hosts.length >= 2
-        ? settings.flows.map((flow) => ({
-            ...flow,
-            src: hosts.includes(flow.src) ? flow.src : hosts[0]!,
-            dst: hosts.includes(flow.dst) ? flow.dst : hosts[1]!,
-          }))
-        : settings.flows,
+    flows,
     events: settings.events.map((item) => ({
       ...item,
       a: keep(item.a),
@@ -133,9 +136,7 @@ export function buildPayload(topology: Topology, topologyName: string, settings:
     packet_bytes: flow.packet_bytes,
     start_s: flow.start_s,
     stop_s: flow.stop_s,
-    ...(flow.pattern === "bursty"
-      ? { on_duration_s: flow.on_duration_s, off_duration_s: flow.off_duration_s }
-      : {}),
+    ...(flow.pattern === "bursty" ? { on_duration_s: flow.on_duration_s, off_duration_s: flow.off_duration_s } : {}),
   }));
 
   let nextBurstFlowId = flows.length + 1;

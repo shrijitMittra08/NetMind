@@ -8,19 +8,14 @@
 namespace netmind {
 
 class Router : public Node {
-public:
+  public:
     Router(NodeId id, std::string name, std::string ip);
 
-    [[nodiscard]] ForwardingTable& forwardingTable();
-    [[nodiscard]] const ForwardingTable& forwardingTable() const;
-    void setForwardingTable(ForwardingTable table);
+    [[nodiscard]] ForwardingTable& forwardingTable() { return forwardingTable_; }
+    [[nodiscard]] const ForwardingTable& forwardingTable() const { return forwardingTable_; }
+    void receivePacket(Packet pkt, LinkId inLink, SimContext& ctx) override;
 
-    void receivePacket(
-        Packet pkt,
-        LinkId inLink,
-        SimContext& ctx) override;
-
-private:
+  private:
     ForwardingTable forwardingTable_;
 };
 

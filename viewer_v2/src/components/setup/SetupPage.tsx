@@ -5,42 +5,52 @@ import { saveTextFile } from "../../lib/saveFile";
 import { api, ApiError } from "../../lib/api";
 import { algorithmLabel } from "../../lib/format";
 import { ALGORITHMS } from "../../lib/types";
+import type { Algorithm } from "../../lib/types";
 import { useWorkbench } from "../../state/workbench";
-import { EmptyState, Segmented } from "../ui";
+import type { SetupMode } from "../../state/workbench";
+import { EmptyState, Segmented, TIGHT_STACK_STYLE } from "../ui";
 import { InteractiveSetup } from "./InteractiveSetup";
 import { ScriptEditor } from "./ScriptEditor";
+
+const ELAPSED_REFRESH_MS = 500;
+const SCENARIO_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const HTTP_CONFLICT = 409;
+
+type SaveState = { kind: "idle" } | { kind: "busy" } | { kind: "ok"; message: string } | { kind: "exists" } | { kind: "error"; message: string };
 
 function Elapsed({ since }: { since: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 500);
+    const timer = window.setInterval(() => setNow(Date.now()), ELAPSED_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, []);
   return <>{Math.max(0, Math.round((now - since) / 1000))} s</>;
 }
 
-type SaveState = { kind: "idle" } | { kind: "busy" } | { kind: "ok"; message: string } | { kind: "exists" } | { kind: "error"; message: string };
-
 function SaveScenario() {
   const { topology, topologyName, activeSettings, problems } = useWorkbench();
   const [name, setName] = useState(() => topologyName.replace(/\.json$/i, "").replace(/[^A-Za-z0-9_-]+/g, "_"));
   const [state, setState] = useState<SaveState>({ kind: "idle" });
-  const nameOk = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name.trim());
+  const trimmedName = name.trim();
+  const nameOk = SCENARIO_NAME_PATTERN.test(trimmedName);
   const blocked = !topology || problems.length > 0;
 
   async function save(overwrite: boolean) {
     if (!topology) return;
     setState({ kind: "busy" });
     try {
-      const saved = await api.saveScenario(topology, topologyName, activeSettings, name.trim(), overwrite);
+      const saved = await api.saveScenario(topology, topologyName, activeSettings, trimmedName, overwrite);
       setState({ kind: "ok", message: `Saved ${saved.scenario_path}` });
     } catch (error) {
-      setState(
-        error instanceof ApiError && error.status === 409
-          ? { kind: "exists" }
-          : { kind: "error", message: (error as Error).message },
-      );
+      if (error instanceof ApiError && error.status === HTTP_CONFLICT) setState({ kind: "exists" });
+      else setState({ kind: "error", message: (error as Error).message });
     }
+  }
+
+  function download() {
+    if (!topology) return;
+    const document = buildScenarioDocument(topology, topologyName, activeSettings, trimmedName);
+    void saveTextFile(JSON.stringify(document, null, 2) + "\n", `${trimmedName}.json`, "application/json");
   }
 
   return (
@@ -72,21 +82,17 @@ function SaveScenario() {
             className="btn"
             title="Download one self-contained .json (topology included) that “Import scenario” can load"
             disabled={blocked || !nameOk}
-            onClick={() => {
-              if (!topology) return;
-              const document = buildScenarioDocument(topology, topologyName, activeSettings, name.trim());
-              void saveTextFile(JSON.stringify(document, null, 2) + "\n", `${name.trim()}.json`, "application/json");
-            }}
+            onClick={download}
           >
             <Download /> Download
           </button>
         </div>
-        {name.trim() && !nameOk && <p className="muted small">Letters, numbers, “_” and “-” only, starting with a letter or number.</p>}
+        {trimmedName && !nameOk && <p className="muted small">Letters, numbers, “_” and “-” only, starting with a letter or number.</p>}
         {state.kind === "ok" && <div className="notice success small">{state.message}</div>}
         {state.kind === "error" && <div className="notice danger small">{state.message}</div>}
         {state.kind === "exists" && (
           <div className="notice warning small">
-            “{name.trim()}” already exists.
+            “{trimmedName}” already exists.
             <button type="button" className="btn sm" onClick={() => void save(true)}>
               Overwrite
             </button>
@@ -97,11 +103,20 @@ function SaveScenario() {
   );
 }
 
+function runButtonLabel(running: boolean, setupMode: SetupMode): string {
+  if (running) return "Running…";
+  if (setupMode === "script") return "Run script";
+  return "Run simulation";
+}
+
 function RunPanel() {
   const { setupMode, algorithms, setAlgorithms, problems, run, startRun, activeSettings } = useWorkbench();
   const running = run.status === "running";
-  const toggle = (name: (typeof ALGORITHMS)[number]) =>
-    setAlgorithms(algorithms.includes(name) ? algorithms.filter((a) => a !== name) : [...algorithms, name]);
+
+  function toggleAlgorithm(name: Algorithm) {
+    if (algorithms.includes(name)) setAlgorithms(algorithms.filter((a) => a !== name));
+    else setAlgorithms([...algorithms, name]);
+  }
 
   return (
     <section className="card run-panel">
@@ -115,11 +130,11 @@ function RunPanel() {
       </div>
       <div className="card-body stack">
         {setupMode === "interactive" ? (
-          <div className="stack" style={{ "--gap": "8px" } as React.CSSProperties}>
+          <div className="stack" style={TIGHT_STACK_STYLE}>
             <span className="eyebrow">Algorithms to compare</span>
             <div className="algo-chips">
               {ALGORITHMS.map((name) => (
-                <button key={name} type="button" className="chip" aria-pressed={algorithms.includes(name)} onClick={() => toggle(name)}>
+                <button key={name} type="button" className="chip" aria-pressed={algorithms.includes(name)} onClick={() => toggleAlgorithm(name)}>
                   {algorithmLabel(name)}
                 </button>
               ))}
@@ -130,7 +145,6 @@ function RunPanel() {
             The script decides the algorithm (<code>set algo</code>). Each <code>export</code> becomes a run you can analyse.
           </p>
         )}
-
         {problems.length > 0 ? (
           <div className="notice warning">
             <ListChecks />
@@ -143,10 +157,9 @@ function RunPanel() {
         ) : (
           <span className="badge success">Ready to run</span>
         )}
-
         <button type="button" className="btn primary lg" disabled={running || problems.length > 0} onClick={() => void startRun()}>
           {running ? <LoaderCircle className="spin" /> : <Play />}
-          {running ? "Running…" : setupMode === "script" ? "Run script" : "Run simulation"}
+          {runButtonLabel(running, setupMode)}
         </button>
         {running && (
           <p className="muted small run-progress">

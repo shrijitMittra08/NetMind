@@ -22,6 +22,7 @@ std::unique_ptr<netmind::Link> makeLink(
 
 }             
 
+// Checks that nodes can be added and then found by their id or by their name
 TEST_CASE("Graph adds nodes and looks them up by id and name") {
     netmind::Graph graph;
     graph.addNode(
@@ -38,6 +39,7 @@ TEST_CASE("Graph adds nodes and looks them up by id and name") {
     REQUIRE(graph.findByName("Missing") == nullptr);
 }
 
+// Checks that adding a null node or a node with a repeated id or name throws an error
 TEST_CASE("Graph rejects null and duplicate nodes") {
     SECTION("rejects a null node") {
         netmind::Graph graph;
@@ -72,6 +74,7 @@ TEST_CASE("Graph rejects null and duplicate nodes") {
     }
 }
 
+// Checks that links can be added and each node reports the links connected to it
 TEST_CASE("Graph adds links and returns neighboring links") {
     netmind::Graph graph;
     graph.addNode(
@@ -94,6 +97,7 @@ TEST_CASE("Graph adds links and returns neighboring links") {
     REQUIRE(graph.getNeighbours(99).empty());
 }
 
+// Checks that null, self, unknown-endpoint, duplicate-id and parallel links are rejected
 TEST_CASE("Graph rejects invalid links") {
     SECTION("rejects a null link") {
         netmind::Graph graph;
@@ -156,6 +160,7 @@ TEST_CASE("Graph rejects invalid links") {
     }
 }
 
+// Checks that active neighbours leave out links that are down or whose end node is down
 TEST_CASE("Graph returns only links whose link and endpoints are up") {
     netmind::Graph graph;
     graph.addNode(
@@ -186,6 +191,7 @@ TEST_CASE("Graph returns only links whose link and endpoints are up") {
     REQUIRE(graph.getActiveNeighbours(2).size() == 1);
 }
 
+// Checks that removing a link takes it away from both of its end nodes
 TEST_CASE("Graph removes links from both endpoints") {
     netmind::Graph graph;
     graph.addNode(
@@ -203,6 +209,7 @@ TEST_CASE("Graph removes links from both endpoints") {
     REQUIRE(graph.linkBetween(1, 2) == nullptr);
 }
 
+// Checks that node ids are returned in sorted order no matter the order they were added
 TEST_CASE("Graph returns node ids in sorted order") {
     netmind::Graph graph;
     graph.addNode(

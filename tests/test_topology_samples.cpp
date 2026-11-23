@@ -25,6 +25,7 @@ netmind::Graph loadSample(const std::string& filename) {
 
 }             
 
+// Checks that the small4 sample is connected and BFS finds the path 1-2-3-4
 TEST_CASE("small4 topology loads and has the expected BFS path") {
     const netmind::Graph graph = loadSample("small4.json");
     std::vector<netmind::NodeId> path;
@@ -34,6 +35,7 @@ TEST_CASE("small4 topology loads and has the expected BFS path") {
     REQUIRE(path == std::vector<netmind::NodeId>{1, 2, 3, 4});
 }
 
+// Checks that the ring_backup sample finds a different path after one link is removed
 TEST_CASE("ring_backup provides an alternate path after a link is removed") {
     netmind::Graph graph = loadSample("ring_backup.json");
     std::vector<netmind::NodeId> path;
@@ -47,6 +49,7 @@ TEST_CASE("ring_backup provides an alternate path after a link is removed") {
     REQUIRE(path == std::vector<netmind::NodeId>{1, 2, 5, 4, 6});
 }
 
+// Checks that on diamond_weighted BFS and DFS pick different paths between the same nodes
 TEST_CASE("diamond_weighted makes BFS and DFS choose different paths") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     std::vector<netmind::NodeId> bfsPath;
@@ -65,6 +68,7 @@ TEST_CASE("diamond_weighted makes BFS and DFS choose different paths") {
     REQUIRE(graph.linkBetween(2, 3)->latencyMs() == 2.0);
 }
 
+// Checks that the dumbbell sample loads with 6 nodes, 5 links and the expected bandwidth
 TEST_CASE("dumbbell topology loads as a connected network") {
     const netmind::Graph graph = loadSample("dumbbell.json");
 
@@ -74,6 +78,7 @@ TEST_CASE("dumbbell topology loads as a connected network") {
     REQUIRE(graph.linkBetween(3, 4)->bandwidthMbps() == 50.0);
 }
 
+// Checks that the medium10 sample has 10 nodes, is connected and contains a cycle
 TEST_CASE("medium10 topology is connected and contains cycles") {
     const netmind::Graph graph = loadSample("medium10.json");
 
@@ -82,6 +87,7 @@ TEST_CASE("medium10 topology is connected and contains cycles") {
     REQUIRE(graph.hasCycle());
 }
 
+// Checks that the mini topology test file loads with 4 connected nodes
 TEST_CASE("mini topology fixture loads from a file") {
     const auto path =
         projectRoot() / "tests" / "golden" / "mini_topology.json";
@@ -92,6 +98,7 @@ TEST_CASE("mini topology fixture loads from a file") {
     REQUIRE(graph.isConnected());
 }
 
+// Checks that every broken topology test file is rejected with a topology error
 TEST_CASE("loader rejects invalid topology fixtures") {
     const std::vector<std::string> invalidFiles{
         "bad_duplicate_ip.json",

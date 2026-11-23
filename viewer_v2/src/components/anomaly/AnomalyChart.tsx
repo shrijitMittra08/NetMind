@@ -15,16 +15,19 @@ const LEFT = 42;
 const RIGHT = 10;
 const TOP = 22;
 const BOTTOM = 44;
+const TIME_TICK_STEPS = [1, 2, 5, 10, 15, 20, 30, 60, 120, 300];
 
 function niceMax(value: number): number {
   if (value <= 0) return 1;
   const power = 10 ** Math.floor(Math.log10(value));
-  const step = [1, 2, 2.5, 5, 10].find((s) => s * power >= value) ?? 10;
+  const step = [1, 2, 2.5, 5].find((nice) => nice * power >= value) ?? 10;
   return step * power;
 }
 
 function tickLabel(value: number): string {
-  return fmt(value, Number.isInteger(value) ? 0 : value >= 10 ? 1 : 2);
+  if (Number.isInteger(value)) return fmt(value, 0);
+  if (value >= 10) return fmt(value, 1);
+  return fmt(value, 2);
 }
 
 export function windowAt(report: AnomalyReport, t: number | null): AnomalyWindow | null {
@@ -56,11 +59,14 @@ export function AnomalyChart({
   const x = (t: number) => LEFT + (t / endT) * (W - LEFT - RIGHT);
   const y = (v: number) => TOP + (1 - v / maxV) * (H - TOP - BOTTOM);
   const mid = (w: AnomalyWindow) => x(w.t + step / 2);
+  const stripWidth = (w: AnomalyWindow) => Math.max(1, x(w.t + step) - x(w.t) - 1);
+
   const path = windows.map((w, i) => `${i ? "L" : "M"}${mid(w).toFixed(1)},${y(w[metric]).toFixed(1)}`).join("");
   const flagRow = H - BOTTOM + 12;
   const compareRow = H - BOTTOM + 21;
-  const tickStep = [1, 2, 5, 10, 15, 20, 30, 60, 120, 300].find((s) => endT / s <= 6) ?? 600;
+  const tickStep = TIME_TICK_STEPS.find((tick) => endT / tick <= 6) ?? 600;
   const ticks = Array.from({ length: Math.floor(endT / tickStep) + 1 }, (_, i) => i * tickStep);
+  const flaggedWindows = windows.filter((w) => w.flagged);
   const hover = windowAt(report, hoverT);
 
   return (
@@ -102,19 +108,15 @@ export function AnomalyChart({
           </text>
         ))}
         <path d={path} className="line" />
-        {windows
-          .filter((w) => w.flagged)
-          .map((w) => (
-            <circle key={`f${w.t}`} cx={mid(w)} cy={y(w[metric])} r={3.4} className={`flag-dot${w.disturbed ? "" : " outside"}`} />
-          ))}
+        {flaggedWindows.map((w) => (
+          <circle key={`f${w.t}`} cx={mid(w)} cy={y(w[metric])} r={3.4} className={`flag-dot${w.disturbed ? "" : " outside"}`} />
+        ))}
         <text x={LEFT - 6} y={flagRow + 3} textAnchor="end" className="tick">
           z
         </text>
-        {windows
-          .filter((w) => w.flagged)
-          .map((w) => (
-            <rect key={`r${w.t}`} x={x(w.t) + 0.5} width={Math.max(1, x(w.t + step) - x(w.t) - 1)} y={flagRow - 3} height={6} className={`flag-strip${w.disturbed ? "" : " outside"}`} />
-          ))}
+        {flaggedWindows.map((w) => (
+          <rect key={`r${w.t}`} x={x(w.t) + 0.5} width={stripWidth(w)} y={flagRow - 3} height={6} className={`flag-strip${w.disturbed ? "" : " outside"}`} />
+        ))}
         {showComparison && (
           <>
             <text x={LEFT - 6} y={compareRow + 3} textAnchor="end" className="tick">
@@ -123,7 +125,7 @@ export function AnomalyChart({
             {windows
               .filter((w) => w.if_flagged)
               .map((w) => (
-                <rect key={`i${w.t}`} x={x(w.t) + 0.5} width={Math.max(1, x(w.t + step) - x(w.t) - 1)} y={compareRow - 3} height={6} className="compare-strip" />
+                <rect key={`i${w.t}`} x={x(w.t) + 0.5} width={stripWidth(w)} y={compareRow - 3} height={6} className="compare-strip" />
               ))}
           </>
         )}
@@ -137,12 +139,13 @@ export function AnomalyReadout({ report, hoverT }: { report: AnomalyReport; hove
   const hover = windowAt(report, hoverT);
   const step = report.window_s || 1;
   if (!hover) return <p className="anomaly-readout small muted">Hover over any chart to inspect that second in all four.</p>;
+  const metricsText = ANOMALY_METRICS.map((m) => ` · ${m.label.toLowerCase()} ${fmt(hover[m.value], 2)} ${m.unit}`).join("");
   return (
     <p className="anomaly-readout small">
       <strong>
         {hover.t.toFixed(0)}–{(hover.t + step).toFixed(0)} s
       </strong>
-      {ANOMALY_METRICS.map((m) => ` · ${m.label.toLowerCase()} ${fmt(hover[m.value], 2)} ${m.unit}`).join("")} · score{" "}
+      {metricsText} · score{" "}
       {fmt(hover.score, 1)}
       {hover.flagged ? (
         <span className="flag-text"> · flagged: {describeDriver(hover.driver)}</span>

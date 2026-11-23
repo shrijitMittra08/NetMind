@@ -48,6 +48,7 @@ netmind::Graph makeReportGraph() {
 
 }             
 
+// Checks that the report ranks links by utilization and drops and sorts flows by latency
 TEST_CASE("Report sorts links and flows deterministically") {
     auto graph = makeReportGraph();
     netmind::MetricsCollector metrics(graph);

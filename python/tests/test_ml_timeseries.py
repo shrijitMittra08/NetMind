@@ -42,6 +42,7 @@ def synthetic_windows(runs=40, length=30, seed=0):
     return pd.DataFrame(rows)
 
 
+# Checks that a link failure counts as a disturbance only until the matching link restore
 def test_link_failure_is_disturbed_until_matching_restore():
     events = [
         {"type": "LINK_FAILURE", "a": "R2", "b": "R1", "time_s": 5.5},
@@ -51,6 +52,7 @@ def test_link_failure_is_disturbed_until_matching_restore():
     assert disturbance_intervals(events, 30.0) == [(5.5, 9.0)]
 
 
+# Checks that failures with no restore last to the end and timed events use their duration
 def test_failure_without_restore_lasts_until_the_end_and_timed_events_use_duration():
     events = [
         {"type": "ROUTER_FAILURE", "node": "R3", "time_s": 12.0},
@@ -60,6 +62,7 @@ def test_failure_without_restore_lasts_until_the_end_and_timed_events_use_durati
     assert disturbance_intervals(events, 30.0) == [(3.0, 5.0), (12.0, 30.0), (20.0, 30.0)]
 
 
+# Checks that every time window overlapping an event is labelled as an anomaly
 def test_window_labels_mark_every_overlapping_bin():
     windows = pd.DataFrame({"t_start": [float(t) for t in range(10)]})
     events = [{"type": "CONGESTION", "a": "A", "b": "B", "time_s": 2.5, "duration_s": 2.0}]
@@ -67,6 +70,7 @@ def test_window_labels_mark_every_overlapping_bin():
     assert label_windows(windows, [], 10.0).sum() == 0
 
 
+# Checks that latency is copied from the previous window when no packets were delivered
 def test_latency_is_forward_filled_when_nothing_was_delivered():
     windows = synthetic_windows(runs=1, length=6)
     windows.loc[3, ["delivered", "avg_latency_ms"]] = [0, 0.0]
@@ -75,6 +79,7 @@ def test_latency_is_forward_filled_when_nothing_was_delivered():
     assert frame.loc[3, "no_delivery"] == 1
 
 
+# Checks that features use only past data and never include the label columns
 def test_features_are_causal_and_exclude_label_columns():
     windows = synthetic_windows(runs=1, length=12)
     before = features.build_window_features(windows)
@@ -87,6 +92,7 @@ def test_features_are_causal_and_exclude_label_columns():
     assert (before.groupby("run_id").head(1)[[c for c in columns if c.endswith("_delta1")]] == 0).all().all()
 
 
+# Checks that the train/validation/test split never shares runs and is the same for one seed
 def test_split_keeps_runs_disjoint_and_is_reproducible():
     ids = [f"run_{i:03d}" for i in range(50)]
     split = anomaly.split_runs(ids, seed=3)
@@ -96,6 +102,7 @@ def test_split_keeps_runs_disjoint_and_is_reproducible():
     assert len(split.train) + len(split.validation) + len(split.test) == 50
 
 
+# Checks that the main z-score detector catches the injected disturbed windows
 def test_primary_zscore_detector_flags_injected_windows(tmp_path):
     results, frame = anomaly.run_experiment(synthetic_windows(), seed=7, models_dir=tmp_path)
     assert results["primary"] == "zscore"
@@ -106,6 +113,7 @@ def test_primary_zscore_detector_flags_injected_windows(tmp_path):
     assert results["models"]["isolation_forest"]["test_runs"]["detection_rate"] == 1.0
 
 
+# Checks that the saved model bundle gives the same flags when run on a single run
 def test_saved_bundle_reproduces_flags_for_a_single_run(tmp_path):
     windows = synthetic_windows(seed=7)
     _, frame = anomaly.run_experiment(windows, seed=7, models_dir=tmp_path)
@@ -119,6 +127,7 @@ def test_saved_bundle_reproduces_flags_for_a_single_run(tmp_path):
     assert flagged.loc[flagged["is_anomaly"] == 1, "anomaly_flag"].any()
 
 
+# Checks that the anomaly timeline and comparison plots are written as non-empty files
 def test_plots_are_written(tmp_path):
     windows = synthetic_windows()
     results, frame = anomaly.run_experiment(windows, seed=7)

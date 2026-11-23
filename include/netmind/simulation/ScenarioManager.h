@@ -33,14 +33,14 @@ public:
     void setSeed(std::uint64_t seed);
     [[nodiscard]] std::uint64_t seed() const;
 
-    [[nodiscard]] ScenarioManager cloneWith(
-        const std::string& algorithmName) const;
-
+    [[nodiscard]] ScenarioManager cloneWith(const std::string& algorithmName) const;
     void run(SimulationEngine& engine, SimTime endTime);
     void reset();
 
 private:
     struct ScenarioData;
+
+    void resetRoutingAndDuration();
 
     std::unique_ptr<Graph> graph_;
     std::shared_ptr<ScenarioData> scenario_;

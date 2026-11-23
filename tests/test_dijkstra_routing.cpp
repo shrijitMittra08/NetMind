@@ -59,6 +59,7 @@ netmind::Graph makeEqualCostGraph() {
 
 }
 
+// Checks that Dijkstra picks the path with the lowest total latency on the diamond topology
 TEST_CASE("Dijkstra chooses the lower total-latency route") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::DijkstraRouting routing;
@@ -69,6 +70,7 @@ TEST_CASE("Dijkstra chooses the lower total-latency route") {
     REQUIRE(route == std::vector<netmind::NodeId>{1, 2, 3, 4, 5, 7, 8});
 }
 
+// Checks that Dijkstra (by latency) and BFS (by hops) pick different routes on the diamond
 TEST_CASE("Dijkstra and BFS choose different routes on the weighted diamond") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::DijkstraRouting dijkstra;
@@ -84,6 +86,7 @@ TEST_CASE("Dijkstra and BFS choose different routes on the weighted diamond") {
     REQUIRE(fewestHopRoute == std::vector<netmind::NodeId>{1, 2, 6, 7, 8});
 }
 
+// Checks that the Dijkstra table gives the right next hop for each reachable node
 TEST_CASE("Dijkstra computes first-hop entries for every reachable node") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::DijkstraRouting routing;
@@ -98,6 +101,7 @@ TEST_CASE("Dijkstra computes first-hop entries for every reachable node") {
     REQUIRE(table.at(4) == 2);
 }
 
+// Checks that Dijkstra leaves out nodes cut off by a removed link from its route and table
 TEST_CASE("Dijkstra omits unreachable nodes from its route and table") {
     netmind::Graph graph = loadSample("small4.json");
     REQUIRE(graph.removeLink(2));
@@ -114,6 +118,7 @@ TEST_CASE("Dijkstra omits unreachable nodes from its route and table") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that Dijkstra skips a router that is marked down
 TEST_CASE("Dijkstra ignores down nodes and links") {
     netmind::Graph graph = loadSample("small4.json");
     auto* router = graph.getNode(3);
@@ -131,6 +136,7 @@ TEST_CASE("Dijkstra ignores down nodes and links") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that on equal-cost paths Dijkstra chooses the next hop with the smaller id
 TEST_CASE("Dijkstra breaks equal-cost route ties by smaller next-hop id") {
     const netmind::Graph graph = makeEqualCostGraph();
     netmind::DijkstraRouting routing;
@@ -143,6 +149,7 @@ TEST_CASE("Dijkstra breaks equal-cost route ties by smaller next-hop id") {
     REQUIRE(table.at(5) == 2);
 }
 
+// Checks that Dijkstra throws a ConfigError when a link weight is negative
 TEST_CASE("Dijkstra rejects negative policy weights") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::DijkstraRouting routing;
@@ -151,6 +158,7 @@ TEST_CASE("Dijkstra rejects negative policy weights") {
     REQUIRE_THROWS_AS(routing.computeRoute(graph, 1, 4, negativeWeight), netmind::ConfigError);
 }
 
+// Checks that Dijkstra throws a ConfigError when a link weight is infinite
 TEST_CASE("Dijkstra rejects non-finite policy weights") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::DijkstraRouting routing;
@@ -159,6 +167,7 @@ TEST_CASE("Dijkstra rejects non-finite policy weights") {
     REQUIRE_THROWS_AS(routing.computeRoute(graph, 1, 4, infiniteWeight), netmind::ConfigError);
 }
 
+// Checks that Dijkstra reports its name as "Dijkstra"
 TEST_CASE("Dijkstra identifies itself by name") {
     netmind::DijkstraRouting routing;
     REQUIRE(routing.name() == "Dijkstra");

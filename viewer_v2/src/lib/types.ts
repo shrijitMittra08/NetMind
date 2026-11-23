@@ -17,10 +17,7 @@ export interface TopologyLink {
   queueCapacity?: number;
 }
 
-export interface Topology {
-  nodes: TopologyNode[];
-  links: TopologyLink[];
-}
+export interface Topology { nodes: TopologyNode[]; links: TopologyLink[] }
 
 export const ALGORITHMS = ["bfs", "dfs", "dijkstra", "bellman-ford"] as const;
 export type Algorithm = (typeof ALGORITHMS)[number];
@@ -128,10 +125,7 @@ export interface ScriptRunResult {
   runs: RunResult[];
 }
 
-export interface GraphRagFact {
-  id?: string;
-  text: string;
-}
+export interface GraphRagFact { id?: string; text: string }
 
 export interface GraphRagAnswer {
   intent: string;
@@ -143,34 +137,17 @@ export interface GraphRagAnswer {
   tool_calls?: { name: string; args: Record<string, unknown> }[];
 }
 
-export interface GraphRagStatus {
-  engine: "agent" | "rules";
-  model: string | null;
-  provider: string | null;
-}
+export interface GraphRagStatus { engine: "agent" | "rules"; model: string | null; provider: string | null }
 
-export interface ChatTurn {
-  question: string;
-  answer: string;
-}
+export interface ChatTurn { question: string; answer: string }
 
-export interface RunFile {
-  name: string;
-  type: string;
-  content: string;
-}
+export interface RunFile { name: string; type: string; content: string }
 
-export interface SavedScenario {
-  scenario_path: string;
-  topology_path: string;
-}
+export interface SavedScenario { scenario_path: string; topology_path: string }
 
 export type AnomalyMetric = "avg_latency_ms" | "loss_pct" | "throughput_mbps" | "max_util_pct";
 
-export interface AnomalyDriver {
-  metric: string;
-  change: "vs_normal" | "vs_recent" | "jump" | "jump3" | "level";
-}
+export interface AnomalyDriver { metric: string; change: "vs_normal" | "vs_recent" | "jump" | "jump3" | "level" }
 
 export interface AnomalyWindow {
   t: number;
@@ -186,11 +163,7 @@ export interface AnomalyWindow {
   driver: AnomalyDriver | null;
 }
 
-export interface AnomalyDisturbance {
-  start: number;
-  end: number;
-  label: string;
-}
+export interface AnomalyDisturbance { start: number; end: number; label: string }
 
 export interface AnomalySummary {
   windows: number;

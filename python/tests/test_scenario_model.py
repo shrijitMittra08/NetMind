@@ -24,6 +24,7 @@ def names(path):
     return [TOPOLOGY.names[node] for node in path]
 
 
+# Checks that each routing algorithm and weight picks the expected path from PC1 to PC4
 @pytest.mark.parametrize("algorithm, weight, expected", [
     ("bfs", "latency", ["PC1", "R2", "R3", "PC4"]),
     ("dijkstra", "latency", ["PC1", "R2", "R5", "R3", "PC4"]),
@@ -34,10 +35,12 @@ def test_routes_follow_the_algorithm_and_weight(algorithm, weight, expected):
     assert names(Router(TOPOLOGY, GraphState(), algorithm, weight).path(1, 4)) == expected
 
 
+# Checks that DFS follows the depth-first path starting from the lowest node id
 def test_dfs_follows_the_depth_first_tree_from_the_lowest_id():
     assert names(Router(TOPOLOGY, GraphState(), "dfs", "latency").path(1, 4)) == ["PC1", "R2", "R3", "PC4"]
 
 
+# Checks that a failed link makes the route take a detour, or gives no route if none is left
 def test_failures_reroute_or_disconnect():
     detour_down = GraphState(down_links=frozenset({4}))
     assert names(Router(TOPOLOGY, detour_down, "dijkstra", "latency").path(1, 4)) == ["PC1", "R2", "R3", "PC4"]
@@ -49,12 +52,14 @@ def flow(rate, **extra):
     return {"src": "PC1", "dst": "PC4", "rate_mbps": rate, "packet_bytes": 1000, **extra}
 
 
+# Checks that a flow sending more than the slowest link allows is capped and loses the extra
 def test_overload_is_capped_at_the_bottleneck():
     result = estimate(TOPOLOGY, {"duration_s": 10, "routing": {"algorithm": "bfs"}, "flows": [flow(20)]})
     assert result.throughput_mbps == pytest.approx(10.0)
     assert result.loss_pct == pytest.approx(50.0)
 
 
+# Checks that a bursty flow loses traffic while it is on even though its average rate fits
 def test_bursty_flows_lose_traffic_while_on_even_if_the_average_fits():
     bursty = flow(20, pattern="bursty", on_duration_s=1, off_duration_s=1)
     result = estimate(TOPOLOGY, {"duration_s": 10, "routing": {"algorithm": "bfs"}, "flows": [bursty]})
@@ -62,6 +67,7 @@ def test_bursty_flows_lose_traffic_while_on_even_if_the_average_fits():
     assert result.features["offered_rate_mbps"] == pytest.approx(10.0)
 
 
+# Checks that a router failure with no reconvergence delay reroutes traffic without loss
 def test_failure_without_reconvergence_delay_reroutes_without_loss():
     scenario = {
         "duration_s": 10,
@@ -74,6 +80,7 @@ def test_failure_without_reconvergence_delay_reroutes_without_loss():
     assert result.features["rerouted_traffic_share"] == pytest.approx(0.5)
 
 
+# Checks that a reconvergence delay drops traffic sent on the old path during that delay
 def test_reconvergence_delay_drops_traffic_on_the_stale_path():
     scenario = {
         "duration_s": 10,

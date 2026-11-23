@@ -6,8 +6,7 @@
 
 namespace netmind {
 
-RouterFailureEvent::RouterFailureEvent(NodeId routerId)
-    : routerId_(routerId) {}
+RouterFailureEvent::RouterFailureEvent(NodeId routerId) : routerId_(routerId) {}
 
 void RouterFailureEvent::apply(SimulationEngine& engine) {
     engine.setRouterState(routerId_, false);

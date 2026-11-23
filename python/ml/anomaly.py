@@ -1,5 +1,3 @@
-"""Detect anomalous simulation windows with a z-score detector and compare it against IsolationForest."""
-
 from __future__ import annotations
 
 import argparse
@@ -44,13 +42,11 @@ def split_runs(run_ids: list[str], seed: int = 42, validation: float = 0.2, test
         raise ValueError("Need at least five runs to split into train/validation/test")
     order = np.random.default_rng(seed).permutation(len(unique))
     shuffled = [unique[i] for i in order]
-    n_test = max(1, round(len(unique) * test))
-    n_val = max(1, round(len(unique) * validation))
-    return RunSplit(
-        train=sorted(shuffled[n_test + n_val:]),
-        validation=sorted(shuffled[n_test:n_test + n_val]),
-        test=sorted(shuffled[:n_test]),
-    )
+    test_count = max(1, round(len(unique) * test))
+    validation_count = max(1, round(len(unique) * validation))
+    return RunSplit(train=sorted(shuffled[test_count + validation_count:]),
+                    validation=sorted(shuffled[test_count:test_count + validation_count]),
+                    test=sorted(shuffled[:test_count]))
 
 
 class ZScoreDetector:
@@ -94,85 +90,80 @@ class IsolationForestDetector:
 
 
 def classification_metrics(labels: np.ndarray, flags: np.ndarray) -> dict[str, float]:
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        labels, flags, average="binary", zero_division=0
-    )
-    return {
-        "precision": float(precision),
-        "recall": float(recall),
-        "f1": float(f1),
-        "flagged": int(np.sum(flags)),
-        "positives": int(np.sum(labels)),
-        "windows": int(len(labels)),
-    }
+    precision, recall, f1, _ = precision_recall_fscore_support(labels, flags, average="binary", zero_division=0)
+    return {"precision": float(precision), "recall": float(recall), "f1": float(f1),
+            "flagged": int(np.sum(flags)), "positives": int(np.sum(labels)), "windows": int(len(labels))}
 
 
 def choose_threshold(scores: np.ndarray, labels: np.ndarray) -> float:
     candidates = np.unique(np.quantile(scores, np.linspace(0.50, 0.995, 200)))
-    best_threshold, best_f1 = float(candidates[-1]), -1.0
+    best_threshold = float(candidates[-1])
+    best_f1 = -1.0
     for threshold in candidates:
         f1 = classification_metrics(labels, scores > threshold)["f1"]
         if f1 > best_f1:
-            best_threshold, best_f1 = float(threshold), f1
+            best_threshold = float(threshold)
+            best_f1 = f1
     return best_threshold
+
+
+def _mean_or_nan(values: pd.Series) -> float:
+    return float(values.mean()) if len(values) else float("nan")
 
 
 def run_level_metrics(frame: pd.DataFrame, flag_column: str) -> dict[str, float]:
     hits = frame.assign(_hit=frame[flag_column].astype(bool) & frame["is_anomaly"].astype(bool))
-    per_run = hits.groupby("run_id").agg(
-        disturbed=("is_anomaly", "max"),
-        caught=("_hit", "max"),
-        flagged=(flag_column, "max"),
-    )
+    per_run = hits.groupby("run_id").agg(disturbed=("is_anomaly", "max"), caught=("_hit", "max"),
+                                         flagged=(flag_column, "max"))
     disturbed = per_run[per_run["disturbed"] == 1]
     clean = per_run[per_run["disturbed"] == 0]
     clean_windows = frame[frame["run_id"].isin(clean.index)]
     return {
         "disturbed_runs": int(len(disturbed)),
-        "detection_rate": float(disturbed["caught"].mean()) if len(disturbed) else float("nan"),
+        "detection_rate": _mean_or_nan(disturbed["caught"]),
         "clean_runs": int(len(clean)),
-        "clean_runs_with_false_alarm": float(clean["flagged"].mean()) if len(clean) else float("nan"),
-        "clean_window_false_alarm_rate": float(clean_windows[flag_column].mean()) if len(clean_windows) else float("nan"),
+        "clean_runs_with_false_alarm": _mean_or_nan(clean["flagged"]),
+        "clean_window_false_alarm_rate": _mean_or_nan(clean_windows[flag_column]),
     }
 
 
 def recall_by_pattern(frame: pd.DataFrame, flag_column: str) -> dict[str, float]:
     positives = frame[frame["is_anomaly"] == 1]
-    if positives.empty:
-        return {}
+    return {str(pattern): float(group[flag_column].mean())
+            for pattern, group in positives.groupby("event_pattern", sort=True)}
+
+
+def _test_report(
+    frame: pd.DataFrame, labels: np.ndarray, test: pd.Series, flag_column: str, threshold: float, source: str
+) -> dict[str, Any]:
+    test_frame = frame[test]
     return {
-        str(pattern): float(group[flag_column].mean())
-        for pattern, group in positives.groupby("event_pattern", sort=True)
+        "threshold": threshold,
+        "threshold_source": source,
+        "test": classification_metrics(labels[test.to_numpy()], test_frame[flag_column].to_numpy()),
+        "test_runs": run_level_metrics(test_frame, flag_column),
+        "test_recall_by_pattern": recall_by_pattern(test_frame, flag_column),
     }
 
 
-def run_experiment(
-    windows: pd.DataFrame,
-    seed: int = 42,
-    models_dir: Path | None = None,
-) -> tuple[dict[str, Any], pd.DataFrame]:
+def run_experiment(windows: pd.DataFrame, seed: int = 42,
+                   models_dir: Path | None = None) -> tuple[dict[str, Any], pd.DataFrame]:
     if "is_anomaly" not in windows.columns or "event_pattern" not in windows.columns:
         raise ValueError("Window table needs is_anomaly and event_pattern columns (see generate_dataset)")
 
     frame = feats.build_window_features(windows)
     columns = feats.feature_columns(frame)
     split = split_runs(frame["run_id"].tolist(), seed)
-    frame["split"] = np.select(
-        [frame["run_id"].isin(split.train), frame["run_id"].isin(split.validation)],
-        ["train", "validation"],
-        "test",
-    )
+    frame["split"] = np.select([frame["run_id"].isin(split.train), frame["run_id"].isin(split.validation)],
+                               ["train", "validation"], "test")
 
     train_normal = frame[(frame["split"] == "train") & (frame["event_pattern"] == "none")]
     if len(train_normal) < 20:
         raise ValueError("Not enough windows from normal training runs to fit the detectors")
     values = frame[columns].to_numpy(dtype=float)
     normal_values = train_normal[columns].to_numpy(dtype=float)
-
-    detectors = {
-        "zscore": ZScoreDetector().fit(normal_values),
-        "isolation_forest": IsolationForestDetector(seed).fit(normal_values),
-    }
+    detectors = {"zscore": ZScoreDetector().fit(normal_values),
+                 "isolation_forest": IsolationForestDetector(seed).fit(normal_values)}
 
     validation = frame["split"] == "validation"
     test = frame["split"] == "test"
@@ -185,45 +176,29 @@ def run_experiment(
         "train_normal_windows": int(len(train_normal)),
         "models": {},
     }
-
     for name, detector in detectors.items():
         scores = detector.score(values)
         frame[f"{name}_score"] = scores
         threshold = choose_threshold(scores[validation.to_numpy()], labels[validation.to_numpy()])
         frame[f"{name}_flag"] = scores > threshold
-        test_frame = frame[test]
-        results["models"][name] = {
-            "threshold": threshold,
-            "threshold_source": "max F1 on validation runs",
-            "test": classification_metrics(labels[test.to_numpy()], frame.loc[test, f"{name}_flag"].to_numpy()),
-            "test_runs": run_level_metrics(test_frame, f"{name}_flag"),
-            "test_recall_by_pattern": recall_by_pattern(test_frame, f"{name}_flag"),
-        }
+        results["models"][name] = _test_report(frame, labels, test, f"{name}_flag", threshold,
+                                               "max F1 on validation runs")
 
-    fixed = frame["zscore_score"] > FIXED_Z
-    frame["zscore_fixed_flag"] = fixed
-    results["models"]["zscore_fixed_3sigma"] = {
-        "threshold": FIXED_Z,
-        "threshold_source": "fixed |z| > 3 on any feature",
-        "test": classification_metrics(labels[test.to_numpy()], fixed[test].to_numpy()),
-        "test_runs": run_level_metrics(frame[test], "zscore_fixed_flag"),
-        "test_recall_by_pattern": recall_by_pattern(frame[test], "zscore_fixed_flag"),
-    }
+    frame["zscore_fixed_flag"] = frame["zscore_score"] > FIXED_Z
+    results["models"]["zscore_fixed_3sigma"] = _test_report(frame, labels, test, "zscore_fixed_flag", FIXED_Z,
+                                                            "fixed |z| > 3 on any feature")
 
     if models_dir is not None:
         models_dir.mkdir(parents=True, exist_ok=True)
-        joblib.dump(
-            {
-                "primary": PRIMARY,
-                "features": columns,
-                "zscore": detectors["zscore"],
-                "zscore_threshold": results["models"]["zscore"]["threshold"],
-                "isolation_forest": detectors["isolation_forest"],
-                "isolation_forest_threshold": results["models"]["isolation_forest"]["threshold"],
-            },
-            models_dir / BUNDLE_NAME,
-        )
-
+        bundle = {
+            "primary": PRIMARY,
+            "features": columns,
+            "zscore": detectors["zscore"],
+            "zscore_threshold": results["models"]["zscore"]["threshold"],
+            "isolation_forest": detectors["isolation_forest"],
+            "isolation_forest_threshold": results["models"]["isolation_forest"]["threshold"],
+        }
+        joblib.dump(bundle, models_dir / BUNDLE_NAME)
     return results, frame
 
 
@@ -252,7 +227,9 @@ def _print_summary(results: dict[str, Any]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description="Detect anomalous simulation windows with a z-score detector and compare it against IsolationForest."
+    )
     parser.add_argument("--windows", default=str(DEFAULT_WINDOWS), help="windows_all.csv from generate_dataset")
     parser.add_argument("--models", default=str(DEFAULT_MODELS))
     parser.add_argument("--plots", default=str(DEFAULT_PLOTS))
@@ -265,16 +242,14 @@ def main() -> None:
     plots_dir = Path(args.plots)
     plots_dir.mkdir(parents=True, exist_ok=True)
     (plots_dir / "anomaly_results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    frame.drop(columns=[c for c in frame.columns if c.endswith(("_delta1", "_delta3", "_vs_roll3", "_vs_ref"))]).to_csv(
-        plots_dir / "anomaly_predictions.csv", index=False
-    )
+    derived = [column for column in frame.columns if column.endswith(feats.DERIVED_SUFFIXES)]
+    frame.drop(columns=derived).to_csv(plots_dir / "anomaly_predictions.csv", index=False)
     if not args.no_plots:
         from ml import plots
 
         plots.plot_anomaly_timeline(frame, plots_dir / "anomaly_timeline.png", "zscore_flag", "z-score")
-        plots.plot_anomaly_timeline(
-            frame, plots_dir / "anomaly_timeline_isolation_forest.png", "isolation_forest_flag", "IsolationForest"
-        )
+        plots.plot_anomaly_timeline(frame, plots_dir / "anomaly_timeline_isolation_forest.png",
+                                    "isolation_forest_flag", "IsolationForest")
         plots.plot_anomaly_comparison(results, plots_dir / "anomaly_f1_comparison.png")
         runs_path = Path(args.windows).with_name("runs_all.csv")
         if runs_path.is_file():

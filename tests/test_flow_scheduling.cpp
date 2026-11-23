@@ -65,6 +65,7 @@ std::unique_ptr<netmind::Graph> makeTwoHostGraph() {
 
 }             
 
+// Checks that a flow sends packets at a steady rate until its stop time and reports start and stop
 TEST_CASE("SimulationEngine generates a flow until its stop time") {
     netmind::SimulationEngine engine(1234);
     FlowRecorder recorder;

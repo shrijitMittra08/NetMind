@@ -184,6 +184,7 @@ std::size_t deliveredBytesForFlow(
 
 }             
 
+// Checks that traffic switches to the backup path after a link fails and nothing is lost
 TEST_CASE("Traffic reroutes over a backup path after link failure") {
     constexpr netmind::SimTime failureTime = 0.0015;
 
@@ -241,6 +242,7 @@ TEST_CASE("Traffic reroutes over a backup path after link failure") {
     REQUIRE(countDrops(recorder, netmind::DropReason::NO_ROUTE) == 0);
 }
 
+// Checks that packets are dropped during an outage with no backup and flow again after restore
 TEST_CASE("Traffic drops during an outage without a backup path and resumes after restoration") {
     constexpr netmind::SimTime failureTime = 0.0025;
     constexpr netmind::SimTime restoreTime = 0.0055;
@@ -289,6 +291,7 @@ TEST_CASE("Traffic drops during an outage without a backup path and resumes afte
     REQUIRE(deliveredPacketSentAfterRestore);
 }
 
+// Checks that random loss over 100,000 packets stays within 1% of the link's 20% loss rate
 TEST_CASE("Seeded packet loss is close to the configured link loss rate") {
     constexpr std::size_t packetCount = 100'000;
     constexpr double configuredLossRate = 0.20;
@@ -324,6 +327,7 @@ TEST_CASE("Seeded packet loss is close to the configured link loss rate") {
     REQUIRE(observedLossRate <= configuredLossRate + 0.01);
 }
 
+// Checks that two 30 Mbps flows share the 50 Mbps dumbbell bottleneck with the expected drops
 TEST_CASE("The dumbbell topology shares its 50 Mbps bottleneck between two flows") {
     constexpr double measurementEndTime = 5.0;
     constexpr double offeredRatePerFlowMbps = 30.0;

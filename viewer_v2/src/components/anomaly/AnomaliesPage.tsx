@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { algorithmLabel, fmt } from "../../lib/format";
 import type { AnomalyEvaluation, AnomalyReport, AnomalyResult, RunResult } from "../../lib/types";
 import { describeSpan, flagSpans, isReport, verdict } from "../../domain/anomaly";
+import type { FlagSpan } from "../../domain/anomaly";
 import { useWorkbench } from "../../state/workbench";
 import { Segmented } from "../ui";
 import { ANOMALY_METRICS, AnomalyChart, AnomalyReadout } from "./AnomalyChart";
@@ -14,7 +15,10 @@ const DETECTOR_LABELS: Record<string, string> = {
   zscore_fixed_3sigma: "z-score, fixed |z| > 3",
 };
 
-const pct = (value: number | undefined) => (value === undefined || !Number.isFinite(value) ? "—" : `${(value * 100).toFixed(0)}%`);
+function pct(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return "—";
+  return `${(value * 100).toFixed(0)}%`;
+}
 
 function useRunAnomaly(run: RunResult | undefined): AnomalyResult | null {
   const [fetched, setFetched] = useState<Record<string, AnomalyResult>>({});
@@ -26,8 +30,12 @@ function useRunAnomaly(run: RunResult | undefined): AnomalyResult | null {
     let alive = true;
     api
       .anomaly(runId)
-      .then((report) => alive && setFetched((all) => ({ ...all, [runId]: report })))
-      .catch((error: Error) => alive && setFetched((all) => ({ ...all, [runId]: { error: error.message } })));
+      .then((report) => {
+        if (alive) setFetched((all) => ({ ...all, [runId]: report }));
+      })
+      .catch((error: Error) => {
+        if (alive) setFetched((all) => ({ ...all, [runId]: { error: error.message } }));
+      });
     return () => {
       alive = false;
     };
@@ -47,8 +55,12 @@ function EvaluationInfo() {
     let alive = true;
     api
       .anomalyEvaluation()
-      .then((data) => alive && setState({ data, error: "" }))
-      .catch((error: Error) => alive && setState({ data: null, error: error.message }));
+      .then((data) => {
+        if (alive) setState({ data, error: "" });
+      })
+      .catch((error: Error) => {
+        if (alive) setState({ data: null, error: error.message });
+      });
     return () => {
       alive = false;
     };
@@ -98,42 +110,88 @@ function EvaluationInfo() {
             </p>
           )}
           {error && <p className="small danger-text">{error}</p>}
-          {data && (
-            <>
-              <p className="small">
-                Fitted on normal simulated runs only, thresholds tuned on {data.results.split_runs.validation} validation runs, and
-                scored on {data.results.split_runs.test} held-out runs it never saw.
-              </p>
-              <table className="data compact">
-                <thead>
-                  <tr>
-                    <th>Detector</th>
-                    <th className="num">Precision</th>
-                    <th className="num">Recall</th>
-                    <th className="num">F1</th>
-                    <th className="num">False alarms</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(data.results.models).map(([name, m]) => (
-                    <tr key={name}>
-                      <td>{DETECTOR_LABELS[name] ?? name}</td>
-                      <td className="num">{fmt(m.test.precision, 2)}</td>
-                      <td className="num">{fmt(m.test.recall, 2)}</td>
-                      <td className={`num${name === data.results.primary ? " best" : ""}`}>{fmt(m.test.f1, 2)}</td>
-                      <td className="num">{pct(m.test_runs.clean_window_false_alarm_rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="muted small">
-                False alarms are the share of seconds flagged in runs with no injected event. Recall stays below 100% because some
-                events change nothing measurable.
-              </p>
-            </>
-          )}
+          {data && <EvaluationDetails data={data} />}
         </div>
       )}
+    </div>
+  );
+}
+
+function EvaluationDetails({ data }: { data: AnomalyEvaluation }) {
+  return (
+    <>
+      <p className="small">
+        Fitted on normal simulated runs only, thresholds tuned on {data.results.split_runs.validation} validation runs, and
+        scored on {data.results.split_runs.test} held-out runs it never saw.
+      </p>
+      <table className="data compact">
+        <thead>
+          <tr>
+            <th>Detector</th>
+            <th className="num">Precision</th>
+            <th className="num">Recall</th>
+            <th className="num">F1</th>
+            <th className="num">False alarms</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(data.results.models).map(([name, m]) => (
+            <tr key={name}>
+              <td>{DETECTOR_LABELS[name] ?? name}</td>
+              <td className="num">{fmt(m.test.precision, 2)}</td>
+              <td className="num">{fmt(m.test.recall, 2)}</td>
+              <td className={`num${name === data.results.primary ? " best" : ""}`}>{fmt(m.test.f1, 2)}</td>
+              <td className="num">{pct(m.test_runs.clean_window_false_alarm_rate)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        False alarms are the share of seconds flagged in runs with no injected event. Recall stays below 100% because some
+        events change nothing measurable.
+      </p>
+    </>
+  );
+}
+
+function AnomalyKpis({ summary }: { summary: AnomalyReport["summary"] }) {
+  return (
+    <div className="anomaly-kpis">
+      <div>
+        <span>{summary.flagged}</span>seconds flagged of {summary.windows}
+      </div>
+      <div>
+        <span>
+          {summary.caught}/{summary.disturbed}
+        </span>
+        event seconds flagged
+      </div>
+      <div>
+        <span>{summary.false_alarms}</span>flagged outside events
+      </div>
+      <div>
+        <span>{summary.first_flag_delay_s === null ? "—" : `${fmt(summary.first_flag_delay_s, 0)} s`}</span>delay to first flag
+      </div>
+    </div>
+  );
+}
+
+function FlaggedSpans({ spans }: { spans: FlagSpan[] }) {
+  if (spans.length === 0) return <p className="muted small">No second of this run was flagged.</p>;
+  return (
+    <div>
+      <strong className="small">What was flagged</strong>
+      <ul className="facts">
+        {spans.map((span) => (
+          <li key={span.start}>
+            <code>
+              {fmt(span.start, 0)}–{fmt(span.end, 0)} s
+            </code>{" "}
+            {describeSpan(span)}
+            {!span.insideEvent && <span className="muted"> (outside the injected event window)</span>}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -141,33 +199,16 @@ function EvaluationInfo() {
 function RunReport({ report }: { report: AnomalyReport }) {
   const [showComparison, setShowComparison] = useState(false);
   const [hoverT, setHoverT] = useState<number | null>(null);
-  const v = verdict(report);
-  const spans = flagSpans(report.windows, report.window_s);
-  const s = report.summary;
+  const result = verdict(report);
+  const summary = report.summary;
 
   return (
     <>
-      <div className={`notice ${v.tone === "neutral" ? "" : v.tone}`}>
-        {v.tone === "success" ? <CircleCheck /> : <TriangleAlert />}
-        {v.text}
+      <div className={`notice ${result.tone === "neutral" ? "" : result.tone}`}>
+        {result.tone === "success" ? <CircleCheck /> : <TriangleAlert />}
+        {result.text}
       </div>
-      <div className="anomaly-kpis">
-        <div>
-          <span>{s.flagged}</span>seconds flagged of {s.windows}
-        </div>
-        <div>
-          <span>
-            {s.caught}/{s.disturbed}
-          </span>
-          event seconds flagged
-        </div>
-        <div>
-          <span>{s.false_alarms}</span>flagged outside events
-        </div>
-        <div>
-          <span>{s.first_flag_delay_s === null ? "—" : `${fmt(s.first_flag_delay_s, 0)} s`}</span>delay to first flag
-        </div>
-      </div>
+      <AnomalyKpis summary={summary} />
       <div className="row wrap">
         <div className="anomaly-legend">
           <span>
@@ -188,7 +229,7 @@ function RunReport({ report }: { report: AnomalyReport }) {
         <div className="spacer" />
         <label className="check">
           <input type="checkbox" checked={showComparison} onChange={(e) => setShowComparison(e.target.checked)} />
-          Compare with IsolationForest ({s.if_flagged} flagged)
+          Compare with IsolationForest ({summary.if_flagged} flagged)
         </label>
       </div>
       <div className="anomaly-grid">
@@ -204,25 +245,8 @@ function RunReport({ report }: { report: AnomalyReport }) {
         ))}
       </div>
       <AnomalyReadout report={report} hoverT={hoverT} />
-      {spans.length > 0 ? (
-        <div>
-          <strong className="small">What was flagged</strong>
-          <ul className="facts">
-            {spans.map((span) => (
-              <li key={span.start}>
-                <code>
-                  {fmt(span.start, 0)}–{fmt(span.end, 0)} s
-                </code>{" "}
-                {describeSpan(span)}
-                {!span.insideEvent && <span className="muted"> (outside the injected event window)</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <p className="muted small">No second of this run was flagged.</p>
-      )}
-      {report.disturbances.length > 0 && s.false_alarms > 0 && (
+      <FlaggedSpans spans={flagSpans(report.windows, report.window_s)} />
+      {report.disturbances.length > 0 && summary.false_alarms > 0 && (
         <p className="muted small">
           Flags just after an event often mark real after-effects, such as routes reconverging after a restore, that fall outside
           the labelled window.
@@ -236,9 +260,7 @@ export function AnomaliesPage() {
   const { runs, focusRunId, setFocusRunId } = useWorkbench();
   const run = runs.find((r) => r.run_id === focusRunId) ?? runs[0];
   const result = useRunAnomaly(run);
-
   if (!run) return null;
-
   return (
     <section className="card">
       <div className="card-head">

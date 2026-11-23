@@ -20,20 +20,11 @@ export interface Segment {
   tEnd: number;
 }
 
-export interface Drop {
-  time: number;
-  location: string;
-  reason: string;
-}
+export interface Drop { time: number; location: string; reason: string }
 
 export type ElementState = "down" | "degraded";
 
-export interface StateInterval {
-  id: string;
-  state: ElementState;
-  start: number;
-  end: number;
-}
+export interface StateInterval { id: string; state: ElementState; start: number; end: number }
 
 export interface WindowRow {
   t_start: number;
@@ -59,11 +50,7 @@ export interface FlowStat {
   avgHops: number;
 }
 
-export interface Incident {
-  time: number;
-  kind: "failure" | "degraded" | "recovery" | "route";
-  label: string;
-}
+export interface Incident { time: number; kind: "failure" | "degraded" | "recovery" | "route"; label: string }
 
 export interface ReplayModel {
   runId: string;
@@ -87,12 +74,9 @@ export interface ReplayModel {
 
 const PACKET_EVENTS = new Set(["ENQUEUE", "TX_START", "ARRIVE", "FORWARD", "SENT", "DELIVERED"]);
 
-function intervalsFrom(
-  events: TraceEvent[],
-  starts: Record<string, ElementState>,
-  ends: Set<string>,
-  endTime: number,
-): StateInterval[] {
+type PendingSegment = Segment & { eta: number };
+
+function intervalsFrom(events: TraceEvent[], starts: Record<string, ElementState>, ends: Set<string>, endTime: number) {
   const open = new Map<string, { state: ElementState; start: number }>();
   const intervals: StateInterval[] = [];
   const close = (id: string, time: number) => {
@@ -115,26 +99,15 @@ function intervalsFrom(
   return intervals;
 }
 
-export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
-  const byName = new Map(files.map((file) => [file.name, file.content]));
-  const need = (name: string) => {
-    const content = byName.get(name);
-    if (content === undefined) throw new Error(`Run file ${name} is missing.`);
-    return content;
-  };
-
-  const topology = JSON.parse(need(`topology_${runId}.json`)) as Topology;
-  const manifest = JSON.parse(need(`${runId}.json`)) as Record<string, unknown>;
-  const nodeNameById = new Map(topology.nodes.map((node) => [String(node.id), node.name]));
-
+function readTrace(traceText: string) {
   const events: TraceEvent[] = [];
   const segments: Segment[] = [];
   const drops: Drop[] = [];
-  const pending = new Map<string, (Segment & { eta: number })[]>();
+  const pending = new Map<string, PendingSegment[]>();
   let endTime = 0;
   let traceRows = 0;
 
-  parseCsv(need(`${runId}_trace.csv`)).forEach((row, order) => {
+  parseCsv(traceText).forEach((row, order) => {
     const time = num(row.time_s);
     if (!Number.isFinite(time)) return;
     traceRows += 1;
@@ -149,20 +122,13 @@ export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
       const [from, to] = location.split(">");
       if (from && to) {
         const list = pending.get(packetId) ?? [];
-        list.push({
-          packetId,
-          flowId: row.flow_id ?? "",
-          from,
-          to,
-          tStart: time,
-          tEnd: time,
-          eta: num(parseDetail(detail).eta),
-        });
+        const eta = num(parseDetail(detail).eta);
+        list.push({ packetId, flowId: row.flow_id ?? "", from, to, tStart: time, tEnd: time, eta });
         pending.set(packetId, list);
       }
     } else if (type === "ARRIVE" && hasPacket) {
       const list = pending.get(packetId) ?? [];
-      const from = parseDetail(detail).from;
+      const { from } = parseDetail(detail);
       const index = list.findIndex((seg) => seg.from === from && seg.to === location && seg.tStart <= time);
       if (index >= 0) {
         const [seg] = list.splice(index, 1);
@@ -171,7 +137,7 @@ export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
     } else if (type === "DROPPED") {
       drops.push({ time, location, reason: parseDetail(detail).reason ?? "unknown" });
       const list = hasPacket ? pending.get(packetId) : undefined;
-      if (list?.length) {
+      if (list && list.length > 0) {
         const seg = list.pop()!;
         if (seg.tStart <= time) segments.push({ ...seg, tEnd: time });
       }
@@ -184,13 +150,17 @@ export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
 
   for (const list of pending.values()) {
     for (const seg of list) {
-      segments.push({ ...seg, tEnd: Number.isFinite(seg.eta) && seg.eta >= seg.tStart ? seg.eta : seg.tStart });
+      const etaIsUsable = Number.isFinite(seg.eta) && seg.eta >= seg.tStart;
+      segments.push({ ...seg, tEnd: etaIsUsable ? seg.eta : seg.tStart });
     }
   }
   segments.sort((a, b) => a.tStart - b.tStart || a.tEnd - b.tEnd);
   events.sort((a, b) => a.time - b.time || a.order - b.order);
+  return { events, segments, drops, traceRows, endTime };
+}
 
-  const windows: WindowRow[] = parseCsv(need(`${runId}_windows.csv`)).map((row) => ({
+function readWindows(windowsText: string): WindowRow[] {
+  return parseCsv(windowsText).map((row) => ({
     t_start: num(row.t_start),
     avg_latency_ms: num(row.avg_latency_ms),
     throughput_mbps: num(row.throughput_mbps),
@@ -200,12 +170,14 @@ export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
     delivered: num(row.delivered),
     dropped: num(row.dropped),
   }));
-  for (const row of windows) if (Number.isFinite(row.t_start)) endTime = Math.max(endTime, row.t_start);
+}
 
-  const flows: FlowStat[] = parseCsv(byName.get(`${runId}_flows.csv`) ?? "").map((row) => ({
+function readFlows(flowsText: string, nodeNameById: Map<string, string>): FlowStat[] {
+  const nameOf = (id: string | undefined) => nodeNameById.get(id ?? "") ?? id ?? "";
+  return parseCsv(flowsText).map((row) => ({
     flowId: row.flow_id ?? "",
-    src: nodeNameById.get(row.src ?? "") ?? row.src ?? "",
-    dst: nodeNameById.get(row.dst ?? "") ?? row.dst ?? "",
+    src: nameOf(row.src),
+    dst: nameOf(row.dst),
     sent: num(row.sent),
     delivered: num(row.delivered),
     dropped: num(row.dropped),
@@ -214,34 +186,72 @@ export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
     avgLatencyMs: num(row.avg_latency_ms),
     avgHops: num(row.avg_hops),
   }));
+}
 
+function readUtilization(linksText: string): Map<string, number> {
   const utilization = new Map<string, number>();
-  for (const row of parseCsv(byName.get(`${runId}_links.csv`) ?? "")) {
+  for (const row of parseCsv(linksText)) {
     const value = num(row.utilization_pct);
     if (row.channel && Number.isFinite(value)) utilization.set(row.channel, value);
   }
+  return utilization;
+}
 
-  const linkIntervals = intervalsFrom(
-    events,
-    { LINK_DOWN: "down", LINK_DEGRADED: "degraded" },
-    new Set(["LINK_UP"]),
-    endTime,
-  );
-  const routerIntervals = intervalsFrom(events, { ROUTER_DOWN: "down" }, new Set(["ROUTER_UP"]), endTime);
+const INCIDENT_KINDS = new Map<string, [Incident["kind"], string]>([
+  ["LINK_DOWN", ["failure", "down"]],
+  ["LINK_DEGRADED", ["degraded", "degraded"]],
+  ["LINK_UP", ["recovery", "up"]],
+  ["ROUTER_DOWN", ["failure", "down"]],
+  ["ROUTER_UP", ["recovery", "up"]],
+]);
 
+function buildIncidents(events: TraceEvent[], topology: Topology, nodeNameById: Map<string, string>): Incident[] {
   const linkLabel = (id: string) => {
     const link = topology.links[Number(id) - 1];
-    return link ? `${nodeNameById.get(String(link.a))}–${nodeNameById.get(String(link.b))}` : `link ${id}`;
+    if (!link) return `link ${id}`;
+    return `${nodeNameById.get(String(link.a))}–${nodeNameById.get(String(link.b))}`;
   };
   const incidents: Incident[] = [];
   for (const event of events) {
-    const router = nodeNameById.get(event.location) ?? event.location;
-    if (event.type === "LINK_DOWN") incidents.push({ time: event.time, kind: "failure", label: `${linkLabel(event.location)} down` });
-    else if (event.type === "LINK_DEGRADED") incidents.push({ time: event.time, kind: "degraded", label: `${linkLabel(event.location)} degraded` });
-    else if (event.type === "LINK_UP") incidents.push({ time: event.time, kind: "recovery", label: `${linkLabel(event.location)} up` });
-    else if (event.type === "ROUTER_DOWN") incidents.push({ time: event.time, kind: "failure", label: `${router} down` });
-    else if (event.type === "ROUTER_UP") incidents.push({ time: event.time, kind: "recovery", label: `${router} up` });
+    const incident = INCIDENT_KINDS.get(event.type);
+    if (!incident) continue;
+    const [kind, change] = incident;
+    const routerName = nodeNameById.get(event.location) ?? event.location;
+    const name = event.type.startsWith("LINK_") ? linkLabel(event.location) : routerName;
+    incidents.push({ time: event.time, kind, label: `${name} ${change}` });
   }
+  return incidents;
+}
+
+export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
+  const byName = new Map(files.map((file) => [file.name, file.content]));
+  const need = (name: string) => {
+    const content = byName.get(name);
+    if (content === undefined) throw new Error(`Run file ${name} is missing.`);
+    return content;
+  };
+
+  const topology = JSON.parse(need(`topology_${runId}.json`)) as Topology;
+  const manifest = JSON.parse(need(`${runId}.json`)) as Record<string, unknown>;
+  const nodeNameById = new Map(topology.nodes.map((node) => [String(node.id), node.name]));
+  const trace = readTrace(need(`${runId}_trace.csv`));
+  const windows = readWindows(need(`${runId}_windows.csv`));
+
+  let endTime = trace.endTime;
+  for (const row of windows) {
+    if (Number.isFinite(row.t_start)) endTime = Math.max(endTime, row.t_start);
+  }
+
+  const flows = readFlows(byName.get(`${runId}_flows.csv`) ?? "", nodeNameById);
+  const utilization = readUtilization(byName.get(`${runId}_links.csv`) ?? "");
+
+  const linkStarts: Record<string, ElementState> = { LINK_DOWN: "down", LINK_DEGRADED: "degraded" };
+  const linkIntervals = intervalsFrom(trace.events, linkStarts, new Set(["LINK_UP"]), endTime);
+  const routerIntervals = intervalsFrom(trace.events, { ROUTER_DOWN: "down" }, new Set(["ROUTER_UP"]), endTime);
+  const incidents = buildIncidents(trace.events, topology, nodeNameById);
+
+  let maxSegmentDuration = 0;
+  for (const seg of trace.segments) maxSegmentDuration = Math.max(maxSegmentDuration, seg.tEnd - seg.tStart);
 
   return {
     runId,
@@ -249,47 +259,47 @@ export function buildReplayModel(files: RunFile[], runId: string): ReplayModel {
     weight: String(manifest.weight ?? "unknown"),
     seed: String(manifest.seed ?? "unknown"),
     topology,
-    traceRows,
-    events,
-    segments,
-    maxSegmentDuration: segments.reduce((max, seg) => Math.max(max, seg.tEnd - seg.tStart), 0),
-    drops,
-    linkIntervals,
-    routerIntervals,
-    windows,
-    flows,
-    utilization,
-    incidents,
-    endTime,
+    traceRows: trace.traceRows,
+    events: trace.events,
+    segments: trace.segments,
+    maxSegmentDuration,
+    drops: trace.drops,
+    linkIntervals, routerIntervals, windows, flows, utilization, incidents, endTime,
   };
 }
 
 export const PACKET_LINGER_S = 0.02;
 
+const MIN_PACKET_OPACITY = 0.25;
+
+const DROP_JUMP_GAP_S = 0.25;
+
 export function packetsAt(model: ReplayModel, time: number): { seg: Segment; fraction: number; opacity: number }[] {
   const { segments } = model;
   const earliest = time - model.maxSegmentDuration - PACKET_LINGER_S;
-  let lo = 0;
-  let hi = segments.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (segments[mid]!.tStart < earliest) lo = mid + 1;
-    else hi = mid;
+  let low = 0;
+  let high = segments.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (segments[middle]!.tStart < earliest) low = middle + 1;
+    else high = middle;
   }
   const latest = new Map<string, Segment>();
-  for (let i = lo; i < segments.length; i += 1) {
+  for (let i = low; i < segments.length; i += 1) {
     const seg = segments[i]!;
     if (seg.tStart > time) break;
     if (time > seg.tEnd + PACKET_LINGER_S) continue;
     const existing = latest.get(seg.packetId);
     if (!existing || seg.tStart >= existing.tStart) latest.set(seg.packetId, seg);
   }
-  return [...latest.values()].map((seg) => {
+  const visible: { seg: Segment; fraction: number; opacity: number }[] = [];
+  for (const seg of latest.values()) {
     const duration = seg.tEnd - seg.tStart;
     const fraction = duration <= 0 ? 1 : Math.min(1, Math.max(0, (time - seg.tStart) / duration));
     const linger = Math.max(0, time - seg.tEnd);
-    return { seg, fraction, opacity: Math.max(0.25, 1 - linger / PACKET_LINGER_S) };
-  });
+    visible.push({ seg, fraction, opacity: Math.max(MIN_PACKET_OPACITY, 1 - linger / PACKET_LINGER_S) });
+  }
+  return visible;
 }
 
 export function stateAt(intervals: StateInterval[], time: number): Map<string, ElementState> {
@@ -304,7 +314,7 @@ export function jumpTargets(model: ReplayModel): number[] {
   const times = model.incidents.map((incident) => incident.time);
   let lastDrop = -Infinity;
   for (const drop of model.drops) {
-    if (drop.time - lastDrop > 0.25) times.push(drop.time);
+    if (drop.time - lastDrop > DROP_JUMP_GAP_S) times.push(drop.time);
     lastDrop = drop.time;
   }
   return [...new Set(times)].sort((a, b) => a - b);
@@ -322,12 +332,15 @@ export function dropHistogram(model: ReplayModel, buckets: number): number[] {
 
 export function layoutTopology(topology: Topology): Map<number, { x: number; y: number }> {
   const positions = new Map<number, { x: number; y: number }>();
-  const nodes = topology.nodes;
+  const { nodes } = topology;
   const allPlaced = nodes.length > 0 && nodes.every((node) => Array.isArray(node.pos) && node.pos.every(Number.isFinite));
   if (allPlaced) {
     const xs = nodes.map((node) => node.pos![0]);
     const ys = nodes.map((node) => node.pos![1]);
-    const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
     for (const node of nodes) {
       positions.set(node.id, {
         x: maxX === minX ? 0.5 : (node.pos![0] - minX) / (maxX - minX),

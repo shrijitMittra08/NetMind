@@ -6,6 +6,7 @@
 
 #include <iostream>
 
+// Checks that hosts, a router and links can be built together and link the right node ids
 TEST_CASE("network model entities can be constructed together") {
     netmind::Host hostA(1, "HostA", "192.168.1.1");
     netmind::Router router(2, "Router1", "192.168.1.254");

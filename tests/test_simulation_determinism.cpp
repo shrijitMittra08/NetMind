@@ -76,6 +76,7 @@ std::string readFile(const std::filesystem::path& path) {
 
 }             
 
+// Checks that running the same scenario with the same seed twice writes identical trace files
 TEST_CASE("Same scenario and seed produce identical trace files") {
     const auto scenarioPath = writeScenario();
 

@@ -10,19 +10,14 @@ Switch::Switch(NodeId id, std::string name, std::string ip)
     : Node(id, std::move(name), std::move(ip), NodeType::SWITCH) {}
 
 void Switch::receivePacket(Packet pkt, LinkId inLink, SimContext& ctx) {
-    const auto inserted = seenPacketIds_.insert(pkt.id);
-    if (!inserted.second) {
+    const bool firstTimeSeen = seenPacketIds_.insert(pkt.id).second;
+    if (!firstTimeSeen) {
         return;
     }
-
-    const auto neighbours = ctx.graph().getActiveNeighbours(getId());
-
-    for (const Link* link : neighbours) {
-        if (link->getId() == inLink) {
-            continue;
+    for (const Link* link : ctx.graph().getActiveNeighbours(getId())) {
+        if (link->getId() != inLink) {
+            ctx.transmit(pkt, getId(), link->other(getId()));
         }
-
-        ctx.transmit(pkt, getId(), link->other(getId()));
     }
 }
 

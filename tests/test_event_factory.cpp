@@ -37,6 +37,7 @@ netmind::Graph makeGraph() {
 
 }             
 
+// Checks that the factory builds link failure and restore events from two node names
 TEST_CASE("EventFactory creates link events from endpoint names") {
     const auto graph = makeGraph();
 
@@ -62,6 +63,7 @@ TEST_CASE("EventFactory creates link events from endpoint names") {
     REQUIRE(restore->describe().find("LINK_RESTORE") != std::string::npos);
 }
 
+// Checks that the factory builds router failure and restore events from a router name
 TEST_CASE("EventFactory creates router events from router names") {
     const auto graph = makeGraph();
 
@@ -85,6 +87,7 @@ TEST_CASE("EventFactory creates router events from router names") {
     REQUIRE(restore->describe().find("ROUTER_RESTORE") != std::string::npos);
 }
 
+// Checks that the factory builds a congestion event from the names of a link's two ends
 TEST_CASE("EventFactory creates congestion events from link endpoints") {
     const auto graph = makeGraph();
 
@@ -103,6 +106,7 @@ TEST_CASE("EventFactory creates congestion events from link endpoints") {
     REQUIRE(event->describe().find("CONGESTION") != std::string::npos);
 }
 
+// Checks that the factory builds a traffic burst event between two named hosts
 TEST_CASE("EventFactory creates traffic bursts from host names") {
     const auto graph = makeGraph();
 
@@ -122,6 +126,7 @@ TEST_CASE("EventFactory creates traffic bursts from host names") {
     REQUIRE(event->describe().find("TRAFFIC_BURST") != std::string::npos);
 }
 
+// Checks that the factory throws an error for a missing router or a link that does not exist
 TEST_CASE("EventFactory rejects unknown node and link references") {
     const auto graph = makeGraph();
 
@@ -145,6 +150,7 @@ TEST_CASE("EventFactory rejects unknown node and link references") {
         netmind::ConfigError);
 }
 
+// Checks that the factory throws an error when a host is used as a router or a router as a host
 TEST_CASE("EventFactory rejects node types that do not match the event") {
     const auto graph = makeGraph();
 
@@ -172,6 +178,7 @@ TEST_CASE("EventFactory rejects node types that do not match the event") {
         netmind::ConfigError);
 }
 
+// Checks that the factory throws for non-object JSON, a missing or unknown type, or bad values
 TEST_CASE("EventFactory rejects malformed and unsupported events") {
     const auto graph = makeGraph();
 

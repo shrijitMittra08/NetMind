@@ -44,6 +44,7 @@ def session(tmp_path):
     return QASession(contexts)
 
 
+# Checks that the agent answers using tool results and passes the tool output back to the model
 def test_agent_answers_from_tool_results(session):
     model = ScriptedModel(replies=[
         call("compare_algorithms", {"metric": "latency_ms"}),
@@ -56,6 +57,7 @@ def test_agent_answers_from_tool_results(session):
     assert '"best": ["bfs"]' in tool_result
 
 
+# Checks that an answer with a made-up number is sent back once and accepted after it is fixed
 def test_invented_number_is_sent_back_once_then_accepted_when_fixed(session):
     model = ScriptedModel(replies=[
         call("run_summary", {"algorithm": "bfs"}),
@@ -70,6 +72,7 @@ def test_invented_number_is_sent_back_once_then_accepted_when_fixed(session):
     assert all("name" not in _convert_message_to_dict(m) for sent in model.seen for m in sent)
 
 
+# Checks that the agent falls back to the rule-based answer if the model keeps inventing numbers
 def test_repeated_invention_falls_back_to_rules(session):
     model = ScriptedModel(replies=[
         call("run_summary", {"algorithm": "bfs"}),
@@ -82,6 +85,7 @@ def test_repeated_invention_falls_back_to_rules(session):
     assert "2 packets were dropped" in result["answer"]
 
 
+# Checks that <think> reasoning is removed from answers and past chat history is sent to the model
 def test_reasoning_blocks_are_removed_and_history_is_passed(session):
     model = ScriptedModel(replies=[
         call("network_events", {"algorithm": "bfs"}),
@@ -94,6 +98,7 @@ def test_reasoning_blocks_are_removed_and_history_is_passed(session):
     assert [m.content for m in first_call[1:3]] == ["Which run is this?", "BFS and DFS."]
 
 
+# Checks that a failing tool returns an error message to the model instead of crashing the agent
 def test_tool_errors_reach_the_model_instead_of_crashing(session):
     model = ScriptedModel(replies=[
         call("flow_path", {"src": "PC9", "dst": "PC2"}),
@@ -104,6 +109,7 @@ def test_tool_errors_reach_the_model_instead_of_crashing(session):
     assert "No flow from PC9 to PC2" in model.seen[1][-1].content
 
 
+# Checks that numbers split by Unicode spaces (like "2 004") are verified as one whole number
 def test_numbers_grouped_with_unicode_spaces_are_checked_whole():
     from graphrag.agent import unverified_numbers
 

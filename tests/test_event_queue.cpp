@@ -27,6 +27,7 @@ private:
 
 }             
 
+// Checks that the queue gives back events from earliest time to latest time
 TEST_CASE("EventQueue pops events in increasing time order") {
     netmind::EventQueue queue;
 
@@ -61,6 +62,7 @@ TEST_CASE("EventQueue pops events in increasing time order") {
     REQUIRE_FALSE(queue.nextTime().has_value());
 }
 
+// Checks that events with the same time come out in the order they were added
 TEST_CASE("EventQueue preserves insertion order for equal times") {
     netmind::EventQueue queue;
 
@@ -79,6 +81,7 @@ TEST_CASE("EventQueue preserves insertion order for equal times") {
     REQUIRE(queue.pop().event->describe() == "third scheduled");
 }
 
+// Checks that the queue refuses negative, infinite or NaN times and null events
 TEST_CASE("EventQueue rejects invalid times and null events") {
     netmind::EventQueue queue;
     const auto validEvent = std::make_shared<NamedEvent>("valid");
@@ -101,6 +104,7 @@ TEST_CASE("EventQueue rejects invalid times and null events") {
     REQUIRE(queue.empty());
 }
 
+// Checks that popping from an empty queue throws a logic_error
 TEST_CASE("EventQueue rejects popping when empty") {
     netmind::EventQueue queue;
 

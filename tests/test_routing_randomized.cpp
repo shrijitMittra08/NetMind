@@ -143,6 +143,7 @@ void requireForwardingRouteReachesDestination(const Graph& graph, const TablesBy
 
 }
 
+// Checks on 100 random graphs that all four algorithms find working routes and agree on costs
 TEST_CASE("Routing algorithms agree on seeded random connected graphs") {
     constexpr std::uint64_t seed = 20261011;
     constexpr std::size_t graphCount = 100;

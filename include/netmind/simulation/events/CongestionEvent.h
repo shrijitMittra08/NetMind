@@ -8,10 +8,7 @@ namespace netmind {
 class CongestionEvent final : public NetworkEvent {
 public:
     CongestionEvent(
-        LinkId linkId,
-        double bandwidthMultiplier,
-        double extraLossRate,
-        SimTime duration);
+        LinkId linkId, double bandwidthMultiplier, double extraLossRate, SimTime duration);
 
     void apply(SimulationEngine& engine) override;
     [[nodiscard]] std::string describe() const override;

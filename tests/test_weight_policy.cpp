@@ -21,6 +21,7 @@ class FixedLinkLoad final : public netmind::LinkLoadProvider {
 
 }
 
+// Checks that the hop count policy gives every link a weight of one
 TEST_CASE("HopCountWeight assigns one to every link") {
     netmind::Link link(1, 10, 20, 100.0, 7.5, 0.0, 64);
     netmind::HopCountWeight policy;
@@ -28,6 +29,7 @@ TEST_CASE("HopCountWeight assigns one to every link") {
     REQUIRE(policy.weight(link) == 1.0);
 }
 
+// Checks that the latency policy uses the link latency as its weight
 TEST_CASE("LatencyWeight uses the link latency in milliseconds") {
     netmind::Link link(1, 10, 20, 100.0, 7.5, 0.0, 64);
     netmind::LatencyWeight policy;
@@ -35,6 +37,7 @@ TEST_CASE("LatencyWeight uses the link latency in milliseconds") {
     REQUIRE(policy.weight(link) == 7.5);
 }
 
+// Checks that the congestion policy adds alpha times the queue delay to the latency
 TEST_CASE("LatencyCongestionWeight adds the weighted queue delay") {
     netmind::Link link(1, 10, 20, 100.0, 7.5, 0.0, 64);
     FixedLinkLoad load(4.0);
@@ -43,6 +46,7 @@ TEST_CASE("LatencyCongestionWeight adds the weighted queue delay") {
     REQUIRE(policy.weight(link) == 15.5);
 }
 
+// Checks that the congestion policy uses only latency when no load provider is given
 TEST_CASE("LatencyCongestionWeight uses zero queue delay without a provider") {
     netmind::Link link(1, 10, 20, 100.0, 7.5, 0.0, 64);
     netmind::LatencyCongestionWeight policy(2.0);
@@ -50,6 +54,7 @@ TEST_CASE("LatencyCongestionWeight uses zero queue delay without a provider") {
     REQUIRE(policy.weight(link) == 7.5);
 }
 
+// Checks that a negative, infinite or NaN alpha value throws a config error
 TEST_CASE("LatencyCongestionWeight validates alpha") {
     REQUIRE_THROWS_AS(netmind::LatencyCongestionWeight(-1.0), netmind::ConfigError);
     REQUIRE_THROWS_AS(netmind::LatencyCongestionWeight(std::numeric_limits<double>::infinity()),
@@ -58,6 +63,7 @@ TEST_CASE("LatencyCongestionWeight validates alpha") {
                       netmind::ConfigError);
 }
 
+// Checks that a negative or infinite queue delay makes the weight calculation throw
 TEST_CASE("LatencyCongestionWeight rejects invalid queue-delay values") {
     netmind::Link link(1, 10, 20, 100.0, 7.5, 0.0, 64);
 

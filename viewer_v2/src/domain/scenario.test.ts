@@ -29,6 +29,7 @@ const settings: SimSettings = {
 };
 
 describe("scenario files", () => {
+  // Checks that saving a scenario and loading it back gives the same run request
   it("round-trips a downloaded scenario to the same run request", () => {
     const document = buildScenarioDocument(topo, "line.json", settings, "demo");
     expect(document.routing).toEqual({ algorithm: "bfs", weight: "hops", reconvergence_delay_ms: 200 });
@@ -41,6 +42,7 @@ describe("scenario files", () => {
     expect(buildPayload(topo, "line.json", parsed.settings)).toEqual(buildPayload(topo, "line.json", settings));
   });
 
+  // Checks that a scenario naming a topology file path keeps the path for the API to load
   it("keeps a topology path for the API to resolve (the CLI form)", () => {
     const parsed = parseScenarioJson(
       JSON.stringify({
@@ -59,12 +61,14 @@ describe("scenario files", () => {
     expect(parsed.settings.events[0]).toMatchObject({ type: "LINK_FAILURE", a: "R1", b: "R2", time_s: 3 });
   });
 
+  // Checks that broken JSON, a topology file, or a file with no topology give clear errors
   it("explains files it cannot use", () => {
     expect(() => parseScenarioJson("{")).toThrow("not valid JSON");
     expect(() => parseScenarioJson(JSON.stringify(topo))).toThrow("topology file, not a scenario");
     expect(() => parseScenarioJson(JSON.stringify({ seed: 1 }))).toThrow("no topology");
   });
 
+  // Checks that unknown values give warnings and missing link names are left for setup checks
   it("warns about unsupported values and leaves missing names for setup validation", () => {
     const parsed = parseScenarioJson(
       JSON.stringify({

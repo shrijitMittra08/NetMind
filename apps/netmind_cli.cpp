@@ -24,25 +24,24 @@ struct Options {
     bool jsonSummary{false};
 };
 
+std::string takeOptionValue(int argc, char* argv[], int& i, const std::string& option) {
+    if (i + 1 >= argc) {
+        throw std::invalid_argument("Missing value after " + option);
+    }
+    ++i;
+    return argv[i];
+}
+
 Options parseOptions(int argc, char* argv[]) {
     Options options;
-
     for (int i = 1; i < argc; ++i) {
         const std::string argument = argv[i];
-
-        const auto requireValue = [&](const std::string& option) {
-            if (i + 1 >= argc) {
-                throw std::invalid_argument("Missing value after " + option);
-            }
-            return std::string(argv[++i]);
-        };
-
         if (argument == "--scenario") {
-            options.scenario = requireValue(argument);
+            options.scenario = takeOptionValue(argc, argv, i, argument);
         } else if (argument == "--script") {
-            options.script = requireValue(argument);
+            options.script = takeOptionValue(argc, argv, i, argument);
         } else if (argument == "--out") {
-            options.outputDirectory = requireValue(argument);
+            options.outputDirectory = takeOptionValue(argc, argv, i, argument);
         } else if (argument == "--quiet") {
             options.quiet = true;
         } else if (argument == "--json-summary") {
@@ -50,76 +49,55 @@ Options parseOptions(int argc, char* argv[]) {
         } else if (argument == "--help" || argument == "-h") {
             std::cout << "Usage:\n"
                       << "  netmind_cli\n"
-                      << "  netmind_cli --scenario FILE [--out DIR] "
-                         "[--quiet] [--json-summary]\n"
-                      << "  netmind_cli --script FILE [--out DIR] "
-                         "[--quiet] [--json-summary]\n";
+                      << "  netmind_cli --scenario FILE [--out DIR] [--quiet] [--json-summary]\n"
+                      << "  netmind_cli --script FILE [--out DIR] [--quiet] [--json-summary]\n";
             std::exit(0);
         } else {
             throw std::invalid_argument("Unknown option: " + argument);
         }
     }
-
     if (options.scenario && options.script) {
         throw std::invalid_argument("--scenario and --script cannot be used together");
     }
-
     return options;
 }
 
 std::string quoteCommandArgument(const std::string& value) {
     std::string result{"\""};
-
     for (const char character : value) {
         if (character == '\\' || character == '"') {
             result += '\\';
         }
         result += character;
     }
+    return result + '"';
+}
 
-    result += '"';
-    return result;
+bool isErrorLine(const std::string& line) {
+    return line.rfind("% ", 0) == 0;
 }
 
 void executeCommand(netmind::cli::CommandLineInterface& cli, const std::string& command,
                     std::ostream& output) {
     std::ostringstream commandOutput;
     cli.processLine(command, commandOutput);
-
     const std::string result = commandOutput.str();
-    if (result.rfind("% ", 0) == 0) {
+    if (isErrorLine(result)) {
         throw std::runtime_error(result.substr(2));
     }
-
     output << result;
-}
-
-bool containsCommandError(const std::string& text) {
-    std::istringstream lines(text);
-    std::string line;
-
-    while (std::getline(lines, line)) {
-        if (line.rfind("% ", 0) == 0) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 void printJsonSummary(netmind::cli::Session& session) {
     session.ensureEngine();
-
     if (session.metrics() == nullptr || session.engine() == nullptr) {
         throw std::runtime_error("Could not collect metrics for the JSON summary");
     }
-
     session.metrics()->finalize(session.engine()->now());
 
-    const auto& network = session.metrics()->network();
+    const netmind::NetworkMetrics& network = session.metrics()->network();
     nlohmann::json flowSummaries = nlohmann::json::array();
-
-    for (const auto& flow : session.metrics()->flows()) {
+    for (const netmind::FlowMetrics& flow : session.metrics()->flows()) {
         flowSummaries.push_back({{"flow_id", flow.flowId},
                                  {"sent", flow.sent},
                                  {"delivered", flow.delivered},
@@ -138,8 +116,42 @@ void printJsonSummary(netmind::cli::Session& session) {
                                       {"recovery_time_s", network.recoveryTimeS},
                                       {"events", network.events}}},
                                     {"flows", std::move(flowSummaries)}};
-
     std::cout << summary.dump() << '\n';
+}
+
+void runScenarioFile(netmind::cli::CommandLineInterface& cli, netmind::cli::Session& session,
+                     const Options& options, std::ostream& output) {
+    executeCommand(cli, "load " + quoteCommandArgument(*options.scenario), output);
+    if (!session.scenarioManager().hasScenario()) {
+        throw std::runtime_error("--scenario must refer to a scenario JSON file");
+    }
+    executeCommand(cli, "run " + std::to_string(session.scenarioManager().durationSeconds()),
+                   output);
+    if (options.outputDirectory) {
+        executeCommand(cli, "export " + quoteCommandArgument(*options.outputDirectory), output);
+    } else {
+        executeCommand(cli, "export", output);
+    }
+}
+
+void runScriptFile(netmind::cli::CommandLineInterface& cli, const Options& options) {
+    std::ifstream script(*options.script);
+    if (!script) {
+        throw std::runtime_error("Could not open script file: " + *options.script);
+    }
+    std::ostringstream scriptOutput;
+    cli.run(script, scriptOutput, false);
+    if (!options.quiet) {
+        std::cout << scriptOutput.str();
+    }
+
+    std::istringstream lines(scriptOutput.str());
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (isErrorLine(line)) {
+            throw std::runtime_error("One or more commands in the script failed");
+        }
+    }
 }
 
 }
@@ -147,61 +159,30 @@ void printJsonSummary(netmind::cli::Session& session) {
 int main(int argc, char* argv[]) {
     try {
         const Options options = parseOptions(argc, argv);
-
         netmind::cli::Session session;
         if (options.outputDirectory) {
             session.setOutputDirectory(*options.outputDirectory);
         }
-
         netmind::cli::CommandLineInterface cli(session);
         netmind::cli::registerTopologyCommands(cli);
         netmind::cli::registerSimulationCommands(cli);
 
         std::ostringstream quietOutput;
-        std::ostream& output = options.quiet ? static_cast<std::ostream&>(quietOutput)
-                                             : static_cast<std::ostream&>(std::cout);
-
+        std::ostream* output = &std::cout;
+        if (options.quiet) {
+            output = &quietOutput;
+        }
         if (options.scenario) {
-            executeCommand(cli, "load " + quoteCommandArgument(*options.scenario), output);
-
-            if (!session.scenarioManager().hasScenario()) {
-                throw std::runtime_error("--scenario must refer to a scenario JSON file");
-            }
-
-            executeCommand(
-                cli, "run " + std::to_string(session.scenarioManager().durationSeconds()), output);
-
-            if (options.outputDirectory) {
-                executeCommand(cli, "export " + quoteCommandArgument(*options.outputDirectory),
-                               output);
-            } else {
-                executeCommand(cli, "export", output);
-            }
+            runScenarioFile(cli, session, options, *output);
         } else if (options.script) {
-            std::ifstream script(*options.script);
-            if (!script) {
-                throw std::runtime_error("Could not open script file: " + *options.script);
-            }
-
-            std::ostringstream scriptOutput;
-            cli.run(script, scriptOutput, false);
-
-            const std::string result = scriptOutput.str();
-            if (!options.quiet) {
-                std::cout << result;
-            }
-
-            if (containsCommandError(result)) {
-                throw std::runtime_error("One or more commands in the script failed");
-            }
+            runScriptFile(cli, options);
         } else {
-            cli.run(std::cin, output, true);
+            cli.run(std::cin, *output, true);
         }
 
         if (options.jsonSummary) {
             printJsonSummary(session);
         }
-
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "Project901 error: " << error.what() << '\n';

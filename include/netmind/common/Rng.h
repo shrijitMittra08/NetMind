@@ -19,7 +19,6 @@ class Rng {
         if (!std::isfinite(rate) || rate <= 0.0) {
             throw std::invalid_argument("Exponential rate must be finite and positive");
         }
-
         std::exponential_distribution<double> distribution(rate);
         return distribution(engine_);
     }

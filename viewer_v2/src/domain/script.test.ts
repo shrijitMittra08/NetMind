@@ -16,6 +16,7 @@ const topo: Topology = {
 };
 
 describe("script tokenizer", () => {
+  // Checks that the tokenizer handles quoted args and # comments, and errors on unclosed quotes
   it("handles quotes and comments like the CLI", () => {
     expect(tokenize('load "my file.json"  # comment')).toEqual(["load", "my file.json"]);
     expect(tokenize("# only a comment")).toEqual([]);
@@ -24,6 +25,7 @@ describe("script tokenizer", () => {
 });
 
 describe("parseScript", () => {
+  // Checks that script commands become simulation settings, flows, events and info notes
   it("turns commands into settings and notes", () => {
     const parsed = parseScript(
       [
@@ -50,11 +52,13 @@ describe("parseScript", () => {
     expect(parsed.hasRun && parsed.hasExport).toBe(true);
   });
 
+  // Checks that unknown commands and names missing from the topology are reported as errors
   it("reports unknown commands and names not in the topology", () => {
     const parsed = parseScript("bogus\nadd flow PC1 Nobody 5 1000\nfail link PC1 PC2 at 1", topo, DEFAULT_CONFIG);
     expect(parsed.notes.map((n) => `${n.line}:${n.level}`)).toEqual(["1:error", "2:error", "3:error"]);
   });
 
+  // Checks that a script generated from settings parses back into the same settings
   it("round-trips generated scripts", () => {
     const first = parseScript(
       "set seed 3\nadd flow PC1 PC2 5 1000 0 10\nfail link PC1 R1 at 2\nrun 10",

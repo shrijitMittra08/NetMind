@@ -22,31 +22,18 @@ class EventQueue {
 public:
     EventQueue();
 
-    void schedule(
-        SimTime time,
-        std::shared_ptr<NetworkEvent> event
-    );
-
+    void schedule(SimTime time, std::shared_ptr<NetworkEvent> event);
     [[nodiscard]] bool empty() const;
     [[nodiscard]] std::size_t size() const;
     [[nodiscard]] std::optional<SimTime> nextTime() const;
-
     ScheduledEvent pop();
 
 private:
     struct LaterEvent {
-        bool operator()(
-            const ScheduledEvent& lhs,
-            const ScheduledEvent& rhs
-        ) const;
+        bool operator()(const ScheduledEvent& lhs, const ScheduledEvent& rhs) const;
     };
 
-    std::priority_queue<
-        ScheduledEvent,
-        std::vector<ScheduledEvent>,
-        LaterEvent
-    > events_;
-
+    std::priority_queue<ScheduledEvent, std::vector<ScheduledEvent>, LaterEvent> events_;
     std::uint64_t nextSequence_{0};
 };
 

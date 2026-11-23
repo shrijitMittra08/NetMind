@@ -12,16 +12,19 @@ import type { WindowMetric } from "./MetricChart";
 import { ReplayStage } from "./ReplayStage";
 import { Timeline } from "./Timeline";
 
-const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10];
-const EPS = 1e-9;
+const PLAYBACK_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10];
+const TIME_EPSILON = 1e-9;
+const RECENT_EVENT_LIMIT = 60;
 
-function useReplayModel(runId: string | null) {
+interface ReplayModelState {
+  runId: string | null;
+  model: ReplayModel | null;
+  error: string;
+}
+
+function useReplayModel(runId: string | null): ReplayModelState {
   const cache = useRef(new Map<string, ReplayModel>());
-  const [state, setState] = useState<{ runId: string | null; model: ReplayModel | null; error: string }>({
-    runId: null,
-    model: null,
-    error: "",
-  });
+  const [state, setState] = useState<ReplayModelState>({ runId: null, model: null, error: "" });
 
   useEffect(() => {
     if (!runId) return;
@@ -39,7 +42,9 @@ function useReplayModel(runId: string | null) {
         cache.current.set(runId, model);
         if (alive) setState({ runId, model, error: "" });
       })
-      .catch((error: Error) => alive && setState({ runId, model: null, error: error.message }));
+      .catch((error: Error) => {
+        if (alive) setState({ runId, model: null, error: error.message });
+      });
     return () => {
       alive = false;
     };
@@ -49,12 +54,12 @@ function useReplayModel(runId: string | null) {
 }
 
 function describeEvent(event: TraceEvent, model: ReplayModel): string {
-  const names = new Map(model.topology.nodes.map((n) => [String(n.id), n.name]));
+  const nameById = new Map(model.topology.nodes.map((node) => [String(node.id), node.name]));
   if (event.type.startsWith("LINK_")) {
     const link = model.topology.links[Number(event.location) - 1];
-    return link ? `${names.get(String(link.a))}–${names.get(String(link.b))}` : event.location;
+    return link ? `${nameById.get(String(link.a))}–${nameById.get(String(link.b))}` : event.location;
   }
-  if (event.type.startsWith("ROUTER_")) return names.get(event.location) ?? event.location;
+  if (event.type.startsWith("ROUTER_")) return nameById.get(event.location) ?? event.location;
   return event.location;
 }
 
@@ -91,14 +96,14 @@ export function ReplayPage() {
   useEffect(() => {
     if (!playing) return;
     let frame = 0;
-    let last = performance.now();
+    let lastFrameTime = performance.now();
     const tick = (now: number) => {
-      const elapsed = (now - last) / 1000;
-      last = now;
+      const elapsedSeconds = (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
       setTime((t) => {
-        const next = Math.min(endTime, t + elapsed * speed);
-        if (next >= endTime) setPlaying(false);
-        return next;
+        const nextTime = Math.min(endTime, t + elapsedSeconds * speed);
+        if (nextTime >= endTime) setPlaying(false);
+        return nextTime;
       });
       frame = requestAnimationFrame(tick);
     };
@@ -107,19 +112,12 @@ export function ReplayPage() {
   }, [playing, speed, endTime]);
 
   const targets = useMemo(() => (model ? jumpTargets(model) : []), [model]);
-  const next = targets.find((t) => t > time + EPS);
-  const previous = [...targets].reverse().find((t) => t < time - EPS);
-
+  const next = targets.find((target) => target > time + TIME_EPSILON);
+  const previous = targets.findLast((target) => target < time - TIME_EPSILON);
   const recentEvents = useMemo(() => {
     if (!model) return [];
-    let lo = 0;
-    let hi = model.events.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (model.events[mid]!.time <= time + EPS) lo = mid + 1;
-      else hi = mid;
-    }
-    return model.events.slice(Math.max(0, lo - 60), lo).reverse();
+    const count = model.events.findLastIndex((event) => event.time <= time + TIME_EPSILON) + 1;
+    return model.events.slice(Math.max(0, count - RECENT_EVENT_LIMIT), count).reverse();
   }, [model, time]);
 
   if (runs.length === 0) {
@@ -136,6 +134,11 @@ export function ReplayPage() {
   const anomaly = isReport(run?.anomaly) ? run.anomaly : null;
   const anomalyFlags = anomaly ? anomaly.windows.filter((w) => w.flagged).map((w) => w.t) : [];
   const node = model?.topology.nodes.find((n) => n.id === selected);
+
+  function togglePlay() {
+    if (!playing && time >= endTime) setTime(0);
+    setPlaying(!playing);
+  }
 
   return (
     <div className="replay-page">
@@ -172,20 +175,7 @@ export function ReplayPage() {
             <section className="card stage">
               <div className="stage-canvas-wrap">
                 <ReplayStage model={model} time={time} selected={selected} onSelect={setSelected} />
-                <div className="legend">
-                  <span>
-                    <i className="dot packet" /> packet
-                  </span>
-                  <span>
-                    <i className="dash down" /> down
-                  </span>
-                  <span>
-                    <i className="dash degraded" /> degraded
-                  </span>
-                  <span>
-                    <i className="x">×</i> drop
-                  </span>
-                </div>
+                <StageLegend />
                 <div className="clock mono">
                   {time.toFixed(3)}
                   <small> / {endTime.toFixed(3)} s</small>
@@ -204,15 +194,7 @@ export function ReplayPage() {
                 >
                   <ChevronLeft />
                 </button>
-                <button
-                  type="button"
-                  className="btn primary icon play"
-                  aria-label={playing ? "Pause" : "Play"}
-                  onClick={() => {
-                    if (!playing && time >= endTime) setTime(0);
-                    setPlaying(!playing);
-                  }}
-                >
+                <button type="button" className="btn primary icon play" aria-label={playing ? "Pause" : "Play"} onClick={togglePlay}>
                   {playing ? <Pause /> : <Play />}
                 </button>
                 <button
@@ -227,7 +209,7 @@ export function ReplayPage() {
                 </button>
                 <Timeline model={model} time={time} onSeek={seek} />
                 <select className="speed" aria-label="Playback speed" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-                  {SPEEDS.map((s) => (
+                  {PLAYBACK_SPEEDS.map((s) => (
                     <option key={s} value={s}>
                       {s}×
                     </option>
@@ -274,60 +256,8 @@ export function ReplayPage() {
           </div>
 
           <div className="replay-bottom">
-            <section className="card">
-              <div className="card-head">
-                <h3>Events</h3>
-                <p>Network events up to the playhead, newest first</p>
-              </div>
-              <div className="event-log">
-                {recentEvents.length === 0 && <p className="muted card-body">No events yet at this time.</p>}
-                {recentEvents.map((event) => (
-                  <button key={event.order} type="button" className="event-row" onClick={() => seek(event.time)}>
-                    <span className="mono muted">{event.time.toFixed(3)}</span>
-                    <span className={`badge ${eventTone(event.type)}`}>{event.type}</span>
-                    <span className="event-where">{describeEvent(event, model)}</span>
-                    <span className="muted small event-detail">{event.detail}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="card">
-              <div className="card-head">
-                <h3>Flows</h3>
-                <p>End-of-run totals</p>
-              </div>
-              <div className="table-wrap">
-                <table className="data">
-                  <thead>
-                    <tr>
-                      <th>Flow</th>
-                      <th>Path</th>
-                      <th className="num">Sent</th>
-                      <th className="num">Delivered</th>
-                      <th className="num">Dropped</th>
-                      <th className="num">Loss %</th>
-                      <th className="num">Latency ms</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {model.flows.map((flow) => (
-                      <tr key={flow.flowId}>
-                        <td>#{flow.flowId}</td>
-                        <td>
-                          {flow.src} → {flow.dst}
-                        </td>
-                        <td className="num">{fmt(flow.sent, 0)}</td>
-                        <td className="num">{fmt(flow.delivered, 0)}</td>
-                        <td className="num">{fmt(flow.dropped, 0)}</td>
-                        <td className="num">{fmt(flow.lossPct, 2)}</td>
-                        <td className="num">{fmt(flow.avgLatencyMs, 2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <EventLog model={model} events={recentEvents} onSeek={seek} />
+            <FlowsTable model={model} />
           </div>
         </>
       )}
@@ -335,15 +265,97 @@ export function ReplayPage() {
   );
 }
 
+function StageLegend() {
+  return (
+    <div className="legend">
+      <span>
+        <i className="dot packet" /> packet
+      </span>
+      <span>
+        <i className="dash down" /> down
+      </span>
+      <span>
+        <i className="dash degraded" /> degraded
+      </span>
+      <span>
+        <i className="x">×</i> drop
+      </span>
+    </div>
+  );
+}
+
+function EventLog({ model, events, onSeek }: { model: ReplayModel; events: TraceEvent[]; onSeek: (time: number) => void }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h3>Events</h3>
+        <p>Network events up to the playhead, newest first</p>
+      </div>
+      <div className="event-log">
+        {events.length === 0 && <p className="muted card-body">No events yet at this time.</p>}
+        {events.map((event) => (
+          <button key={event.order} type="button" className="event-row" onClick={() => onSeek(event.time)}>
+            <span className="mono muted">{event.time.toFixed(3)}</span>
+            <span className={`badge ${eventTone(event.type)}`}>{event.type}</span>
+            <span className="event-where">{describeEvent(event, model)}</span>
+            <span className="muted small event-detail">{event.detail}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FlowsTable({ model }: { model: ReplayModel }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h3>Flows</h3>
+        <p>End-of-run totals</p>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Flow</th>
+              <th>Path</th>
+              <th className="num">Sent</th>
+              <th className="num">Delivered</th>
+              <th className="num">Dropped</th>
+              <th className="num">Loss %</th>
+              <th className="num">Latency ms</th>
+            </tr>
+          </thead>
+          <tbody>
+            {model.flows.map((flow) => (
+              <tr key={flow.flowId}>
+                <td>#{flow.flowId}</td>
+                <td>
+                  {flow.src} → {flow.dst}
+                </td>
+                <td className="num">{fmt(flow.sent, 0)}</td>
+                <td className="num">{fmt(flow.delivered, 0)}</td>
+                <td className="num">{fmt(flow.dropped, 0)}</td>
+                <td className="num">{fmt(flow.lossPct, 2)}</td>
+                <td className="num">{fmt(flow.avgLatencyMs, 2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function Inspector({ model, nodeId, time }: { model: ReplayModel; nodeId: number; time: number }) {
   const node = model.topology.nodes.find((n) => n.id === nodeId)!;
-  const names = new Map(model.topology.nodes.map((n) => [n.id, n.name]));
-  const linkState = stateAt(model.linkIntervals, time);
+  const nameById = new Map(model.topology.nodes.map((n) => [n.id, n.name]));
+  const linkStates = stateAt(model.linkIntervals, time);
   const down = stateAt(model.routerIntervals, time).get(String(nodeId)) === "down";
   const links = model.topology.links
     .map((link, index) => ({ link, index }))
     .filter(({ link }) => link.a === nodeId || link.b === nodeId);
-  const routeUpdate = [...model.events].reverse().find((e) => e.type === "ROUTE_UPDATE" && e.time <= time + EPS);
+  const routeUpdate = model.events.findLast((event) => event.type === "ROUTE_UPDATE" && event.time <= time + TIME_EPSILON);
   const flows = model.flows.filter((f) => f.src === node.name || f.dst === node.name);
 
   return (
@@ -358,14 +370,14 @@ function Inspector({ model, nodeId, time }: { model: ReplayModel; nodeId: number
         <span className="eyebrow">Links</span>
         <ul className="link-list">
           {links.map(({ link, index }) => {
-            const peer = names.get(link.a === nodeId ? link.b : link.a) ?? "?";
-            const out = model.utilization.get(`${node.name}>${peer}`);
-            const state = linkState.get(String(index + 1));
+            const peer = nameById.get(link.a === nodeId ? link.b : link.a) ?? "?";
+            const outUtilization = model.utilization.get(`${node.name}>${peer}`);
+            const state = linkStates.get(String(index + 1));
             return (
               <li key={index}>
                 <span>{peer}</span>
                 <span className="muted small">
-                  {link.bandwidthMbps} Mbps · {out === undefined ? "idle" : `out ${fmt(out, 1)}% util`}
+                  {link.bandwidthMbps} Mbps · {outUtilization === undefined ? "idle" : `out ${fmt(outUtilization, 1)}% util`}
                 </span>
                 {state && <span className={`badge ${state === "down" ? "danger" : "warning"}`}>{state}</span>}
               </li>

@@ -70,6 +70,7 @@ public:
 
 }             
 
+// Checks that a host delivers a packet whose destination is the host itself
 TEST_CASE("Host delivers a packet addressed to itself") {
     netmind::Host host(1, "PC1", "10.0.0.1");
     MockSimContext ctx;
@@ -89,6 +90,7 @@ TEST_CASE("Host delivers a packet addressed to itself") {
     REQUIRE_FALSE(ctx.dropped.has_value());
 }
 
+// Checks that a host drops a packet meant for another node with a no-route reason
 TEST_CASE("Host drops a packet addressed to another node") {
     netmind::Host host(1, "PC1", "10.0.0.1");
     MockSimContext ctx;
@@ -107,6 +109,7 @@ TEST_CASE("Host drops a packet addressed to another node") {
     REQUIRE_FALSE(ctx.delivered.has_value());
 }
 
+// Checks that a host answers an echo request with a matching echo reply sent to its gateway
 TEST_CASE("Host replies to an echo request through its gateway") {
     netmind::Host host(1, "PC1", "10.0.0.1");
     host.setGatewayId(2);
@@ -141,6 +144,7 @@ TEST_CASE("Host replies to an echo request through its gateway") {
     REQUIRE_FALSE(ctx.dropped.has_value());
 }
 
+// Checks that a host drops a packet it creates when it has no gateway set
 TEST_CASE("Host drops an originated packet when no gateway is configured") {
     netmind::Host host(1, "PC1", "10.0.0.1");
     MockSimContext ctx;

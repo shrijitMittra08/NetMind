@@ -1,8 +1,6 @@
-
 #pragma once
 
 #include <cstddef>
-#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -11,36 +9,35 @@ namespace netmind {
 class UnionFind {
   public:
     explicit UnionFind(std::size_t size) : parent_(size), rank_(size, 0), componentCount_(size) {
-        std::iota(parent_.begin(), parent_.end(), std::size_t{0});
+        for (std::size_t element = 0; element < size; ++element) {
+            parent_[element] = element;
+        }
     }
 
     [[nodiscard]] std::size_t find(std::size_t element) {
-        checkElement(element);
-
+        if (element >= parent_.size()) {
+            throw std::out_of_range("UnionFind element index is out of range");
+        }
         if (parent_[element] != element) {
             parent_[element] = find(parent_[element]);
         }
-
         return parent_[element];
     }
 
     bool unite(std::size_t a, std::size_t b) {
-        a = find(a);
-        b = find(b);
-
-        if (a == b) {
+        const std::size_t rootA = find(a);
+        const std::size_t rootB = find(b);
+        if (rootA == rootB) {
             return false;
         }
-
-        if (rank_[a] < rank_[b]) {
-            parent_[a] = b;
-        } else if (rank_[a] > rank_[b]) {
-            parent_[b] = a;
+        if (rank_[rootA] < rank_[rootB]) {
+            parent_[rootA] = rootB;
+        } else if (rank_[rootA] > rank_[rootB]) {
+            parent_[rootB] = rootA;
         } else {
-            parent_[b] = a;
-            ++rank_[a];
+            parent_[rootB] = rootA;
+            ++rank_[rootA];
         }
-
         --componentCount_;
         return true;
     }
@@ -61,12 +58,6 @@ class UnionFind {
     std::vector<std::size_t> parent_;
     std::vector<std::size_t> rank_;
     std::size_t componentCount_;
-
-    void checkElement(std::size_t element) const {
-        if (element >= parent_.size()) {
-            throw std::out_of_range("UnionFind element index is out of range");
-        }
-    }
 };
 
 }

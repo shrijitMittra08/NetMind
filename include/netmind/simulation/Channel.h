@@ -19,26 +19,14 @@ public:
     [[nodiscard]] LinkId linkId() const;
     [[nodiscard]] NodeId from() const;
     [[nodiscard]] NodeId to() const;
-
     [[nodiscard]] bool busy() const;
     [[nodiscard]] std::size_t queueSize() const;
     [[nodiscard]] bool empty() const;
 
-                                                                    
     bool tryEnqueue(Packet packet, std::size_t capacity);
-
     [[nodiscard]] const Packet& front() const;
-
-                                                                        
-                                              
     std::uint64_t beginTransmission();
-
-                                                                         
-    [[nodiscard]] std::optional<Packet> completeTransmission(
-        std::uint64_t generation
-    );
-
-                                                                            
+    [[nodiscard]] std::optional<Packet> completeTransmission(std::uint64_t generation);
     [[nodiscard]] std::vector<Packet> flush();
 
 private:

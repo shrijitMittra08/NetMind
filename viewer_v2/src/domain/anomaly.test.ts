@@ -42,6 +42,7 @@ function report(windows: AnomalyWindow[], disturbances = [{ start: 2, end: 5, la
 }
 
 describe("anomaly helpers", () => {
+  // Checks that back-to-back flagged seconds join into one span that splits at the event's end
   it("merges consecutive flagged seconds and splits at the event boundary", () => {
     const windows = [
       window(0, false, false),
@@ -59,17 +60,20 @@ describe("anomaly helpers", () => {
     ]);
   });
 
+  // Checks that the metric behind a flag is described in plain words, or empty when missing
   it("names the metric that drove the flag in plain words", () => {
     expect(describeDriver({ metric: "loss_pct", change: "jump" })).toBe("packet loss jumped from the previous second");
     expect(describeDriver({ metric: "avg_latency_ms", change: "vs_normal" })).toBe("latency far from this run's normal level");
     expect(describeDriver(null)).toBe("");
   });
 
+  // Checks that a span's main driver is the metric that caused the most flags in it
   it("picks the most common driver within a span", () => {
     const span = flagSpans([window(1, true, true, "loss_pct"), window(2, true, true, "avg_latency_ms"), window(3, true, true, "avg_latency_ms")])[0]!;
     expect(mainDriver(span)?.metric).toBe("avg_latency_ms");
   });
 
+  // Checks that a span's description says how it started and which metric came after
   it("describes how a flagged period started and what dominated it", () => {
     const span = flagSpans([window(1, true, true, "loss_pct"), window(2, true, true, "avg_latency_ms"), window(3, true, true, "avg_latency_ms")])[0]!;
     expect(describeSpan(span)).toBe("packet loss jumped from the previous second, then latency jumped from the previous second");
@@ -77,6 +81,7 @@ describe("anomaly helpers", () => {
     expect(describeSpan(single)).toBe("packet loss jumped from the previous second");
   });
 
+  // Checks that the verdict is success, danger or warning for caught, missed or false-alarm runs
   it("reports detected, missed and quiet runs", () => {
     expect(verdict(report([window(1, false, false), window(2, true, true), window(3, false, true)])).tone).toBe("success");
     expect(verdict(report([window(2, false, true), window(3, false, true)])).tone).toBe("danger");
@@ -84,6 +89,7 @@ describe("anomaly helpers", () => {
     expect(verdict(report([window(1, true, false)], [])).tone).toBe("warning");
   });
 
+  // Checks that isReport is true for a real report and false for errors or undefined
   it("distinguishes reports from errors", () => {
     expect(isReport({ error: "not trained" })).toBe(false);
     expect(isReport(undefined)).toBe(false);

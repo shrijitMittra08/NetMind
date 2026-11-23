@@ -12,8 +12,7 @@ class Graph;
 class EventFactory {
 public:
     [[nodiscard]] static std::shared_ptr<NetworkEvent> create(
-        const nlohmann::json& event,
-        const Graph& graph);
+        const nlohmann::json& event, const Graph& graph);
 };
 
 }

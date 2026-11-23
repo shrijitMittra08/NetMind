@@ -1,10 +1,23 @@
 export type CsvRecord = Record<string, string>;
 
 export function parseCsv(text: string): CsvRecord[] {
+  const [header, ...body] = splitIntoRows(text);
+  if (!header) return [];
+  const names = header.map((name) => name.trim().replace(/^\uFEFF/, ""));
+  return body.map((values) => {
+    const record: CsvRecord = {};
+    names.forEach((name, index) => {
+      record[name] = (values[index] ?? "").trim();
+    });
+    return record;
+  });
+}
+
+function splitIntoRows(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
-  let quoted = false;
+  let insideQuotes = false;
 
   const endRow = () => {
     row.push(field);
@@ -15,14 +28,17 @@ export function parseCsv(text: string): CsvRecord[] {
 
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
-    if (quoted) {
+    if (insideQuotes) {
       if (ch === '"' && text[i + 1] === '"') {
         field += '"';
         i += 1;
-      } else if (ch === '"') quoted = false;
-      else field += ch;
+      } else if (ch === '"') {
+        insideQuotes = false;
+      } else {
+        field += ch;
+      }
     } else if (ch === '"' && field.length === 0) {
-      quoted = true;
+      insideQuotes = true;
     } else if (ch === ",") {
       row.push(field);
       field = "";
@@ -33,19 +49,9 @@ export function parseCsv(text: string): CsvRecord[] {
       field += ch;
     }
   }
-  if (quoted) throw new Error("CSV file ends inside a quoted field.");
+  if (insideQuotes) throw new Error("CSV file ends inside a quoted field.");
   if (field.length || row.length) endRow();
-
-  const [header, ...body] = rows;
-  if (!header) return [];
-  const names = header.map((name) => name.trim().replace(/^\uFEFF/, ""));
-  return body.map((values) => {
-    const record: CsvRecord = {};
-    names.forEach((name, index) => {
-      record[name] = (values[index] ?? "").trim();
-    });
-    return record;
-  });
+  return rows;
 }
 
 export function parseDetail(text: string): Record<string, string> {
@@ -58,6 +64,7 @@ export function parseDetail(text: string): Record<string, string> {
 }
 
 export const num = (value: string | undefined): number => {
+  if (value === undefined || value === "") return NaN;
   const parsed = Number(value);
-  return value !== undefined && value !== "" && Number.isFinite(parsed) ? parsed : NaN;
+  return Number.isFinite(parsed) ? parsed : NaN;
 };

@@ -85,6 +85,7 @@ void runCommand(netmind::cli::CommandLineInterface& cli,
 
 }             
 
+// Checks that routing, flow, ping, traceroute, metrics and export commands all work and write files
 TEST_CASE("CLI supports routing, flow, ping, traceroute, metrics, queue, and export") {
     TempDirectory temp("core_commands");
     netmind::cli::Session session;
@@ -121,6 +122,7 @@ TEST_CASE("CLI supports routing, flow, ping, traceroute, metrics, queue, and exp
     CHECK(std::filesystem::exists(temp.path() / "run_001_network.csv"));
 }
 
+// Checks that the CLI can schedule link, router, congestion and burst events and then run them
 TEST_CASE("CLI schedules link, router, congestion, and burst events") {
     TempDirectory temp("event_commands");
     netmind::cli::Session session;
@@ -147,6 +149,7 @@ TEST_CASE("CLI schedules link, router, congestion, and burst events") {
     CHECK(output.str().find("Simulation time: 7.000000 s") != std::string::npos);
 }
 
+// Checks that the step command runs the next scheduled event and prints it (a link going down)
 TEST_CASE("CLI step executes and reports the next scheduled event") {
     TempDirectory temp("step_command");
     netmind::cli::Session session;
@@ -161,6 +164,7 @@ TEST_CASE("CLI step executes and reports the next scheduled event") {
     CHECK(output.str().find("LINK_DOWN") != std::string::npos);
 }
 
+// Checks that set seed changes the seed and the loaded topology is still shown before reset
 TEST_CASE("CLI changes the seed, resets, and retains the loaded topology") {
     TempDirectory temp("reset_command");
     netmind::cli::Session session;
@@ -177,6 +181,7 @@ TEST_CASE("CLI changes the seed, resets, and retains the loaded topology") {
     runCommand(cli, "reset", output);
 }
 
+// Checks that compare runs BFS, Dijkstra and Bellman-Ford on the same scenario and prints a table
 TEST_CASE("CLI compares algorithms using the same loaded scenario") {
     TempDirectory temp("compare_command");
     const auto scenario = writeScenario(temp.path());

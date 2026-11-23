@@ -13,7 +13,7 @@ export function Timeline({ model, time, onSeek }: { model: ReplayModel; time: nu
     <div className="timeline">
       <div className="timeline-strip" aria-hidden>
         {histogram.map((count, i) => (
-          <span key={i} style={{ height: `${count ? 18 + (count / peak) * 82 : 0}%` }} />
+          <span key={i} style={{ height: count ? `${18 + (count / peak) * 82}%` : "0%" }} />
         ))}
         {model.incidents.map((incident, i) => (
           <i

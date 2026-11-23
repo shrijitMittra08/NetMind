@@ -34,6 +34,7 @@ from ml import anomaly as anomaly_ml
 from ml.baseline import ExpectedMetricBaseline, event_pattern_of
 from ml.generate_dataset import disturbance_intervals, label_windows
 
+
 FROZEN = getattr(sys, "frozen", False)
 RESOURCE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
 
@@ -47,23 +48,31 @@ def _user_home() -> Path:
 
 
 PROJECT_ROOT = _user_home() if FROZEN else Path(__file__).resolve().parents[1]
+
 if FROZEN and not (PROJECT_ROOT / "config").exists():
     PROJECT_ROOT.mkdir(parents=True, exist_ok=True)
     shutil.copytree(RESOURCE_ROOT / "config", PROJECT_ROOT / "config")
+
 DATA_DIR = Path(os.environ.get("NETMIND_DATA_DIR", PROJECT_ROOT / "data")).resolve()
-ML_ASSETS_DIR = (
-    Path(os.environ["NETMIND_ML_ASSETS"]).resolve() if os.environ.get("NETMIND_ML_ASSETS") else None
-)
+
+ML_ASSETS_DIR = None
+if os.environ.get("NETMIND_ML_ASSETS"):
+    ML_ASSETS_DIR = Path(os.environ["NETMIND_ML_ASSETS"]).resolve()
+
 if FROZEN and not (DATA_DIR / "dataset").exists():
     shutil.copytree(RESOURCE_ROOT / "seed" / "dataset", DATA_DIR / "dataset")
+
 SCENARIOS_DIR = PROJECT_ROOT / "config" / "scenarios"
 TOPOLOGIES_DIR = PROJECT_ROOT / "config" / "topologies"
 
 RUN_ID_PATTERN = re.compile(r"^run_[A-Za-z0-9_-]+$")
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_WINDOWS_DRIVE_PATTERN = re.compile(r"^[A-Za-z]:/")
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
 
 _GUI_ALGORITHMS = ("bfs", "dfs", "dijkstra", "bellman-ford")
 _GUI_WEIGHTS = {"hops", "latency", "latency+congestion"}
+_RUN_CSV_SUFFIXES = ("_trace.csv", "_flows.csv", "_links.csv", "_windows.csv", "_network.csv")
 
 _GRAPH_CACHE: dict[tuple[str, int], tuple[Any, list[dict[str, Any]]]] = {}
 _QA_CACHE: dict[tuple[str, int], qa_tools.RunContext] = {}
@@ -71,12 +80,23 @@ _BASELINE_MODEL: dict[str, Any] = {}
 _BASELINE_LOCK = threading.Lock()
 _ANOMALY_MODEL: dict[str, Any] = {}
 _ANOMALY_LOCK = threading.Lock()
-
-
-def _run_stamp(run_id: str) -> int:
-    return (DATA_DIR / f"{run_id}.json").stat().st_mtime_ns
 _RUN_LOCK = threading.Lock()
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def _read_json(path: Path, encoding: str = "utf-8-sig") -> Any:
+    return json.loads(path.read_text(encoding=encoding))
+
+
+def _check_run_id(run_id: str) -> None:
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("Invalid run ID")
+
+
+def _cache_key(run_id: str) -> tuple[str, int]:
+    _check_run_id(run_id)
+    return run_id, (DATA_DIR / f"{run_id}.json").stat().st_mtime_ns
+
 
 def _num(value: Any) -> float | None:
     try:
@@ -91,7 +111,7 @@ def _absolute_project_path(value: Any) -> str:
     if not text:
         return text
     path = Path(text.replace("\\", "/")).expanduser()
-    foreign_absolute = re.match(r"^[A-Za-z]:/", text.replace("\\", "/")) is not None
+    foreign_absolute = _WINDOWS_DRIVE_PATTERN.match(text.replace("\\", "/")) is not None
     if not path.is_absolute() and not foreign_absolute:
         return str((PROJECT_ROOT / path).resolve())
     if not path.exists():
@@ -104,64 +124,43 @@ def _absolute_project_path(value: Any) -> str:
     return str(path)
 
 
+def _read_manifest(run_id: str) -> dict[str, Any]:
+    return _read_json(DATA_DIR / f"{run_id}.json")
+
+
+def _metadata_of(manifest: dict[str, Any]) -> dict[str, Any]:
+    metadata = manifest.get("dataset_metadata", {})
+    return metadata if isinstance(metadata, dict) else {}
+
+
 def _run_ids() -> list[dict[str, str]]:
     runs: list[dict[str, str]] = []
-
     for manifest_path in sorted(DATA_DIR.glob("run_*.json")):
         run_id = manifest_path.stem
         if not RUN_ID_PATTERN.fullmatch(run_id):
             continue
-
-        required_files = [
-            DATA_DIR / f"{run_id}_trace.csv",
-            DATA_DIR / f"{run_id}_flows.csv",
-            DATA_DIR / f"{run_id}_links.csv",
-            DATA_DIR / f"{run_id}_windows.csv",
-            DATA_DIR / f"{run_id}_network.csv",
-        ]
-        if not all(path.is_file() for path in required_files):
+        if not all((DATA_DIR / f"{run_id}{suffix}").is_file() for suffix in _RUN_CSV_SUFFIXES):
             continue
-
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+            manifest = _read_json(manifest_path)
         except (OSError, json.JSONDecodeError):
             continue
-
-        metadata = manifest.get("dataset_metadata", {})
-        if not isinstance(metadata, dict):
-            metadata = {}
-
+        metadata = _metadata_of(manifest)
         runs.append({
             "run_id": run_id,
-            "algorithm": str(
-                metadata.get("algorithm", manifest.get("algorithm", "unknown"))
-            ),
-            "topology": str(
-                metadata.get("topology_path", manifest.get("topology", "unknown"))
-            ),
+            "algorithm": str(metadata.get("algorithm", manifest.get("algorithm", "unknown"))),
+            "topology": str(metadata.get("topology_path", manifest.get("topology", "unknown"))),
         })
-
     return runs
 
 
 def _topology_path_for(manifest: dict[str, Any]) -> Path:
-    metadata = manifest.get("dataset_metadata", {})
-    if not isinstance(metadata, dict):
-        metadata = {}
-
+    metadata = _metadata_of(manifest)
     candidates: list[Path] = []
-    for value in (
-        metadata.get("topology_path"),
-        metadata.get("topology_file"),
-        manifest.get("topology"),
-    ):
-        if not value:
+    for value in (metadata.get("topology_path"), metadata.get("topology_file"), manifest.get("topology")):
+        if not value or str(value).lower() in {"loaded topology", "unknown"}:
             continue
-        text = str(value)
-        if text.lower() in {"loaded topology", "unknown"}:
-            continue
-
-        candidate = Path(text).expanduser()
+        candidate = Path(str(value)).expanduser()
         candidates.append(candidate)
         if not candidate.is_absolute():
             candidates.append(PROJECT_ROOT / candidate)
@@ -171,12 +170,9 @@ def _topology_path_for(manifest: dict[str, Any]) -> Path:
         if candidate.is_file():
             return candidate.resolve()
 
-    original_name = Path(
-        str(metadata.get("topology_path", manifest.get("topology", "")))
-    ).name
+    original_name = Path(str(metadata.get("topology_path", manifest.get("topology", "")))).name
     if original_name:
-        stem = Path(original_name).stem
-        possible = DATA_DIR / f"topology_{stem}.json"
+        possible = DATA_DIR / f"topology_{Path(original_name).stem}.json"
         if possible.is_file():
             return possible.resolve()
 
@@ -188,20 +184,11 @@ def _topology_path_for(manifest: dict[str, Any]) -> Path:
 
 def _algorithm_of(run_id: str) -> str:
     try:
-        manifest = json.loads(
-            (DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig")
-        )
+        manifest = _read_manifest(run_id)
     except (OSError, json.JSONDecodeError):
         return run_id
-    metadata = manifest.get("dataset_metadata", {})
-    if not isinstance(metadata, dict):
-        metadata = {}
-    return str(metadata.get("algorithm", manifest.get("algorithm", run_id)))
+    return str(_metadata_of(manifest).get("algorithm", manifest.get("algorithm", run_id)))
 
-
-                                                                            
-                                      
-                                                                            
 
 def _valid_topology(document: Any) -> bool:
     return (
@@ -216,14 +203,14 @@ def _resolve_scenario_topology(scenario: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(reference, str) or not reference.strip():
         raise ValueError("The scenario has no 'topology' path.")
 
-    ref_path = Path(reference.replace("\\", "/"))
-    if ref_path.is_absolute():
-        candidates = [ref_path]
+    reference_path = Path(reference.replace("\\", "/"))
+    if reference_path.is_absolute():
+        candidates = [reference_path]
     else:
         candidates = [
-            PROJECT_ROOT / ref_path,
-            SCENARIOS_DIR / ref_path,
-            TOPOLOGIES_DIR / ref_path.name,
+            PROJECT_ROOT / reference_path,
+            SCENARIOS_DIR / reference_path,
+            TOPOLOGIES_DIR / reference_path.name,
         ]
 
     root = PROJECT_ROOT.resolve()
@@ -232,18 +219,12 @@ def _resolve_scenario_topology(scenario: dict[str, Any]) -> dict[str, Any]:
             resolved = candidate.resolve()
         except OSError:
             continue
-        if (
-            resolved.is_file()
-            and resolved.suffix.lower() == ".json"
-            and resolved.is_relative_to(root)
-        ):
-            topology = json.loads(resolved.read_text(encoding="utf-8-sig"))
+        if resolved.is_file() and resolved.suffix.lower() == ".json" and resolved.is_relative_to(root):
+            topology = _read_json(resolved)
             if _valid_topology(topology):
                 return {"topology": topology, "topology_name": resolved.name}
 
-    raise FileNotFoundError(
-        f"Topology '{reference}' was not found inside the project."
-    )
+    raise FileNotFoundError(f"Topology '{reference}' was not found inside the project.")
 
 
 def _list_scenarios() -> list[dict[str, str]]:
@@ -254,7 +235,7 @@ def _list_scenarios() -> list[dict[str, str]]:
         if not NAME_PATTERN.fullmatch(path.stem):
             continue
         try:
-            document = json.loads(path.read_text(encoding="utf-8-sig"))
+            document = _read_json(path)
         except (OSError, json.JSONDecodeError):
             continue
         if isinstance(document, dict) and "topology" in document:
@@ -268,7 +249,7 @@ def _load_saved_scenario(name: str) -> dict[str, Any]:
     path = SCENARIOS_DIR / f"{name}.json"
     if not path.is_file():
         raise FileNotFoundError(f"Scenario '{name}' was not found")
-    scenario = json.loads(path.read_text(encoding="utf-8-sig"))
+    scenario = _read_json(path)
     if not isinstance(scenario, dict):
         raise ValueError("The scenario file is not a JSON object")
     return {"scenario": scenario, **_resolve_scenario_topology(scenario)}
@@ -312,22 +293,37 @@ def _validated_run_fields(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _scenario_document(name: str, topology_reference: str, fields: dict[str, Any], algorithm: str) -> dict[str, Any]:
+    return {
+        "name": name,
+        "topology": topology_reference,
+        "seed": fields["seed"],
+        "duration_s": fields["duration"],
+        "routing": {
+            "algorithm": algorithm,
+            "weight": fields["weight"],
+            "reconvergence_delay_ms": fields["reconvergence_ms"],
+        },
+        "flows": fields["flows"],
+        "events": fields["events"],
+    }
+
+
 def _store_topology(topology: dict[str, Any], suggested_name: str) -> Path:
     TOPOLOGIES_DIR.mkdir(parents=True, exist_ok=True)
     canonical = json.dumps(topology, sort_keys=True)
 
     for existing in sorted(TOPOLOGIES_DIR.glob("*.json")):
         try:
-            other = json.loads(existing.read_text(encoding="utf-8-sig"))
+            other = _read_json(existing)
         except (OSError, json.JSONDecodeError):
             continue
         if json.dumps(other, sort_keys=True) == canonical:
             return existing
 
-    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(suggested_name or "topology").stem)
-    stem = stem.strip("_") or "topology"
+    stem = _UNSAFE_NAME_CHARS.sub("_", Path(suggested_name or "topology").stem).strip("_") or "topology"
     target = TOPOLOGIES_DIR / f"{stem}.json"
-    if target.exists():                                                          
+    if target.exists():
         digest = hashlib.sha1(canonical.encode("utf-8")).hexdigest()[:8]
         target = TOPOLOGIES_DIR / f"{stem}_{digest}.json"
     target.write_text(json.dumps(topology, indent=2) + "\n", encoding="utf-8")
@@ -336,7 +332,6 @@ def _store_topology(topology: dict[str, Any], suggested_name: str) -> Path:
 
 def _save_scenario(body: dict[str, Any]) -> dict[str, Any]:
     fields = _validated_run_fields(body)
-
     name = str(body.get("name", "")).strip()
     if not NAME_PATTERN.fullmatch(name):
         raise ValueError(
@@ -349,24 +344,9 @@ def _save_scenario(body: dict[str, Any]) -> dict[str, Any]:
     if scenario_path.exists() and not bool(body.get("overwrite", False)):
         raise FileExistsError(f"A scenario named '{name}' already exists.")
 
-    topology_file = _store_topology(
-        fields["topology"], str(body.get("topology_name", ""))
-    )
-    scenario = {
-        "name": name,
-        "topology": f"../topologies/{topology_file.name}",
-        "seed": fields["seed"],
-        "duration_s": fields["duration"],
-        "routing": {
-            "algorithm": fields["algorithm"],
-            "weight": fields["weight"],
-            "reconvergence_delay_ms": fields["reconvergence_ms"],
-        },
-        "flows": fields["flows"],
-        "events": fields["events"],
-    }
+    topology_file = _store_topology(fields["topology"], str(body.get("topology_name", "")))
+    scenario = _scenario_document(name, f"../topologies/{topology_file.name}", fields, fields["algorithm"])
     scenario_path.write_text(json.dumps(scenario, indent=2) + "\n", encoding="utf-8")
-
     return {
         "name": name,
         "scenario_path": f"config/scenarios/{name}.json",
@@ -374,24 +354,13 @@ def _save_scenario(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-                                                                            
-          
-                                                                            
-
 def _graph_for_run(run_id: str) -> tuple[Any, list[dict[str, Any]]]:
-    if not RUN_ID_PATTERN.fullmatch(run_id):
-        raise ValueError("Invalid run ID")
-
-    key = (run_id, _run_stamp(run_id))
-    cached = _GRAPH_CACHE.get(key)
-    if cached is not None:
-        return cached
+    key = _cache_key(run_id)
+    if key in _GRAPH_CACHE:
+        return _GRAPH_CACHE[key]
 
     run = read_run(DATA_DIR, run_id)
     topology_path = _topology_path_for(run.manifest)
-
-                                                                        
-                                                                            
     with tempfile.TemporaryDirectory(prefix="netmind_graphrag_") as temporary:
         staging = Path(temporary)
         shutil.copy2(DATA_DIR / f"{run_id}.json", staging / f"{run_id}_manifest.json")
@@ -407,14 +376,20 @@ def _graph_for_run(run_id: str) -> tuple[Any, list[dict[str, Any]]]:
 def _qa_session(run_ids: list[str]) -> QASession:
     contexts = []
     for run_id in dict.fromkeys(run_ids):
-        if not RUN_ID_PATTERN.fullmatch(run_id):
-            raise ValueError("Invalid run ID")
-        key = (run_id, _run_stamp(run_id))
+        key = _cache_key(run_id)
         if key not in _QA_CACHE:
-            manifest = json.loads((DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig"))
-            _QA_CACHE[key] = qa_tools.load_run(DATA_DIR, run_id, _topology_path_for(manifest))
+            topology_path = _topology_path_for(_read_manifest(run_id))
+            _QA_CACHE[key] = qa_tools.load_run(DATA_DIR, run_id, topology_path)
         contexts.append(_QA_CACHE[key])
     return QASession(contexts)
+
+
+def _tool_call_facts(tool_calls: list[dict[str, Any]]) -> list[dict[str, str]]:
+    facts = []
+    for call in tool_calls:
+        text = ", ".join(f"{key}={value}" for key, value in call["args"].items()) or "all runs"
+        facts.append({"id": call["name"], "text": text})
+    return facts
 
 
 def _answer_graphrag(
@@ -431,17 +406,13 @@ def _answer_graphrag(
             from graphrag.agent import answer_with_agent
 
             result = answer_with_agent(session, question, model, history)
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             result = answer_with_rules(session, question)
             result["fallback_reason"] = (
                 f"The AI service could not answer ({type(error).__name__}: {str(error)[:160]}), "
                 "so the rule-based answer is shown."
             )
-
-    result["facts"] = [
-        {"id": call["name"], "text": ", ".join(f"{k}={v}" for k, v in call["args"].items()) or "all runs"}
-        for call in result.get("tool_calls", [])
-    ]
+    result["facts"] = _tool_call_facts(result.get("tool_calls", []))
     return result
 
 
@@ -453,11 +424,8 @@ def _answer_graphrag_legacy(run_ids: list[str], question: str) -> dict[str, Any]
     pairs = [_graph_for_run(run_id) for run_id in ids]
     graphs = [graph for graph, _ in pairs]
     facts_by_run = {run_id: facts for run_id, (_, facts) in zip(ids, pairs)}
-
     result = answer_question(graphs, facts_by_run, question)
 
-                                                                              
-                                                        
     if (
         len(ids) > 1
         and result.get("intent") == "flow_path"
@@ -467,41 +435,25 @@ def _answer_graphrag_legacy(run_ids: list[str], question: str) -> dict[str, Any]
         for run_id, (graph, facts) in zip(ids, pairs):
             single = answer_question(graph, {run_id: facts}, question)
             lines.append(f"{_algorithm_of(run_id)}: {single['answer']}")
-        return {
-            "intent": "flow_path",
-            "answer": "\n".join(lines),
-            "citations": [],
-            "facts": [],
-        }
-
+        return {"intent": "flow_path", "answer": "\n".join(lines), "citations": [], "facts": []}
     return result
 
 
-                                                                            
-             
-                                                                            
-
 _RELATIVE_FLOOR = {"avg_latency_ms": 0.1, "throughput_mbps": 0.01}
+
 
 def _baseline_metric_rows(row: Any) -> list[dict[str, Any]]:
     metrics = []
     for name in ("avg_latency_ms", "throughput_mbps", "loss_pct"):
         actual = _num(row[f"{name}_actual"])
         expected = _num(row[f"{name}_expected"])
-        delta = actual - expected if actual is not None and expected is not None else None
-
-                                                                                  
-                                                                                
+        delta = None
+        if actual is not None and expected is not None:
+            delta = actual - expected
         relative = None
         floor = _RELATIVE_FLOOR.get(name)
-        if (
-            floor is not None
-            and delta is not None
-            and expected is not None
-            and abs(expected) >= floor
-        ):
+        if floor is not None and delta is not None and abs(expected) >= floor:
             relative = 100.0 * delta / abs(expected)
-
         metrics.append({
             "name": name,
             "actual": actual,
@@ -512,12 +464,11 @@ def _baseline_metric_rows(row: Any) -> list[dict[str, Any]]:
         })
     return metrics
 
+
 def _baseline_model() -> tuple[ExpectedMetricBaseline, pd.DataFrame]:
     runs_path = DATA_DIR / "dataset" / "runs_all.csv"
     if not runs_path.is_file():
-        raise FileNotFoundError(
-            f"Run dataset not found: {runs_path}. Generate the ML dataset first."
-        )
+        raise FileNotFoundError(f"Run dataset not found: {runs_path}. Generate the ML dataset first.")
     stamp = runs_path.stat().st_mtime_ns
     with _BASELINE_LOCK:
         if _BASELINE_MODEL.get("stamp") != stamp:
@@ -533,8 +484,7 @@ def _baseline_model() -> tuple[ExpectedMetricBaseline, pd.DataFrame]:
 
 
 def _analyze_expected_baseline(run_id: str) -> dict[str, Any]:
-    if not RUN_ID_PATTERN.fullmatch(run_id):
-        raise ValueError("Invalid run ID")
+    _check_run_id(run_id)
     model, runs = _baseline_model()
     assert model.validation_predictions_ is not None
     selected = model.validation_predictions_.loc[runs["run_id"] == run_id]
@@ -558,10 +508,6 @@ def _baseline_for_new_run(run_row: dict[str, Any]) -> dict[str, Any]:
         return {"error": f"Baseline unavailable: {error}"}
 
 
-                                                                            
-                     
-                                                                            
-
 ANOMALY_TRAIN_HINT = (
     "The anomaly detector has not been trained. Generate the window dataset, then run "
     "python -m ml.anomaly from the python folder."
@@ -574,6 +520,13 @@ PLOT_TITLES = {
     "algorithm_comparison.png": "Mean metrics per algorithm and event type (generated runs)",
 }
 DISTURBANCE_STARTS = ("LINK_FAILURE", "ROUTER_FAILURE", "CONGESTION", "TRAFFIC_BURST")
+
+_DRIVER_SUFFIXES = (
+    ("_vs_ref", "vs_normal"),
+    ("_vs_roll3", "vs_recent"),
+    ("_delta1", "jump"),
+    ("_delta3", "jump3"),
+)
 
 
 def _ml_file(*parts: str) -> Path:
@@ -596,10 +549,9 @@ def _anomaly_bundle() -> dict[str, Any]:
 
 
 def _run_events(run_id: str) -> tuple[list[dict[str, Any]], float]:
-    manifest = json.loads((DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig"))
+    manifest = _read_manifest(run_id)
     duration = _num(manifest.get("simulation_time_s")) or 0.0
-    metadata = manifest.get("dataset_metadata")
-    raw = metadata.get("scenario_json") if isinstance(metadata, dict) else None
+    raw = _metadata_of(manifest).get("scenario_json")
     if not isinstance(raw, str) or not raw.strip():
         return [], duration
     try:
@@ -622,10 +574,8 @@ def _event_label(event: dict[str, Any]) -> str:
 
 
 def _disturbances(events: list[dict[str, Any]], duration: float) -> list[dict[str, Any]]:
-    starters = sorted(
-        (event for event in events if event.get("type") in DISTURBANCE_STARTS),
-        key=lambda event: float(event.get("time_s", 0.0)),
-    )
+    starters = [event for event in events if event.get("type") in DISTURBANCE_STARTS]
+    starters.sort(key=lambda event: float(event.get("time_s", 0.0)))
     intervals = disturbance_intervals(events, duration)
     return [
         {"start": start, "end": end, "label": _event_label(event)}
@@ -634,30 +584,13 @@ def _disturbances(events: list[dict[str, Any]], duration: float) -> list[dict[st
 
 
 def _driver(feature: str) -> dict[str, str]:
-    for suffix, change in (
-        ("_vs_ref", "vs_normal"),
-        ("_vs_roll3", "vs_recent"),
-        ("_delta1", "jump"),
-        ("_delta3", "jump3"),
-    ):
+    for suffix, change in _DRIVER_SUFFIXES:
         if feature.endswith(suffix):
             return {"metric": feature[: -len(suffix)], "change": change}
     return {"metric": feature, "change": "level"}
 
 
-def _anomaly_for_run(run_id: str) -> dict[str, Any]:
-    if not RUN_ID_PATTERN.fullmatch(run_id):
-        raise ValueError("Invalid run ID")
-    windows_path = DATA_DIR / f"{run_id}_windows.csv"
-    if not windows_path.is_file():
-        raise FileNotFoundError(f"Window file for {run_id} not found")
-    bundle = _anomaly_bundle()
-    events, duration = _run_events(run_id)
-    windows = pd.read_csv(windows_path)
-    windows.insert(0, "run_id", run_id)
-    windows["is_anomaly"] = label_windows(windows, events, duration) if events else 0
-    scored = anomaly_ml.flag_windows(bundle, windows).sort_values("t_start")
-
+def _scored_window_rows(scored: pd.DataFrame) -> list[dict[str, Any]]:
     rows = []
     for row in scored.itertuples(index=False):
         flagged = bool(row.anomaly_flag)
@@ -674,14 +607,46 @@ def _anomaly_for_run(run_id: str) -> dict[str, Any]:
             "disturbed": bool(row.is_anomaly),
             "driver": _driver(str(row.zscore_driver)) if flagged else None,
         })
+    return rows
 
+
+def _first_flag_delay(rows: list[dict[str, Any]], disturbances: list[dict[str, Any]]) -> float | None:
+    if not disturbances:
+        return None
+    start = disturbances[0]["start"]
+    for row in rows:
+        if row["flagged"] and row["t"] + 1.0 > start:
+            return max(0.0, row["t"] - start)
+    return None
+
+
+def _anomaly_summary(rows: list[dict[str, Any]], first_flag: float | None) -> dict[str, Any]:
+    return {
+        "windows": len(rows),
+        "flagged": sum(row["flagged"] for row in rows),
+        "disturbed": sum(row["disturbed"] for row in rows),
+        "caught": sum(row["flagged"] and row["disturbed"] for row in rows),
+        "false_alarms": sum(row["flagged"] and not row["disturbed"] for row in rows),
+        "if_flagged": sum(row["if_flagged"] for row in rows),
+        "first_flag_delay_s": first_flag,
+    }
+
+
+def _anomaly_for_run(run_id: str) -> dict[str, Any]:
+    _check_run_id(run_id)
+    windows_path = DATA_DIR / f"{run_id}_windows.csv"
+    if not windows_path.is_file():
+        raise FileNotFoundError(f"Window file for {run_id} not found")
+    bundle = _anomaly_bundle()
+    events, duration = _run_events(run_id)
+
+    windows = pd.read_csv(windows_path)
+    windows.insert(0, "run_id", run_id)
+    windows["is_anomaly"] = label_windows(windows, events, duration) if events else 0
+
+    scored = anomaly_ml.flag_windows(bundle, windows).sort_values("t_start")
+    rows = _scored_window_rows(scored)
     disturbances = _disturbances(events, duration)
-    disturbed = [row for row in rows if row["disturbed"]]
-    first_flag = None
-    if disturbances:
-        start = disturbances[0]["start"]
-        after = [row["t"] for row in rows if row["flagged"] and row["t"] + 1.0 > start]
-        first_flag = max(0.0, after[0] - start) if after else None
     return {
         "run_id": run_id,
         "detector": "z-score",
@@ -691,15 +656,7 @@ def _anomaly_for_run(run_id: str) -> dict[str, Any]:
         "duration_s": duration,
         "disturbances": disturbances,
         "windows": rows,
-        "summary": {
-            "windows": len(rows),
-            "flagged": sum(row["flagged"] for row in rows),
-            "disturbed": len(disturbed),
-            "caught": sum(row["flagged"] for row in disturbed),
-            "false_alarms": sum(row["flagged"] and not row["disturbed"] for row in rows),
-            "if_flagged": sum(row["if_flagged"] for row in rows),
-            "first_flag_delay_s": first_flag,
-        },
+        "summary": _anomaly_summary(rows, _first_flag_delay(rows, disturbances)),
     }
 
 
@@ -716,7 +673,7 @@ def _anomaly_evaluation() -> dict[str, Any]:
     results_path = _ml_file("plots", "anomaly_results.json")
     if not results_path.is_file():
         raise FileNotFoundError(ANOMALY_TRAIN_HINT)
-    results = json.loads(results_path.read_text(encoding="utf-8"))
+    results = _read_json(results_path, encoding="utf-8")
     results.pop("features", None)
     plots = [
         {"name": name, "title": title, "url": f"/api/ml/plots/{name}"}
@@ -735,63 +692,67 @@ def _cli_path() -> Path:
     else:
         cli = PROJECT_ROOT / "build" / "debug" / "netmind_cli.exe"
     if not cli.is_file():
-        raise FileNotFoundError(
-            f"NetMind CLI executable not found: {cli}. "
-            "Set NETMIND_CLI to its location."
-        )
+        raise FileNotFoundError(f"NetMind CLI executable not found: {cli}. Set NETMIND_CLI to its location.")
     return cli
 
 
-def _run_cli(scenario_path: Path) -> str:
-    cli = _cli_path()
+def _existing_run_ids() -> set[str]:
+    return {path.stem for path in DATA_DIR.glob("run_*.json")}
+
+
+def _run_simulator(arguments: list[str], **options: Any) -> tuple[subprocess.CompletedProcess, list[str]]:
     with _RUN_LOCK:
-        before = {path.stem for path in DATA_DIR.glob("run_*.json")}
+        before = _existing_run_ids()
         completed = subprocess.run(
-            [str(cli), "--scenario", str(scenario_path), "--out", str(DATA_DIR), "--quiet"],
+            arguments,
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
             timeout=600,
             check=False,
             creationflags=_NO_WINDOW,
+            **options,
         )
-        if completed.returncode != 0:
-            raise RuntimeError(
-                "The simulator could not complete the run.\n"
-                f"{completed.stderr.strip() or completed.stdout.strip()}"
-            )
-        new_ids = sorted(
-            path.stem for path in DATA_DIR.glob("run_*.json") if path.stem not in before
-        )
+        new_ids = sorted(_existing_run_ids() - before)
+    return completed, new_ids
+
+
+def _simulator_error(message: str, completed: subprocess.CompletedProcess) -> RuntimeError:
+    return RuntimeError(f"{message}\n{completed.stderr.strip() or completed.stdout.strip()}")
+
+
+def _run_cli(scenario_path: Path) -> str:
+    cli = _cli_path()
+    completed, new_ids = _run_simulator(
+        [str(cli), "--scenario", str(scenario_path), "--out", str(DATA_DIR), "--quiet"]
+    )
+    if completed.returncode != 0:
+        raise _simulator_error("The simulator could not complete the run.", completed)
     if len(new_ids) != 1:
         raise RuntimeError("Could not identify the newly exported run")
     return new_ids[0]
 
 
-def _finish_run(
+def _write_gui_topology(topology: dict[str, Any], token: str) -> Path:
+    topologies_dir = DATA_DIR / "gui_topologies"
+    topologies_dir.mkdir(parents=True, exist_ok=True)
+    topology_path = topologies_dir / f"topology_{token}.json"
+    topology_path.write_text(json.dumps(topology, indent=2), encoding="utf-8")
+    return topology_path
+
+
+def _annotate_manifest(
     run_id: str,
     fields: dict[str, Any],
     algorithm: str,
     topology_path: Path,
-) -> dict[str, Any]:
+    pattern: str,
+    offered: float,
+    scenario_json: str,
+) -> None:
     manifest_path = DATA_DIR / f"{run_id}.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    metadata = manifest.get("dataset_metadata", {})
-    if not isinstance(metadata, dict):
-        metadata = {}
-
-    pattern = event_pattern_of(fields["events"])
-    offered = sum(float(flow.get("rate_mbps", 0)) for flow in fields["flows"])
-    scenario_json = json.dumps({
-        "duration_s": fields["duration"],
-        "routing": {
-            "algorithm": algorithm,
-            "weight": fields["weight"],
-            "reconvergence_delay_ms": fields.get("reconvergence_ms", 0),
-        },
-        "flows": fields["flows"],
-        "events": fields["events"],
-    })
+    manifest = _read_json(manifest_path, encoding="utf-8")
+    metadata = _metadata_of(manifest)
     metadata.update({
         "topology_path": str(topology_path.resolve()),
         "topology_file": topology_path.name,
@@ -804,6 +765,33 @@ def _finish_run(
     })
     manifest["dataset_metadata"] = metadata
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def _weighted_avg_hops(run_id: str) -> float | None:
+    try:
+        flows_table = pd.read_csv(DATA_DIR / f"{run_id}_flows.csv")
+        weights = flows_table["delivered"].astype(float)
+        if weights.sum() > 0:
+            return float((flows_table["avg_hops"].astype(float) * weights).sum() / weights.sum())
+    except Exception:
+        return None
+    return None
+
+
+def _finish_run(run_id: str, fields: dict[str, Any], algorithm: str, topology_path: Path) -> dict[str, Any]:
+    pattern = event_pattern_of(fields["events"])
+    offered = sum(float(flow.get("rate_mbps", 0)) for flow in fields["flows"])
+    scenario_json = json.dumps({
+        "duration_s": fields["duration"],
+        "routing": {
+            "algorithm": algorithm,
+            "weight": fields["weight"],
+            "reconvergence_delay_ms": fields.get("reconvergence_ms", 0),
+        },
+        "flows": fields["flows"],
+        "events": fields["events"],
+    })
+    _annotate_manifest(run_id, fields, algorithm, topology_path, pattern, offered, scenario_json)
 
     network = pd.read_csv(DATA_DIR / f"{run_id}_network.csv").iloc[0].to_dict()
     run_row = {
@@ -818,18 +806,13 @@ def _finish_run(
         **network,
     }
     reliability = _num(run_row.get("reliability_pct"))
-    run_row["loss_pct"] = (100.0 - reliability) if reliability is not None else float("nan")
+    run_row["loss_pct"] = float("nan") if reliability is None else 100.0 - reliability
 
-    avg_hops = None
-    try:
-        flows_df = pd.read_csv(DATA_DIR / f"{run_id}_flows.csv")
-        weights = flows_df["delivered"].astype(float)
-        if weights.sum() > 0:
-            avg_hops = float(
-                (flows_df["avg_hops"].astype(float) * weights).sum() / weights.sum()
-            )
-    except Exception:
-        avg_hops = None
+    avg_hops = _weighted_avg_hops(run_id)
+    if fields["flows"]:
+        baseline = _baseline_for_new_run(run_row)
+    else:
+        baseline = {"error": "No baseline: the run's traffic flows are not known."}
 
     return {
         "run_id": run_id,
@@ -845,54 +828,39 @@ def _finish_run(
             "recovery_time_s": _num(run_row.get("recovery_time_s")),
             "avg_hops": avg_hops,
         },
-        "baseline": (
-            _baseline_for_new_run(run_row) if fields["flows"]
-            else {"error": "No baseline: the run's traffic flows are not known."}
-        ),
+        "baseline": baseline,
         "anomaly": _anomaly_or_error(run_id),
     }
 
 
-def _run_gui_simulation(body: dict[str, Any]) -> dict[str, Any]:
-    fields = _validated_run_fields(body)
-
+def _requested_algorithms(body: dict[str, Any]) -> list[str]:
     requested = body.get("algorithms") or list(_GUI_ALGORITHMS)
     if not isinstance(requested, list) or not requested:
         raise ValueError("algorithms must be a non-empty list")
     algorithms = list(dict.fromkeys(str(item) for item in requested))
-    if any(item not in _GUI_ALGORITHMS for item in algorithms):
-        raise ValueError("Unsupported routing algorithm")
+    for algorithm in algorithms:
+        if algorithm not in _GUI_ALGORITHMS:
+            raise ValueError("Unsupported routing algorithm")
+    return algorithms
 
-    topologies_dir = DATA_DIR / "gui_topologies"
+
+def _run_gui_simulation(body: dict[str, Any]) -> dict[str, Any]:
+    fields = _validated_run_fields(body)
+    algorithms = _requested_algorithms(body)
     scenarios_dir = DATA_DIR / "gui_scenarios"
-    topologies_dir.mkdir(parents=True, exist_ok=True)
     scenarios_dir.mkdir(parents=True, exist_ok=True)
-
     token = uuid.uuid4().hex[:12]
-    topology_path = topologies_dir / f"topology_{token}.json"
-    topology_path.write_text(json.dumps(fields["topology"], indent=2), encoding="utf-8")
+    topology_path = _write_gui_topology(fields["topology"], token)
 
     runs = []
     for algorithm in algorithms:
-        scenario = {
-            "name": f"gui_run_{token}_{algorithm}",
-            "topology": str(topology_path.resolve()),
-            "seed": fields["seed"],
-            "duration_s": fields["duration"],
-            "routing": {
-                "algorithm": algorithm,
-                "weight": fields["weight"],
-                "reconvergence_delay_ms": fields["reconvergence_ms"],
-            },
-            "flows": fields["flows"],
-            "events": fields["events"],
-        }
+        scenario = _scenario_document(
+            f"gui_run_{token}_{algorithm}", str(topology_path.resolve()), fields, algorithm
+        )
         scenario_path = scenarios_dir / f"scenario_{token}_{algorithm}.json"
         scenario_path.write_text(json.dumps(scenario, indent=2), encoding="utf-8")
-
         run_id = _run_cli(scenario_path)
         runs.append(_finish_run(run_id, fields, algorithm, topology_path))
-
     return {"runs": runs}
 
 
@@ -943,10 +911,31 @@ def _prepare_script(script: str, export_results: bool) -> tuple[list[tuple[int, 
     return commands, notes
 
 
-def _split_cli_transcript(stdout: str, count: int) -> list[str]:
-    pieces = stdout.split(_CLI_PROMPT)
-    blocks = pieces[1:]
-    return (blocks + [""] * count)[:count]
+def _build_transcript(commands: list[tuple[int, str]], blocks: list[str]) -> list[dict[str, Any]]:
+    all_commands = [(0, "load <topology>")] + commands
+    transcript = []
+    for index, ((number, command), block) in enumerate(zip(all_commands, blocks)):
+        failed = any(line.startswith("% ") for line in block.splitlines())
+        if index == 0 and not failed:
+            continue
+        transcript.append({"line": number, "command": command, "output": block.rstrip("\n"), "ok": not failed})
+    return transcript
+
+
+def _finish_script_runs(new_ids: list[str], settings: dict[str, Any], topology_path: Path) -> list[dict[str, Any]]:
+    runs = []
+    for run_id in new_ids:
+        manifest = _read_manifest(run_id)
+        fields = {
+            "events": settings.get("events") or [],
+            "flows": settings.get("flows") or [],
+            "weight": manifest.get("weight", settings.get("weight", "latency")),
+            "seed": manifest.get("seed", settings.get("seed", 0)),
+            "duration": manifest.get("simulation_time_s", settings.get("duration_s", 0)),
+            "reconvergence_ms": float(settings.get("reconvergence_delay_ms", 0) or 0),
+        }
+        runs.append(_finish_run(run_id, fields, manifest.get("algorithm", "dijkstra"), topology_path))
+    return runs
 
 
 def _run_script(body: dict[str, Any]) -> dict[str, Any]:
@@ -958,62 +947,21 @@ def _run_script(body: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("The script has no commands to run")
 
     cli = _cli_path()
-    topologies_dir = DATA_DIR / "gui_topologies"
-    topologies_dir.mkdir(parents=True, exist_ok=True)
-    topology_path = topologies_dir / f"topology_{uuid.uuid4().hex[:12]}.json"
-    topology_path.write_text(json.dumps(topology, indent=2), encoding="utf-8")
-
+    topology_path = _write_gui_topology(topology, uuid.uuid4().hex[:12])
     quoted = str(topology_path.resolve()).replace("\\", "\\\\").replace('"', '\\"')
     sent = [f'load "{quoted}"'] + [command for _, command in commands]
-    with _RUN_LOCK:
-        before = {path.stem for path in DATA_DIR.glob("run_*.json")}
-        completed = subprocess.run(
-            [str(cli), "--out", str(DATA_DIR)],
-            input="\n".join(sent) + "\n",
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=600,
-            check=False,
-            creationflags=_NO_WINDOW,
-        )
-        new_ids = sorted(
-            path.stem for path in DATA_DIR.glob("run_*.json") if path.stem not in before
-        )
+    completed, new_ids = _run_simulator(
+        [str(cli), "--out", str(DATA_DIR)],
+        input="\n".join(sent) + "\n",
+        encoding="utf-8",
+        errors="replace",
+    )
     if completed.returncode != 0:
-        raise RuntimeError(
-            "The simulator stopped unexpectedly.\n"
-            f"{completed.stderr.strip() or completed.stdout.strip()}"
-        )
+        raise _simulator_error("The simulator stopped unexpectedly.", completed)
 
-    blocks = _split_cli_transcript(completed.stdout, len(sent))
-    transcript = []
-    for index, ((number, command), block) in enumerate(
-        zip([(0, "load <topology>")] + commands, blocks)
-    ):
-        failed = any(line.startswith("% ") for line in block.splitlines())
-        if index == 0 and not failed:
-            continue
-        transcript.append(
-            {"line": number, "command": command, "output": block.rstrip("\n"), "ok": not failed}
-        )
-
-    settings = body.get("settings") or {}
-    runs = []
-    for run_id in new_ids:
-        manifest = json.loads((DATA_DIR / f"{run_id}.json").read_text(encoding="utf-8-sig"))
-        fields = {
-            "events": settings.get("events") or [],
-            "flows": settings.get("flows") or [],
-            "weight": manifest.get("weight", settings.get("weight", "latency")),
-            "seed": manifest.get("seed", settings.get("seed", 0)),
-            "duration": manifest.get("simulation_time_s", settings.get("duration_s", 0)),
-            "reconvergence_ms": float(settings.get("reconvergence_delay_ms", 0) or 0),
-        }
-        runs.append(_finish_run(run_id, fields, manifest.get("algorithm", "dijkstra"), topology_path))
-
+    blocks = (completed.stdout.split(_CLI_PROMPT)[1:] + [""] * len(sent))[: len(sent)]
+    transcript = _build_transcript(commands, blocks)
+    runs = _finish_script_runs(new_ids, body.get("settings") or {}, topology_path)
     return {
         "ok": all(entry["ok"] for entry in transcript),
         "transcript": transcript,
@@ -1088,168 +1036,106 @@ app = FastAPI(
 
 
 @app.exception_handler(FileExistsError)
-async def file_exists_error_handler(
-    request: Request,
-    error: FileExistsError,
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=409,
-        content={"error": str(error), "exists": True},
-    )
+async def file_exists_error_handler(request: Request, error: FileExistsError) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"error": str(error), "exists": True})
 
 
 @app.exception_handler(ValueError)
-async def value_error_handler(
-    request: Request,
-    error: ValueError,
-) -> JSONResponse:
-    return JSONResponse(status_code=400, content={"error": str(error)})
-
-
 @app.exception_handler(FileNotFoundError)
-async def file_not_found_error_handler(
-    request: Request,
-    error: FileNotFoundError,
-) -> JSONResponse:
+async def bad_request_error_handler(request: Request, error: Exception) -> JSONResponse:
     return JSONResponse(status_code=400, content={"error": str(error)})
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_error_handler(
-    request: Request,
-    error: RequestValidationError,
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=422,
-        content={"error": "Invalid request", "details": error.errors()},
-    )
+async def validation_error_handler(request: Request, error: RequestValidationError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"error": "Invalid request", "details": error.errors()})
 
 
 @app.exception_handler(Exception)
-async def unexpected_error_handler(
-    request: Request,
-    error: Exception,
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=500,
-        content={"error": f"{type(error).__name__}: {error}"},
-    )
+async def unexpected_error_handler(request: Request, error: Exception) -> JSONResponse:
+    return JSONResponse(status_code=500, content={"error": f"{type(error).__name__}: {error}"})
 
 
-@app.get("/api/health")
+@app.get("/api/health", description="Tell the GUI the service is up and where it reads runs from.")
 def health() -> dict[str, Any]:
     return {"ok": True, "data_directory": str(DATA_DIR)}
 
 
-@app.get("/api/runs")
+@app.get("/api/runs", description="List the complete runs in the data folder.")
 def list_runs() -> dict[str, Any]:
     return {"runs": _run_ids()}
 
 
-@app.get("/api/scenarios")
+@app.get("/api/scenarios", description="List the saved scenarios.")
 def list_scenarios() -> dict[str, Any]:
     return {"scenarios": _list_scenarios()}
 
 
-@app.get("/api/scenarios/{name}")
+@app.get("/api/scenarios/{name}", description="Load one saved scenario with its topology.")
 def load_scenario(name: str) -> dict[str, Any]:
     return _load_saved_scenario(name)
 
 
-@app.get("/api/gui/runs/{run_id}/files")
-def get_run_files(
-    run_id: str,
-    light: bool = False,
-) -> dict[str, Any]:
-    if not RUN_ID_PATTERN.fullmatch(run_id):
-        raise ValueError("Invalid run ID")
-
-    if light:
-        required = [
-            DATA_DIR / f"{run_id}.json",
-            DATA_DIR / f"{run_id}_flows.csv",
-            DATA_DIR / f"{run_id}_network.csv",
-        ]
-    else:
-        required = [
-            DATA_DIR / f"{run_id}.json",
-            DATA_DIR / f"{run_id}_trace.csv",
-            DATA_DIR / f"{run_id}_flows.csv",
-            DATA_DIR / f"{run_id}_links.csv",
-            DATA_DIR / f"{run_id}_windows.csv",
-            DATA_DIR / f"{run_id}_network.csv",
-        ]
-
+@app.get("/api/gui/runs/{run_id}/files", description="Send a run's topology, manifest and CSV files as text for the replay view.")
+def get_run_files(run_id: str, light: bool = False) -> dict[str, Any]:
+    _check_run_id(run_id)
+    suffixes = (".json", "_flows.csv", "_network.csv") if light else (".json",) + _RUN_CSV_SUFFIXES
+    required = [DATA_DIR / f"{run_id}{suffix}" for suffix in suffixes]
     if not all(file.is_file() for file in required):
-        return JSONResponse(
-            status_code=404,
-            content={"error": "Run files are incomplete"},
-        )
+        return JSONResponse(status_code=404, content={"error": "Run files are incomplete"})
 
-    manifest = json.loads(required[0].read_text(encoding="utf-8-sig"))
-    topology_file = _topology_path_for(manifest)
-
+    topology_file = _topology_path_for(_read_json(required[0]))
     files = [{
         "name": f"topology_{run_id}.json",
         "type": "application/json",
         "content": topology_file.read_text(encoding="utf-8-sig"),
     }]
-
     for file in required:
         files.append({
             "name": file.name,
             "type": "application/json" if file.suffix == ".json" else "text/csv",
             "content": file.read_text(encoding="utf-8-sig"),
         })
-
     return {"files": files}
 
 
-@app.post("/api/graphrag/query")
+@app.post("/api/graphrag/query", description="Answer a plain-language question about one or more runs.")
 def query_graphrag(body: GraphQueryRequest) -> dict[str, Any]:
     question = body.question.strip()
     if not question:
         raise ValueError("Enter a question")
-
     run_ids = body.run_ids
     if run_ids is None and body.run_id:
         run_ids = [body.run_id]
-
     if not run_ids:
         raise ValueError("Select a run before asking a question")
-
-    return _answer_graphrag(
-        [run_id.strip() for run_id in run_ids],
-        question,
-        body.history,
-    )
+    return _answer_graphrag([run_id.strip() for run_id in run_ids], question, body.history)
 
 
-@app.get("/api/graphrag/status")
+@app.get("/api/graphrag/status", description="Say whether answers come from an AI model or from fixed rules.")
 def graphrag_status() -> dict[str, Any]:
     return llm_config.describe()
 
 
-@app.post("/api/ml/baseline")
+@app.post("/api/ml/baseline", description="Compare a dataset run with its expected (baseline) metrics.")
 def analyze_baseline(body: BaselineRequest) -> dict[str, Any]:
     run_id = body.run_id.strip()
     if not run_id:
         raise ValueError("Select a run before comparing the baseline")
-
     return _analyze_expected_baseline(run_id)
 
 
-@app.post("/api/ml/anomaly")
+@app.post("/api/ml/anomaly", description="Score a run's seconds with the anomaly detectors.")
 def analyze_anomaly(body: AnomalyRequest) -> dict[str, Any]:
     return _anomaly_for_run(body.run_id)
 
 
-@app.get("/api/ml/anomaly/evaluation")
+@app.get("/api/ml/anomaly/evaluation", description="Return the detector's held-out evaluation results.")
 def anomaly_evaluation() -> dict[str, Any]:
     return _anomaly_evaluation()
 
 
-@app.get("/api/ml/plots/{name}")
+@app.get("/api/ml/plots/{name}", description="Serve one of the known evaluation plot images.")
 def get_plot(name: str) -> FileResponse:
     if name not in PLOT_TITLES:
         raise ValueError("Unknown plot")
@@ -1259,22 +1145,22 @@ def get_plot(name: str) -> FileResponse:
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "no-cache"})
 
 
-@app.post("/api/gui/run")
+@app.post("/api/gui/run", description="Run a simulation from the GUI settings (once per algorithm).")
 def run_simulation(body: SimulationRequest) -> dict[str, Any]:
     return _run_gui_simulation(body.model_dump())
 
 
-@app.post("/api/script/run")
+@app.post("/api/script/run", description="Run a CLI script typed in the workbench.")
 def run_script(body: ScriptRunRequest) -> dict[str, Any]:
     return _run_script(body.model_dump())
 
 
-@app.post("/api/scenario/resolve")
+@app.post("/api/scenario/resolve", description="Load the topology that an uploaded scenario refers to.")
 def resolve_scenario(body: ScenarioResolveRequest) -> dict[str, Any]:
     return _resolve_scenario_topology(body.scenario)
 
 
-@app.post("/api/scenario/save")
+@app.post("/api/scenario/save", description="Save the current GUI settings as a named scenario.")
 def save_scenario(body: ScenarioSaveRequest) -> dict[str, Any]:
     return _save_scenario(body.model_dump())
 

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <stdexcept>
 
+// Checks that IPv4 addresses are validated, parsed to numbers, and formatted back to text
 TEST_CASE("IPv4 helpers validate, parse, and format addresses") {
     SECTION("validates dotted-decimal IPv4 addresses") {
         REQUIRE(netmind::isValidIpv4("192.168.1.10"));
@@ -54,6 +55,7 @@ TEST_CASE("IPv4 helpers validate, parse, and format addresses") {
     }
 }
 
+// Checks that sameSubnet compares address prefixes correctly and rejects bad input
 TEST_CASE("sameSubnet compares IPv4 network prefixes") {
     SECTION("compares a /24 prefix") {
         REQUIRE(netmind::sameSubnet(

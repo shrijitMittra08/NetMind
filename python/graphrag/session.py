@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from graphrag.tools import RunContext
 
 ALGORITHM_LABELS = {"bfs": "BFS", "dfs": "DFS", "dijkstra": "Dijkstra", "bellman-ford": "Bellman-Ford"}
+
 ALGORITHM_PATTERNS = {
     "bfs": r"\bbfs\b",
     "dfs": r"\bdfs\b",
@@ -37,12 +38,13 @@ class QASession:
         for ctx in self.contexts:
             if wanted in {ctx.algorithm.lower(), ctx.run_id.lower()}:
                 return ctx
-        raise ValueError(f"No run for {selector!r}; available: {', '.join(c.algorithm for c in self.contexts)}")
+        available = ", ".join(ctx.algorithm for ctx in self.contexts)
+        raise ValueError(f"No run for {selector!r}; available: {available}")
 
     def mentioned_algorithms(self, text: str) -> list[RunContext]:
         lowered = text.lower()
         return [ctx for ctx in self.contexts if re.search(ALGORITHM_PATTERNS.get(ctx.algorithm, "$^"), lowered)]
 
     def mentioned_nodes(self, text: str) -> list[str]:
-        lookup = {name.lower(): name for name in self.node_names}
-        return [lookup[token] for token in re.findall(r"[a-z0-9]+", text.lower()) if token in lookup]
+        name_by_lowercase = {name.lower(): name for name in self.node_names}
+        return [name_by_lowercase[word] for word in re.findall(r"[a-z0-9]+", text.lower()) if word in name_by_lowercase]
