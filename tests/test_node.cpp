@@ -19,6 +19,7 @@ public:
 
 }
 
+// Checks that a node keeps its id, name, IP and type, starts up, and can be set down
 TEST_CASE("Node stores its common properties and starts up") {
     TestNode node(7, "PC1", "10.0.0.1");
 
@@ -32,12 +33,14 @@ TEST_CASE("Node stores its common properties and starts up") {
     REQUIRE_FALSE(node.isUp());
 }
 
+// Checks that creating a node with an empty name throws a config error
 TEST_CASE("Node rejects an empty name") {
     REQUIRE_THROWS_AS(
         TestNode(1, "", "10.0.0.1"),
         netmind::ConfigError);
 }
 
+// Checks that creating a node with an invalid IPv4 address throws a config error
 TEST_CASE("Node rejects an invalid IPv4 address") {
     REQUIRE_THROWS_AS(
         TestNode(1, "PC1", "256.0.0.1"),

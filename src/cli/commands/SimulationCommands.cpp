@@ -4,14 +4,12 @@
 #include "netmind/cli/CommandLineInterface.h"
 #include "netmind/cli/Session.h"
 #include "netmind/common/Errors.h"
-#include "netmind/common/Units.h"
 #include "netmind/metrics/Exporters.h"
 #include "netmind/metrics/MetricsCollector.h"
 #include "netmind/metrics/Report.h"
 #include "netmind/metrics/TraceLogger.h"
 #include "netmind/model/Flow.h"
 #include "netmind/model/ForwardingTable.h"
-#include "netmind/model/Host.h"
 #include "netmind/model/Link.h"
 #include "netmind/model/Node.h"
 #include "netmind/model/Router.h"
@@ -27,10 +25,10 @@
 #include "netmind/simulation/events/LinkRestoreEvent"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <functional>
 #include <iomanip>
 #include <initializer_list>
@@ -43,85 +41,131 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <chrono>
 
 namespace netmind::cli {
 namespace {
 
+using Args = std::vector<std::string>;
+
 class FunctionCommand final : public Command {
 public:
-    using Handler = std::function<void(Session&, const std::vector<std::string>&,
-                                       std::ostream&)>;
+    using Handler = std::function<void(Session&, const Args&, std::ostream&)>;
+
     FunctionCommand(std::string name, std::string help, Handler handler)
-        : name_(std::move(name)), help_(std::move(help)),
-          handler_(std::move(handler)) {}
+        : name_(std::move(name)), help_(std::move(help)), handler_(std::move(handler)) {}
+
     std::string name() const override { return name_; }
     std::string help() const override { return help_; }
-    void execute(Session& session, const std::vector<std::string>& args,
-                 std::ostream& out) override { handler_(session, args, out); }
+
+    void execute(Session& session, const Args& args, std::ostream& out) override {
+        handler_(session, args, out);
+    }
+
 private:
     std::string name_;
     std::string help_;
     Handler handler_;
 };
 
-void requireCount(const std::vector<std::string>& args,
-                  std::initializer_list<std::size_t> counts,
-                  const std::string& usage) {
-    if (std::find(counts.begin(), counts.end(), args.size()) == counts.end()) {
-        throw std::invalid_argument("Usage: " + usage);
+void requireArgCount(const Args& args, std::initializer_list<std::size_t> allowedCounts,
+                     const std::string& usage) {
+    for (std::size_t count : allowedCounts) {
+        if (args.size() == count) {
+            return;
+        }
     }
+    throw std::invalid_argument("Usage: " + usage);
 }
 
-double number(const std::string& text, const std::string& label) {
-    std::size_t used = 0;
+double parseNumber(const std::string& text, const std::string& label) {
+    std::size_t charactersUsed = 0;
     double value{};
-    try { value = std::stod(text, &used); }
-    catch (...) { throw std::invalid_argument(label + " must be numeric"); }
-    if (used != text.size() || !std::isfinite(value))
+    try {
+        value = std::stod(text, &charactersUsed);
+    } catch (...) {
+        throw std::invalid_argument(label + " must be numeric");
+    }
+    if (charactersUsed != text.size() || !std::isfinite(value)) {
         throw std::invalid_argument(label + " must be a finite number");
+    }
     return value;
 }
 
-std::uint64_t integer(const std::string& text, const std::string& label) {
-    if (text.empty() || text.front() == '-')
+std::uint64_t parseUnsigned(const std::string& text, const std::string& label) {
+    if (text.empty() || text.front() == '-') {
         throw std::invalid_argument(label + " must be a non-negative integer");
-    std::size_t used = 0;
+    }
+    std::size_t charactersUsed = 0;
     unsigned long long value{};
-    try { value = std::stoull(text, &used); }
-    catch (...) { throw std::invalid_argument(label + " must be an integer"); }
-    if (used != text.size()) throw std::invalid_argument(label + " must be an integer");
+    try {
+        value = std::stoull(text, &charactersUsed);
+    } catch (...) {
+        throw std::invalid_argument(label + " must be an integer");
+    }
+    if (charactersUsed != text.size()) {
+        throw std::invalid_argument(label + " must be an integer");
+    }
     return static_cast<std::uint64_t>(value);
+}
+
+std::uint64_t parseCount(const Args& args, std::size_t index, std::uint64_t defaultCount,
+                         const std::string& label, std::uint64_t maximum,
+                         const std::string& rangeMessage) {
+    std::uint64_t count = defaultCount;
+    if (args.size() > index) {
+        count = parseUnsigned(args[index], label);
+    }
+    if (count == 0 || count > maximum) {
+        throw std::invalid_argument(rangeMessage);
+    }
+    return count;
+}
+
+void requireWord(const Args& args, std::size_t index, const std::string& word,
+                 const std::string& message) {
+    if (args[index] != word) {
+        throw std::invalid_argument(message);
+    }
+}
+
+void requireNotInPast(const Session& session, SimTime time) {
+    if (time < session.engine()->now()) {
+        throw std::invalid_argument("Event time cannot be before current simulation time");
+    }
 }
 
 const Node& requireNode(const Graph& graph, const std::string& name) {
     const Node* node = graph.findByName(name);
-    if (node == nullptr) throw TopologyError("Node '" + name + "' not found");
+    if (node == nullptr) {
+        throw TopologyError("Node '" + name + "' not found");
+    }
     return *node;
 }
 
 NodeId requireHost(const Graph& graph, const std::string& name) {
     const Node& node = requireNode(graph, name);
-    if (node.type() != NodeType::HOST)
+    if (node.type() != NodeType::HOST) {
         throw TopologyError("Node '" + name + "' is not a host");
+    }
     return node.getId();
 }
 
 Router& requireRouter(Graph& graph, const std::string& name) {
-    const Node& found = requireNode(graph, name);
-    Node* node = graph.getNode(found.getId());
-    auto* router = dynamic_cast<Router*>(node);
-    if (router == nullptr) throw TopologyError("Node '" + name + "' is not a router");
+    Router* router = dynamic_cast<Router*>(graph.getNode(requireNode(graph, name).getId()));
+    if (router == nullptr) {
+        throw TopologyError("Node '" + name + "' is not a router");
+    }
     return *router;
 }
 
-const Link& requireLink(const Graph& graph, const std::string& a,
-                        const std::string& b) {
-    const Node& first = requireNode(graph, a);
-    const Node& second = requireNode(graph, b);
+const Link& requireLink(const Graph& graph, const std::string& firstName,
+                        const std::string& secondName) {
+    const Node& first = requireNode(graph, firstName);
+    const Node& second = requireNode(graph, secondName);
     const Link* link = graph.linkBetween(first.getId(), second.getId());
-    if (link == nullptr)
-        throw TopologyError("No link connects '" + a + "' and '" + b + "'");
+    if (link == nullptr) {
+        throw TopologyError("No link connects '" + firstName + "' and '" + secondName + "'");
+    }
     return *link;
 }
 
@@ -132,51 +176,54 @@ std::string nodeName(const Graph& graph, NodeId id) {
 
 void finishMetrics(Session& session) {
     session.ensureEngine();
-    if (session.metrics() == nullptr)
+    if (session.metrics() == nullptr) {
         throw std::logic_error("Metrics observer is unavailable");
+    }
     session.metrics()->finalize(session.engine()->now());
 }
 
 class PingRequestEvent final : public NetworkEvent {
 public:
     explicit PingRequestEvent(Packet packet) : packet_(std::move(packet)) {}
-    void apply(SimulationEngine& engine) override {
-        engine.originatePacket(std::move(packet_));
-    }
+
+    void apply(SimulationEngine& engine) override { engine.originatePacket(std::move(packet_)); }
+
     std::string describe() const override { return "CLI_PING_REQUEST"; }
+
 private:
     Packet packet_;
 };
 
+std::shared_ptr<PingRequestEvent> makeEchoRequest(PacketId id, NodeId source,
+                                                  NodeId destination) {
+    Packet request;
+    request.id = id;
+    request.srcId = source;
+    request.dstId = destination;
+    request.sizeBytes = 64;
+    request.type = PacketType::ECHO_REQUEST;
+    return std::make_shared<PingRequestEvent>(std::move(request));
+}
+
 class PingReplyObserver final : public SimObserver {
 public:
-    PingReplyObserver(
-        NodeId source,
-        NodeId destination,
-        SimTime firstSendTime,
-        std::vector<std::optional<double>>& rtts)
-        : source_(source),
-          destination_(destination),
-          firstSendTime_(firstSendTime),
-          rtts_(rtts) {}
+    PingReplyObserver(NodeId source, NodeId destination, SimTime firstSendTime,
+                      std::vector<std::optional<double>>& rttsMs)
+        : source_(source), destination_(destination), firstSendTime_(firstSendTime),
+          rttsMs_(rttsMs) {}
 
     void onDelivered(SimTime time, const Packet& packet) override {
-        if (packet.type != PacketType::ECHO_REPLY ||
-            packet.srcId != destination_ ||
+        if (packet.type != PacketType::ECHO_REPLY || packet.srcId != destination_ ||
             packet.dstId != source_) {
             return;
         }
-
         const double offset = packet.originTime - firstSendTime_;
         const auto requestIndex = static_cast<long long>(std::llround(offset));
-
-        if (requestIndex < 0 ||
-            static_cast<std::size_t>(requestIndex) >= rtts_.size() ||
+        if (requestIndex < 0 || static_cast<std::size_t>(requestIndex) >= rttsMs_.size() ||
             std::abs(offset - static_cast<double>(requestIndex)) > 1e-9) {
             return;
         }
-
-        rtts_[static_cast<std::size_t>(requestIndex)] =
+        rttsMs_[static_cast<std::size_t>(requestIndex)] =
             std::max(0.0, (time - packet.originTime) * 1000.0);
     }
 
@@ -184,36 +231,25 @@ private:
     NodeId source_;
     NodeId destination_;
     SimTime firstSendTime_;
-    std::vector<std::optional<double>>& rtts_;
+    std::vector<std::optional<double>>& rttsMs_;
+};
+
+struct HopArrival {
+    NodeId nodeId{};
+    SimTime time{};
 };
 
 class TracerouteObserver final : public SimObserver {
 public:
-    struct HopArrival {
-        NodeId nodeId{};
-        SimTime time{};
-    };
-
-    TracerouteObserver(
-        PacketId probeId,
-        NodeId destination,
-        std::vector<HopArrival>& arrivals,
-        bool& reachedDestination)
-        : probeId_(probeId),
-          destination_(destination),
-          arrivals_(arrivals),
+    TracerouteObserver(PacketId probeId, NodeId destination, std::vector<HopArrival>& arrivals,
+                       bool& reachedDestination)
+        : probeId_(probeId), destination_(destination), arrivals_(arrivals),
           reachedDestination_(reachedDestination) {}
 
-    void onArrive(
-        SimTime time,
-        const Packet& packet,
-        NodeId node,
-        NodeId) override {
-        if (packet.id != probeId_ ||
-            packet.type != PacketType::ECHO_REQUEST) {
+    void onArrive(SimTime time, const Packet& packet, NodeId node, NodeId) override {
+        if (packet.id != probeId_ || packet.type != PacketType::ECHO_REQUEST) {
             return;
         }
-
         arrivals_.push_back({node, time});
         if (node == destination_) {
             reachedDestination_ = true;
@@ -228,563 +264,588 @@ private:
 };
 
 template <typename DonePredicate>
-void runUntilDeadline(
-    SimulationEngine& engine,
-    SimTime deadline,
-    DonePredicate isDone) {
+void runUntilDeadline(SimulationEngine& engine, SimTime deadline, DonePredicate isDone) {
     while (!isDone()) {
-        const auto next = engine.nextEventTime();
-        if (!next || *next > deadline) {
+        const auto nextTime = engine.nextEventTime();
+        if (!nextTime || *nextTime > deadline) {
             break;
         }
         engine.step();
     }
-
     if (!isDone() && engine.now() < deadline) {
         engine.runUntil(deadline);
     }
 }
 
-void registerCommand(CommandLineInterface& cli, std::string name,
-                     std::string help, FunctionCommand::Handler handler) {
-    cli.addCommand(std::make_unique<FunctionCommand>(
-        std::move(name), std::move(help), std::move(handler)));
+void showRoute(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {1}, "show route <router>");
+    session.ensureEngine();
+    Router& router = requireRouter(session.engine()->mutableGraph(), args[0]);
+    const Graph& graph = session.engine()->graph();
+
+    out << "Destination  Next hop       Cost       Source\n";
+    for (const auto& [destination, entry] : router.forwardingTable().toSortedVector()) {
+        const char sourceLetter = entry.source == ForwardingTable::Source::STATIC ? 'S' : 'D';
+        out << std::left << std::setw(13) << nodeName(graph, destination)
+            << std::setw(15) << nodeName(graph, entry.nextHop)
+            << std::right << std::fixed << std::setprecision(4)
+            << std::setw(11) << entry.cost << "       " << sourceLetter << '\n';
+    }
 }
 
-}             
+std::pair<std::string, std::string> parseLinkEndpoints(const Args& args) {
+    if (args.size() == 2) {
+        return {args[0], args[1]};
+    }
+    const std::string& text = args[0];
+    const std::size_t dash = text.find('-');
+    if (dash == std::string::npos || dash == 0 || dash + 1 == text.size()) {
+        throw std::invalid_argument("Link must be written as A-B");
+    }
+    return {text.substr(0, dash), text.substr(dash + 1)};
+}
+
+void showQueue(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {1, 2}, "show queue <A>-<B> (or show queue <A> <B>)");
+    const auto [firstName, secondName] = parseLinkEndpoints(args);
+    session.ensureEngine();
+    const Graph& graph = session.engine()->graph();
+    const Link& link = requireLink(graph, firstName, secondName);
+    finishMetrics(session);
+
+    out << "Direction     Queued  Max seen  Queue drops  Loss drops  Down drops\n";
+    for (Direction direction : {Direction::AtoB, Direction::BtoA}) {
+        NodeId from = link.a();
+        NodeId to = link.b();
+        if (direction == Direction::BtoA) {
+            std::swap(from, to);
+        }
+
+        std::size_t queued = 0;
+        for (const ChannelSnapshot& snapshot : session.engine()->channelSnapshots(link.getId())) {
+            if (snapshot.id.dir == direction) {
+                queued = snapshot.queuedPackets;
+            }
+        }
+        ChannelMetrics counters{};
+        for (const ChannelMetrics& metric : session.metrics()->channels()) {
+            if (metric.channel.linkId == link.getId() && metric.channel.dir == direction) {
+                counters = metric;
+            }
+        }
+
+        out << std::left << std::setw(14) << (nodeName(graph, from) + ">" + nodeName(graph, to))
+            << std::right << std::setw(7) << queued << std::setw(9) << counters.maxQueue
+            << std::setw(13) << counters.dropsQueue << std::setw(12) << counters.dropsLoss
+            << std::setw(12) << counters.dropsDown << '\n';
+    }
+}
+
+void showMetrics(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {0, 1}, "show metrics [flow]");
+    finishMetrics(session);
+    const MetricsCollector& metrics = *session.metrics();
+    const NetworkMetrics& network = metrics.network();
+
+    out << "Network: reliability=" << std::fixed << std::setprecision(2)
+        << network.reliabilityPct << "% throughput=" << network.avgThroughputMbps
+        << " Mbps latency=" << network.avgLatencyMs << " ms drops=" << network.totalDrops
+        << " events=" << network.events << '\n';
+
+    std::optional<FlowId> selectedFlow;
+    if (!args.empty()) {
+        selectedFlow = static_cast<FlowId>(parseUnsigned(args[0], "flow ID"));
+    }
+
+    out << "Flow  Sent  Delivered  Dropped  Loss%  Avg latency ms  Throughput Mbps\n";
+    for (const FlowMetrics& flow : metrics.flows()) {
+        if (selectedFlow && flow.flowId != *selectedFlow) {
+            continue;
+        }
+        out << std::setw(4) << flow.flowId << std::setw(6) << flow.sent
+            << std::setw(11) << flow.delivered << std::setw(9) << flow.dropped
+            << std::setw(7) << std::setprecision(2) << flow.lossPct
+            << std::setw(16) << flow.avgLatencyMs << std::setw(18) << flow.throughputMbps << '\n';
+    }
+
+    if (!selectedFlow) {
+        out << "Most utilized channels:\n";
+        for (const ReportItem& item : Report(metrics).topLinksByUtilization(3)) {
+            out << "  " << item.name << " " << item.metric << "%\n";
+        }
+    }
+}
+
+void recomputeRoutesIfRunning(Session& session, const std::string& algorithm,
+                              const std::string& weight) {
+    if (!session.engine()) {
+        return;
+    }
+    RoutingManager& routing = session.engine()->routingManager();
+    routing.setAlgorithm(algorithm);
+    routing.setPolicy(weight);
+    (void)routing.recomputeAll(session.engine()->mutableGraph());
+}
+
+void setAlgorithm(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {1}, "set algo <bfs|dfs|dijkstra|bellman-ford>");
+    session.scenarioManager().setRoutingAlgorithm(args[0]);
+    recomputeRoutesIfRunning(session, args[0], session.scenarioManager().routingWeight());
+    out << "Routing algorithm set to " << args[0] << '\n';
+}
+
+void setWeight(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {1}, "set weight <hops|latency>");
+    session.scenarioManager().setRoutingWeight(args[0]);
+    recomputeRoutesIfRunning(session, session.scenarioManager().routingAlgorithm(), args[0]);
+    out << "Routing weight set to " << args[0] << '\n';
+}
+
+void setSeed(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {1}, "set seed <n>");
+    const std::uint64_t seed = parseUnsigned(args[0], "seed");
+    session.scenarioManager().setSeed(seed);
+    session.reset();
+    out << "Seed set to " << seed << "; run reset\n";
+}
+
+void addStaticRoute(Session& session, const Args& args, std::ostream& out) {
+    const std::string usage = "route add <router> <dst> via <next>";
+    requireArgCount(args, {4}, usage);
+    requireWord(args, 2, "via", "Usage: " + usage);
+
+    session.ensureEngine();
+    Graph& graph = session.engine()->mutableGraph();
+    Router& router = requireRouter(graph, args[0]);
+    const Node& destination = requireNode(graph, args[1]);
+    const Node& nextHop = requireNode(graph, args[3]);
+    if (graph.linkBetween(router.getId(), nextHop.getId()) == nullptr) {
+        throw TopologyError("Next hop '" + args[3] + "' is not directly connected to router '" +
+                            args[0] + "'");
+    }
+
+    session.engine()->routingManager().addStaticRoute(graph, router.getId(), destination.getId(),
+                                                      nextHop.getId());
+    out << "Static route added on " << args[0] << ": " << args[1] << " via " << args[3] << '\n';
+}
+
+void addFlow(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {4, 6, 7}, "add flow <src> <dst> <mbps> <bytes> [start stop] [bursty]");
+    session.ensureEngine();
+    SimulationEngine& engine = *session.engine();
+    const Graph& graph = engine.graph();
+
+    const NodeId source = requireHost(graph, args[0]);
+    const NodeId destination = requireHost(graph, args[1]);
+    const double rateMbps = parseNumber(args[2], "rate");
+    const std::uint64_t packetBytes = parseUnsigned(args[3], "packet size");
+    if (packetBytes == 0 || packetBytes > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument("Packet size must be in 1..4294967295 bytes");
+    }
+
+    SimTime start = engine.now();
+    SimTime stop = start + 10.0;
+    if (args.size() >= 6) {
+        start = parseNumber(args[4], "start time");
+        stop = parseNumber(args[5], "stop time");
+    }
+    if (start < engine.now() || stop <= start) {
+        throw std::invalid_argument("Flow times must satisfy now <= start < stop");
+    }
+
+    const bool bursty = args.size() == 7;
+    if (bursty) {
+        requireWord(args, 6, "bursty", "The optional traffic pattern must be 'bursty'");
+    }
+
+    const auto bytes = static_cast<std::uint32_t>(packetBytes);
+    std::unique_ptr<TrafficPattern> pattern;
+    if (bursty) {
+        pattern = std::make_unique<BurstyPattern>(0.5, 0.5, rateMbps, bytes);
+    } else {
+        pattern = std::make_unique<ConstantRate>(rateMbps, bytes);
+    }
+
+    const FlowId id = engine.allocateFlowId();
+    engine.addFlow(Flow(id, source, destination, start, stop, std::move(pattern)));
+    out << "Flow " << id << " added (" << args[0] << " -> " << args[1] << ", " << rateMbps
+        << " Mbps, " << bytes << " bytes)\n";
+}
+
+void ping(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {2, 3}, "ping <A> <B> [count]");
+    session.ensureEngine();
+    SimulationEngine& engine = *session.engine();
+    const NodeId source = requireHost(engine.graph(), args[0]);
+    const NodeId destination = requireHost(engine.graph(), args[1]);
+    const std::uint64_t count =
+        parseCount(args, 2, 4, "count", 1000, "Ping count must be between 1 and 1000");
+
+    const SimTime firstSendTime = engine.now();
+    std::vector<std::optional<double>> rttsMs(static_cast<std::size_t>(count));
+    PingReplyObserver observer(source, destination, firstSendTime, rttsMs);
+    engine.addObserver(observer);
+    for (std::uint64_t i = 0; i < count; ++i) {
+        engine.scheduleEvent(firstSendTime + static_cast<double>(i),
+                             makeEchoRequest(engine.allocatePacketId(), source, destination));
+    }
+
+    const SimTime deadline = firstSendTime + static_cast<double>(count - 1) + 2.0;
+    runUntilDeadline(engine, deadline, [&rttsMs]() {
+        return std::all_of(rttsMs.begin(), rttsMs.end(),
+                           [](const std::optional<double>& rtt) { return rtt.has_value(); });
+    });
+    engine.removeObserver(observer);
+
+    std::size_t received = 0;
+    double sumMs = 0.0;
+    double minimumMs = std::numeric_limits<double>::infinity();
+    double maximumMs = 0.0;
+    for (const std::optional<double>& rtt : rttsMs) {
+        if (!rtt) {
+            out << "Request timed out\n";
+            continue;
+        }
+        ++received;
+        sumMs += *rtt;
+        minimumMs = std::min(minimumMs, *rtt);
+        maximumMs = std::max(maximumMs, *rtt);
+        out << "Reply from " << args[1] << ": time=" << std::fixed << std::setprecision(3)
+            << *rtt << " ms\n";
+    }
+
+    const double lossPct =
+        100.0 * static_cast<double>(count - received) / static_cast<double>(count);
+    out << "Ping statistics: sent=" << count << ", received=" << received
+        << ", loss=" << std::fixed << std::setprecision(1) << lossPct << "%";
+    if (received > 0) {
+        out << ", min/avg/max=" << std::fixed << std::setprecision(3) << minimumMs << "/"
+            << sumMs / static_cast<double>(received) << "/" << maximumMs << " ms";
+    }
+    out << '\n';
+}
+
+void traceroute(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {2}, "traceroute <A> <B>");
+    session.ensureEngine();
+    SimulationEngine& engine = *session.engine();
+    const Graph& graph = engine.graph();
+    const NodeId source = requireHost(graph, args[0]);
+    const NodeId destination = requireHost(graph, args[1]);
+
+    const SimTime start = engine.now();
+    const PacketId probeId = engine.allocatePacketId();
+    std::vector<HopArrival> arrivals;
+    bool reachedDestination = false;
+    TracerouteObserver observer(probeId, destination, arrivals, reachedDestination);
+    engine.addObserver(observer);
+    engine.scheduleEvent(start, makeEchoRequest(probeId, source, destination));
+    runUntilDeadline(engine, start + 2.0, [&reachedDestination]() { return reachedDestination; });
+    engine.removeObserver(observer);
+
+    out << "Tracing route from " << args[0] << " to " << args[1] << '\n';
+    std::size_t hopNumber = 1;
+    for (const HopArrival& arrival : arrivals) {
+        out << std::setw(2) << hopNumber << "  " << nodeName(graph, arrival.nodeId) << "  "
+            << std::fixed << std::setprecision(3) << (arrival.time - start) * 1000.0 << " ms\n";
+        ++hopNumber;
+    }
+    if (!reachedDestination) {
+        out << std::setw(2) << hopNumber << "  Request timed out\n";
+    }
+}
+
+void scheduleLinkEvent(Session& session, const Args& args, std::ostream& out, bool restore) {
+    requireArgCount(args, {4}, std::string(restore ? "restore" : "fail") + " link <A> <B> at <t>");
+    requireWord(args, 2, "at", "Expected 'at <time>'");
+
+    session.ensureEngine();
+    const Link& link = requireLink(session.engine()->graph(), args[0], args[1]);
+    const SimTime time = parseNumber(args[3], "event time");
+    requireNotInPast(session, time);
+
+    std::shared_ptr<NetworkEvent> event;
+    if (restore) {
+        event = std::make_shared<LinkRestoreEvent>(link.getId());
+    } else {
+        event = std::make_shared<LinkFailureEvent>(link.getId());
+    }
+    session.engine()->scheduleEvent(time, std::move(event));
+    out << (restore ? "Link restore" : "Link failure") << " scheduled for " << args[0] << "-"
+        << args[1] << " at " << time << " s\n";
+}
+
+void scheduleRouterEvent(Session& session, const Args& args, std::ostream& out, bool restore) {
+    requireArgCount(args, {3}, std::string(restore ? "restore" : "fail") + " router <R> at <t>");
+    requireWord(args, 1, "at", "Expected 'at <time>'");
+
+    session.ensureEngine();
+    const Node& node = requireNode(session.engine()->graph(), args[0]);
+    if (node.type() != NodeType::ROUTER) {
+        throw TopologyError("Node '" + args[0] + "' is not a router");
+    }
+    const SimTime time = parseNumber(args[2], "event time");
+    requireNotInPast(session, time);
+
+    std::shared_ptr<NetworkEvent> event;
+    if (restore) {
+        event = std::make_shared<RouterRestoreEvent>(node.getId());
+    } else {
+        event = std::make_shared<RouterFailureEvent>(node.getId());
+    }
+    session.engine()->scheduleEvent(time, std::move(event));
+    out << (restore ? "Router restore" : "Router failure") << " scheduled for " << args[0]
+        << " at " << time << " s\n";
+}
+
+void congestLink(Session& session, const Args& args, std::ostream& out) {
+    const std::string usage = "congest link <A> <B> factor <f> at <t> for <d>";
+    requireArgCount(args, {8}, usage);
+    requireWord(args, 2, "factor", "Usage: " + usage);
+    requireWord(args, 4, "at", "Usage: " + usage);
+    requireWord(args, 6, "for", "Usage: " + usage);
+
+    session.ensureEngine();
+    const Link& link = requireLink(session.engine()->graph(), args[0], args[1]);
+    const double factor = parseNumber(args[3], "bandwidth factor");
+    const SimTime time = parseNumber(args[5], "event time");
+    const SimTime duration = parseNumber(args[7], "duration");
+    requireNotInPast(session, time);
+
+    session.engine()->scheduleEvent(
+        time, std::make_shared<CongestionEvent>(link.getId(), factor, 0.0, duration));
+    out << "Congestion scheduled for " << args[0] << "-" << args[1] << " at " << time
+        << " s (bandwidth factor " << factor << ", duration " << duration << " s)\n";
+}
+
+void scheduleBurst(Session& session, const Args& args, std::ostream& out) {
+    const std::string usage = "burst <src> <dst> <mbps> at <t> for <d>";
+    requireArgCount(args, {7}, usage);
+    requireWord(args, 3, "at", "Usage: " + usage);
+    requireWord(args, 5, "for", "Usage: " + usage);
+
+    session.ensureEngine();
+    const Graph& graph = session.engine()->graph();
+    const NodeId source = requireHost(graph, args[0]);
+    const NodeId destination = requireHost(graph, args[1]);
+    const double rateMbps = parseNumber(args[2], "rate");
+    const SimTime time = parseNumber(args[4], "event time");
+    const SimTime duration = parseNumber(args[6], "duration");
+    requireNotInPast(session, time);
+    if (rateMbps <= 0.0 || duration <= 0.0) {
+        throw std::invalid_argument("Rate and duration must be positive");
+    }
+
+    const FlowId id = session.engine()->allocateFlowId();
+    session.engine()->scheduleEvent(time, std::make_shared<TrafficBurstEvent>(
+                                              id, source, destination, duration, rateMbps, 1000));
+    out << "Burst scheduled for " << args[0] << " -> " << args[1] << " at " << time << " s for "
+        << duration << " s\n";
+}
+
+void runFor(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {1}, "run <seconds>");
+    const SimTime duration = parseNumber(args[0], "duration");
+    if (duration < 0.0) {
+        throw std::invalid_argument("Run duration must be non-negative");
+    }
+
+    session.ensureEngine();
+    const SimTime end = session.engine()->now() + duration;
+    if (session.scenarioManager().hasScenario() &&
+        end > session.scenarioManager().durationSeconds()) {
+        throw ConfigError("Run would exceed the scenario duration");
+    }
+    session.engine()->runUntil(end);
+    out << "Simulation time: " << std::fixed << std::setprecision(6) << session.engine()->now()
+        << " s\n";
+}
+
+void stepEvents(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {0, 1}, "step [n]");
+    const std::uint64_t count =
+        parseCount(args, 0, 1, "step count", 100000, "Step count must be between 1 and 100000");
+
+    session.ensureEngine();
+    for (std::uint64_t i = 0; i < count; ++i) {
+        if (session.engine()->finished()) {
+            out << "No pending events\n";
+            break;
+        }
+        session.clearStepMessages();
+        session.engine()->step();
+        if (session.stepMessages().empty()) {
+            out << "[t=" << std::fixed << std::setprecision(6) << session.engine()->now()
+                << "] event processed\n";
+        }
+        for (const std::string& message : session.stepMessages()) {
+            out << message << '\n';
+        }
+    }
+}
+
+struct AlgorithmResult {
+    std::size_t hops = 0;
+    double avgLatencyMs = 0.0;
+    double avgLossPct = 0.0;
+    double avgThroughputMbps = 0.0;
+    double recoveryTimeS = 0.0;
+    std::size_t routersProcessed = 0;
+    double computeMicroseconds = 0.0;
+};
+
+AlgorithmResult evaluateAlgorithm(Session& session, const std::string& algorithm, NodeId source,
+                                  NodeId destination) {
+    AlgorithmResult result;
+    ScenarioManager clone = session.scenarioManager().cloneWith(algorithm);
+
+    RoutingManager routing;
+    routing.setAlgorithm(algorithm);
+    routing.setPolicy(session.scenarioManager().routingWeight());
+    const auto computeStart = std::chrono::steady_clock::now();
+    result.routersProcessed = routing.recomputeAll(clone.mutableGraph()).routersProcessed;
+    const auto computeEnd = std::chrono::steady_clock::now();
+    result.computeMicroseconds =
+        std::chrono::duration<double, std::micro>(computeEnd - computeStart).count();
+
+    const std::vector<NodeId> route = routing.explainRoute(clone.graph(), source, destination);
+    if (!route.empty()) {
+        result.hops = route.size() - 1;
+    }
+
+    MetricsCollector metrics(clone.graph());
+    SimulationEngine engine(clone.seed());
+    engine.addObserver(metrics);
+    clone.run(engine, clone.durationSeconds());
+    metrics.finalize(engine.now());
+
+    const std::vector<FlowMetrics>& flows = metrics.flows();
+    for (const FlowMetrics& flow : flows) {
+        result.avgLatencyMs += flow.avgLatencyMs;
+        result.avgLossPct += flow.lossPct;
+        result.avgThroughputMbps += flow.throughputMbps;
+    }
+    if (!flows.empty()) {
+        const auto flowCount = static_cast<double>(flows.size());
+        result.avgLatencyMs /= flowCount;
+        result.avgLossPct /= flowCount;
+        result.avgThroughputMbps /= flowCount;
+    }
+    result.recoveryTimeS = metrics.network().recoveryTimeS;
+    return result;
+}
+
+void compareAlgorithms(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {2}, "compare <source-host> <destination-host>");
+    if (!session.scenarioManager().hasScenario()) {
+        throw ConfigError("compare requires a loaded scenario file");
+    }
+
+    const Graph& graph =
+        session.engine() ? session.engine()->graph() : session.scenarioManager().graph();
+    const NodeId source = requireHost(graph, args[0]);
+    const NodeId destination = requireHost(graph, args[1]);
+
+    out << std::left << std::setw(16) << "Algorithm" << std::setw(8) << "Hops"
+        << std::setw(16) << "Avg latency" << std::setw(12) << "Loss %"
+        << std::setw(15) << "Throughput" << std::setw(15) << "Recovery(s)"
+        << std::setw(18) << "Route computes" << "Compute us\n";
+    for (const std::string algorithm : {"bfs", "dfs", "dijkstra", "bellman-ford"}) {
+        const AlgorithmResult result = evaluateAlgorithm(session, algorithm, source, destination);
+        out << std::left << std::setw(16) << algorithm << std::setw(8) << result.hops
+            << std::fixed << std::setprecision(3) << std::setw(16) << result.avgLatencyMs << " ms"
+            << std::setprecision(2) << std::setw(12) << result.avgLossPct
+            << std::setprecision(3) << std::setw(15) << result.avgThroughputMbps << " Mbps"
+            << std::setw(15) << result.recoveryTimeS << std::setw(18) << result.routersProcessed
+            << std::setprecision(2) << result.computeMicroseconds << '\n';
+    }
+}
+
+std::string nextFreeRunId(const std::filesystem::path& directory) {
+    for (unsigned index = 1;; ++index) {
+        std::ostringstream name;
+        name << "run_" << std::setw(3) << std::setfill('0') << index;
+        if (!std::filesystem::exists(directory / (name.str() + ".json"))) {
+            return name.str();
+        }
+    }
+}
+
+void exportRun(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {0, 1}, "export [dir]");
+    if (!args.empty()) {
+        session.setOutputDirectory(args[0]);
+    }
+    finishMetrics(session);
+    session.traceLogger()->flush();
+
+    const std::filesystem::path directory = session.outputDirectory();
+    std::filesystem::create_directories(directory);
+    const std::string runId = nextFreeRunId(directory);
+
+    const nlohmann::json manifest{
+        {"seed", session.scenarioManager().seed()},
+        {"algorithm", session.engine()->routingManager().algorithmName()},
+        {"weight", session.engine()->routingManager().policyName()},
+        {"topology", session.scenarioManager().topologyPath()},
+        {"simulation_time_s", session.engine()->now()}};
+    Exporters::exportAll(directory, runId, *session.metrics(), manifest.dump(2));
+    std::filesystem::copy_file(session.tracePath(), directory / (runId + "_trace.csv"),
+                               std::filesystem::copy_options::overwrite_existing);
+    out << "Exported run files to " << directory.string() << " (" << runId << ")\n";
+}
+
+void resetRun(Session& session, const Args& args, std::ostream& out) {
+    requireArgCount(args, {0}, "reset");
+    session.reset();
+    out << "Run reset; loaded topology/scenario retained\n";
+}
+
+void registerCommand(CommandLineInterface& cli, std::string name, std::string help,
+                     FunctionCommand::Handler handler) {
+    cli.addCommand(
+        std::make_unique<FunctionCommand>(std::move(name), std::move(help), std::move(handler)));
+}
+
+}
 
 void registerSimulationCommands(CommandLineInterface& cli) {
-    registerCommand(cli, "show route", "Show a router forwarding table",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {1}, "show route <router>");
-            s.ensureEngine();
-            auto& router = requireRouter(s.engine()->mutableGraph(), a[0]);
-            out << "Destination  Next hop       Cost       Source\n";
-            for (const auto& item : router.forwardingTable().toSortedVector()) {
-                out << std::left << std::setw(13)
-                    << nodeName(s.engine()->graph(), item.first)
-                    << std::setw(15)
-                    << nodeName(s.engine()->graph(), item.second.nextHop)
-                    << std::right << std::fixed << std::setprecision(4)
-                    << std::setw(11) << item.second.cost << "       "
-                    << (item.second.source == ForwardingTable::Source::STATIC ? 'S' : 'D')
-                    << '\n';
-            }
-        });
-
-    registerCommand(cli, "show queue", "Show directional queues for a link",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {1, 2}, "show queue <A>-<B> (or show queue <A> <B>)");
-            std::string first, second;
-            if (a.size() == 2) { first = a[0]; second = a[1]; }
-            else {
-                const auto split = a[0].find('-');
-                if (split == std::string::npos || split == 0 || split + 1 == a[0].size())
-                    throw std::invalid_argument("Link must be written as A-B");
-                first = a[0].substr(0, split); second = a[0].substr(split + 1);
-            }
-            s.ensureEngine();
-            const Graph& graph = s.engine()->graph();
-            const Link& link = requireLink(graph, first, second);
-            finishMetrics(s);
-            out << "Direction     Queued  Max seen  Queue drops  Loss drops  Down drops\n";
-            for (Direction direction : {Direction::AtoB, Direction::BtoA}) {
-                const NodeId from = direction == Direction::AtoB ? link.a() : link.b();
-                const NodeId to = direction == Direction::AtoB ? link.b() : link.a();
-                const ChannelId id{link.getId(), direction};
-                std::size_t queued = 0;
-                for (const auto& snapshot : s.engine()->channelSnapshots(link.getId()))
-                    if (snapshot.id.dir == direction) queued = snapshot.queuedPackets;
-                std::size_t maxSeen = 0, qdrop = 0, ldrop = 0, ddrop = 0;
-                for (const auto& metric : s.metrics()->channels()) if (
-                    metric.channel.linkId == id.linkId && metric.channel.dir == id.dir) {
-                    maxSeen = metric.maxQueue; qdrop = metric.dropsQueue;
-                    ldrop = metric.dropsLoss; ddrop = metric.dropsDown;
-                }
-                out << std::left << std::setw(14)
-                    << (nodeName(graph, from) + ">" + nodeName(graph, to))
-                    << std::right << std::setw(7) << queued
-                    << std::setw(9) << maxSeen
-                    << std::setw(13) << qdrop << std::setw(12) << ldrop
-                    << std::setw(12) << ddrop << '\n';
-            }
-        });
-
+    registerCommand(cli, "show route", "Show a router forwarding table", showRoute);
+    registerCommand(cli, "show queue", "Show directional queues for a link", showQueue);
     registerCommand(cli, "show metrics", "Show run aggregates, optionally for one flow",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {0, 1}, "show metrics [flow]");
-            finishMetrics(s);
-            const auto& metrics = *s.metrics();
-            out << "Network: reliability=" << std::fixed << std::setprecision(2)
-                << metrics.network().reliabilityPct << "% throughput="
-                << metrics.network().avgThroughputMbps << " Mbps latency="
-                << metrics.network().avgLatencyMs << " ms drops="
-                << metrics.network().totalDrops << " events="
-                << metrics.network().events << '\n';
-            const std::optional<FlowId> selected = a.empty() ? std::nullopt
-                : std::optional<FlowId>(static_cast<FlowId>(integer(a[0], "flow ID")));
-            out << "Flow  Sent  Delivered  Dropped  Loss%  Avg latency ms  Throughput Mbps\n";
-            for (const auto& flow : metrics.flows()) {
-                if (selected && flow.flowId != *selected) continue;
-                out << std::setw(4) << flow.flowId << std::setw(6) << flow.sent
-                    << std::setw(11) << flow.delivered << std::setw(9) << flow.dropped
-                    << std::setw(7) << std::setprecision(2) << flow.lossPct
-                    << std::setw(16) << flow.avgLatencyMs
-                    << std::setw(18) << flow.throughputMbps << '\n';
-            }
-            if (!selected) {
-                Report report(metrics);
-                out << "Most utilized channels:\n";
-                for (const auto& item : report.topLinksByUtilization(3))
-                    out << "  " << item.name << " " << item.metric << "%\n";
-            }
-        });
-
-    registerCommand(cli, "set algo", "Select bfs, dfs, dijkstra, or bellman-ford",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {1}, "set algo <bfs|dfs|dijkstra|bellman-ford>");
-            s.scenarioManager().setRoutingAlgorithm(a[0]);
-            if (s.engine()) {
-                auto& rm = s.engine()->routingManager();
-                rm.setAlgorithm(a[0]); rm.setPolicy(s.scenarioManager().routingWeight());
-                (void)rm.recomputeAll(s.engine()->mutableGraph());
-            }
-            out << "Routing algorithm set to " << a[0] << '\n';
-        });
-
-    registerCommand(cli, "set weight", "Select hops or latency routing weights",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {1}, "set weight <hops|latency>");
-            s.scenarioManager().setRoutingWeight(a[0]);
-            if (s.engine()) {
-                auto& rm = s.engine()->routingManager();
-                rm.setAlgorithm(s.scenarioManager().routingAlgorithm());
-                rm.setPolicy(a[0]); (void)rm.recomputeAll(s.engine()->mutableGraph());
-            }
-            out << "Routing weight set to " << a[0] << '\n';
-        });
-
-    registerCommand(cli, "set seed", "Set the random seed and reset the run",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {1}, "set seed <n>");
-            const auto seed = integer(a[0], "seed");
-            s.scenarioManager().setSeed(seed);
-            s.reset();
-            out << "Seed set to " << seed << "; run reset\n";
-        });
-
-    registerCommand(cli, "route add", "Install a static route on a router",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {4}, "route add <router> <dst> via <next>");
-            if (a[2] != "via") throw std::invalid_argument("Usage: route add <router> <dst> via <next>");
-            s.ensureEngine(); Graph& graph = s.engine()->mutableGraph();
-            Router& router = requireRouter(graph, a[0]);
-            const Node& dst = requireNode(graph, a[1]);
-            const Node& next = requireNode(graph, a[3]);
-            if (graph.linkBetween(router.getId(), next.getId()) == nullptr)
-                throw TopologyError("Next hop '" + a[3] + "' is not directly connected to router '" + a[0] + "'");
-            s.engine()->routingManager().addStaticRoute(
-                graph, router.getId(), dst.getId(), next.getId());
-            out << "Static route added on " << a[0] << ": " << a[1]
-                << " via " << a[3] << '\n';
-        });
-
-    registerCommand(cli, "add flow", "Add a constant or bursty traffic flow",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {4, 6, 7}, "add flow <src> <dst> <mbps> <bytes> [start stop] [bursty]");
-            s.ensureEngine();
-            const Graph& graph = s.engine()->graph();
-            const NodeId src = requireHost(graph, a[0]);
-            const NodeId dst = requireHost(graph, a[1]);
-            const double rate = number(a[2], "rate");
-            const auto bytes64 = integer(a[3], "packet size");
-            if (bytes64 == 0 || bytes64 > std::numeric_limits<std::uint32_t>::max())
-                throw std::invalid_argument("Packet size must be in 1..4294967295 bytes");
-            const SimTime start = a.size() >= 6 ? number(a[4], "start time") : s.engine()->now();
-            const SimTime stop = a.size() >= 6 ? number(a[5], "stop time") : start + 10.0;
-            if (start < s.engine()->now() || stop <= start)
-                throw std::invalid_argument("Flow times must satisfy now <= start < stop");
-            if (a.size() == 7 && a[6] != "bursty")
-                throw std::invalid_argument("The optional traffic pattern must be 'bursty'");
-            std::unique_ptr<TrafficPattern> pattern;
-            if (a.size() == 7)
-                pattern = std::make_unique<BurstyPattern>(0.5, 0.5, rate, static_cast<std::uint32_t>(bytes64));
-            else
-                pattern = std::make_unique<ConstantRate>(rate, static_cast<std::uint32_t>(bytes64));
-            const FlowId id = s.engine()->allocateFlowId();
-            s.engine()->addFlow(Flow(id, src, dst, start, stop, std::move(pattern)));
-            out << "Flow " << id << " added (" << a[0] << " -> " << a[1]
-                << ", " << rate << " Mbps, " << bytes64 << " bytes)\n";
-        });
-
-    registerCommand(cli, "ping", "Send echo requests between two hosts",
-    [](Session& s, const auto& a, auto& out) {
-        requireCount(a, {2, 3}, "ping <A> <B> [count]");
-        s.ensureEngine();
-
-        const Graph& graph = s.engine()->graph();
-        const NodeId src = requireHost(graph, a[0]);
-        const NodeId dst = requireHost(graph, a[1]);
-
-        const std::uint64_t count =
-            a.size() == 3 ? integer(a[2], "count") : 4;
-        if (count == 0 || count > 1000) {
-            throw std::invalid_argument(
-                "Ping count must be between 1 and 1000");
-        }
-
-        SimulationEngine& engine = *s.engine();
-        const SimTime firstSendTime = engine.now();
-        std::vector<std::optional<double>> rtts(
-            static_cast<std::size_t>(count));
-
-        PingReplyObserver observer(
-            src, dst, firstSendTime, rtts);
-        engine.addObserver(observer);
-
-        for (std::uint64_t i = 0; i < count; ++i) {
-            Packet request;
-            request.id = engine.allocatePacketId();
-            request.srcId = src;
-            request.dstId = dst;
-            request.sizeBytes = 64;
-            request.type = PacketType::ECHO_REQUEST;
-
-            engine.scheduleEvent(
-                firstSendTime + static_cast<double>(i),
-                std::make_shared<PingRequestEvent>(std::move(request)));
-        }
-
-                                                                         
-                                           
-        const SimTime deadline =
-            firstSendTime + static_cast<double>(count - 1) + 2.0;
-
-        const auto allRepliesReceived = [&rtts]() {
-            return std::all_of(
-                rtts.begin(),
-                rtts.end(),
-                [](const auto& rtt) { return rtt.has_value(); });
-        };
-
-        runUntilDeadline(engine, deadline, allRepliesReceived);
-        engine.removeObserver(observer);
-
-        std::size_t received = 0;
-        double sum = 0.0;
-        double minimum = std::numeric_limits<double>::infinity();
-        double maximum = 0.0;
-
-        for (std::size_t i = 0; i < rtts.size(); ++i) {
-            if (!rtts[i]) {
-                out << "Request timed out\n";
-                continue;
-            }
-
-            ++received;
-            sum += *rtts[i];
-            minimum = std::min(minimum, *rtts[i]);
-            maximum = std::max(maximum, *rtts[i]);
-
-            out << "Reply from " << a[1]
-                << ": time=" << std::fixed << std::setprecision(3)
-                << *rtts[i] << " ms\n";
-        }
-
-        const double lossPct =
-            100.0 * static_cast<double>(count - received) /
-            static_cast<double>(count);
-
-        out << "Ping statistics: sent=" << count
-            << ", received=" << received
-            << ", loss=" << std::fixed << std::setprecision(1)
-            << lossPct << "%";
-
-        if (received > 0) {
-            out << ", min/avg/max="
-                << std::fixed << std::setprecision(3)
-                << minimum << "/"
-                << sum / static_cast<double>(received) << "/"
-                << maximum << " ms";
-        }
-        out << '\n';
-    });
-
-    registerCommand(cli, "traceroute", "Trace a simulated packet's route",
-    [](Session& s, const auto& a, auto& out) {
-        requireCount(a, {2}, "traceroute <A> <B>");
-        s.ensureEngine();
-
-        SimulationEngine& engine = *s.engine();
-        const Graph& graph = engine.graph();
-        const NodeId src = requireHost(graph, a[0]);
-        const NodeId dst = requireHost(graph, a[1]);
-
-        const SimTime start = engine.now();
-        const PacketId probeId = engine.allocatePacketId();
-        std::vector<TracerouteObserver::HopArrival> arrivals;
-        bool reachedDestination = false;
-
-        TracerouteObserver observer(
-            probeId, dst, arrivals, reachedDestination);
-        engine.addObserver(observer);
-
-        Packet probe;
-        probe.id = probeId;
-        probe.srcId = src;
-        probe.dstId = dst;
-        probe.sizeBytes = 64;
-        probe.type = PacketType::ECHO_REQUEST;
-
-        engine.scheduleEvent(
-            start,
-            std::make_shared<PingRequestEvent>(std::move(probe)));
-
-        runUntilDeadline(
-            engine,
-            start + 2.0,
-            [&reachedDestination]() { return reachedDestination; });
-
-        engine.removeObserver(observer);
-
-        out << "Tracing route from " << a[0] << " to " << a[1] << '\n';
-
-        std::size_t hopNumber = 1;
-        for (const auto& arrival : arrivals) {
-            out << std::setw(2) << hopNumber++ << "  "
-                << nodeName(graph, arrival.nodeId) << "  "
-                << std::fixed << std::setprecision(3)
-                << (arrival.time - start) * 1000.0 << " ms\n";
-        }
-
-        if (!reachedDestination) {
-            out << std::setw(2) << hopNumber
-                << "  Request timed out\n";
-        }
-    });
-
-    auto scheduleLinkCommand = [&cli](const std::string& command, bool restore) {
-        registerCommand(cli, command, restore ? "Schedule link restoration" : "Schedule link failure",
-            [restore](Session& s, const auto& a, auto& out) {
-                requireCount(a, {4}, restore ? "restore link <A> <B> at <t>" : "fail link <A> <B> at <t>");
-                if (a[2] != "at") throw std::invalid_argument("Expected 'at <time>'");
-                s.ensureEngine(); const Link& link = requireLink(s.engine()->graph(), a[0], a[1]);
-                const SimTime time = number(a[3], "event time");
-                if (time < s.engine()->now()) throw std::invalid_argument("Event time cannot be before current simulation time");
-                std::shared_ptr<NetworkEvent> event;
-                if (restore) event = std::make_shared<LinkRestoreEvent>(link.getId());
-                else event = std::make_shared<LinkFailureEvent>(link.getId());
-                s.engine()->scheduleEvent(time, std::move(event));
-                out << (restore ? "Link restore" : "Link failure") << " scheduled for "
-                    << a[0] << "-" << a[1] << " at " << time << " s\n";
-            });
-    };
-    scheduleLinkCommand("fail link", false);
-    scheduleLinkCommand("restore link", true);
-
-    auto scheduleRouterCommand = [&cli](const std::string& command, bool restore) {
-        registerCommand(cli, command, restore ? "Schedule router restoration" : "Schedule router failure",
-            [restore](Session& s, const auto& a, auto& out) {
-                requireCount(a, {3}, restore ? "restore router <R> at <t>" : "fail router <R> at <t>");
-                if (a[1] != "at") throw std::invalid_argument("Expected 'at <time>'");
-                s.ensureEngine(); const Node& node = requireNode(s.engine()->graph(), a[0]);
-                if (node.type() != NodeType::ROUTER) throw TopologyError("Node '" + a[0] + "' is not a router");
-                const SimTime time = number(a[2], "event time");
-                if (time < s.engine()->now()) throw std::invalid_argument("Event time cannot be before current simulation time");
-                std::shared_ptr<NetworkEvent> event;
-                if (restore) event = std::make_shared<RouterRestoreEvent>(node.getId());
-                else event = std::make_shared<RouterFailureEvent>(node.getId());
-                s.engine()->scheduleEvent(time, std::move(event));
-                out << (restore ? "Router restore" : "Router failure") << " scheduled for "
-                    << a[0] << " at " << time << " s\n";
-            });
-    };
-    scheduleRouterCommand("fail router", false);
-    scheduleRouterCommand("restore router", true);
-
-    registerCommand(cli, "congest link", "Schedule temporary link degradation",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {8}, "congest link <A> <B> factor <f> at <t> for <d>");
-            if (a[2] != "factor" || a[4] != "at" || a[6] != "for")
-                throw std::invalid_argument("Usage: congest link <A> <B> factor <f> at <t> for <d>");
-            s.ensureEngine(); const Link& link = requireLink(s.engine()->graph(), a[0], a[1]);
-            const double factor = number(a[3], "bandwidth factor");
-            const SimTime time = number(a[5], "event time");
-            const SimTime duration = number(a[7], "duration");
-            if (time < s.engine()->now()) throw std::invalid_argument("Event time cannot be before current simulation time");
-            s.engine()->scheduleEvent(time, std::make_shared<CongestionEvent>(link.getId(), factor, 0.0, duration));
-            out << "Congestion scheduled for " << a[0] << "-" << a[1]
-                << " at " << time << " s (bandwidth factor " << factor
-                << ", duration " << duration << " s)\n";
-        });
-
-    registerCommand(cli, "burst", "Schedule a temporary burst flow",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {7}, "burst <src> <dst> <mbps> at <t> for <d>");
-            if (a[3] != "at" || a[5] != "for") throw std::invalid_argument("Usage: burst <src> <dst> <mbps> at <t> for <d>");
-            s.ensureEngine(); const Graph& graph = s.engine()->graph();
-            const NodeId src = requireHost(graph, a[0]); const NodeId dst = requireHost(graph, a[1]);
-            const double rate = number(a[2], "rate"); const SimTime time = number(a[4], "event time"); const SimTime duration = number(a[6], "duration");
-            if (time < s.engine()->now()) throw std::invalid_argument("Event time cannot be before current simulation time");
-            if (rate <= 0.0 || duration <= 0.0) throw std::invalid_argument("Rate and duration must be positive");
-            const FlowId id = s.engine()->allocateFlowId();
-            s.engine()->scheduleEvent(time, std::make_shared<TrafficBurstEvent>(id, src, dst, duration, rate, 1000));
-            out << "Burst scheduled for " << a[0] << " -> " << a[1] << " at " << time << " s for " << duration << " s\n";
-        });
-
-    registerCommand(cli, "run", "Advance the simulation by a number of seconds",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {1}, "run <seconds>"); const SimTime duration = number(a[0], "duration");
-            if (duration < 0.0) throw std::invalid_argument("Run duration must be non-negative");
-            s.ensureEngine(); const SimTime end = s.engine()->now() + duration;
-            if (s.scenarioManager().hasScenario() && end > s.scenarioManager().durationSeconds())
-                throw ConfigError("Run would exceed the scenario duration");
-            s.engine()->runUntil(end); out << "Simulation time: " << std::fixed << std::setprecision(6) << s.engine()->now() << " s\n";
-        });
-
-    registerCommand(cli, "step", "Execute the next event or the next n events",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {0, 1}, "step [n]"); const std::uint64_t count = a.empty() ? 1 : integer(a[0], "step count");
-            if (count == 0 || count > 100000) throw std::invalid_argument("Step count must be between 1 and 100000");
-            s.ensureEngine();
-            for (std::uint64_t i = 0; i < count; ++i) {
-                if (s.engine()->finished()) { out << "No pending events\n"; break; }
-                s.clearStepMessages(); s.engine()->step();
-                if (s.stepMessages().empty()) out << "[t=" << std::fixed << std::setprecision(6) << s.engine()->now() << "] event processed\n";
-                else for (const auto& message : s.stepMessages()) out << message << '\n';
-            }
-        });
-
-        registerCommand(cli, "compare", "Compare routing algorithms on the loaded scenario",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {2}, "compare <source-host> <destination-host>");
-
-            if (!s.scenarioManager().hasScenario()) {
-                throw ConfigError(
-                    "compare requires a loaded scenario file");
-            }
-
-            const Graph& active =
-                s.engine() ? s.engine()->graph()
-                           : s.scenarioManager().graph();
-
-            const NodeId src = requireHost(active, a[0]);
-            const NodeId dst = requireHost(active, a[1]);
-
-            const std::vector<std::string> algorithms{
-                "bfs",
-                "dfs",
-                "dijkstra",
-                "bellman-ford"
-            };
-
-            out << std::left
-                << std::setw(16) << "Algorithm"
-                << std::setw(8) << "Hops"
-                << std::setw(16) << "Avg latency"
-                << std::setw(12) << "Loss %"
-                << std::setw(15) << "Throughput"
-                << std::setw(15) << "Recovery(s)"
-                << std::setw(18) << "Route computes"
-                << "Compute us\n";
-
-            for (const auto& algorithm : algorithms) {
-                auto clone = s.scenarioManager().cloneWith(algorithm);
-
-                RoutingManager router;
-                router.setAlgorithm(algorithm);
-                router.setPolicy(s.scenarioManager().routingWeight());
-
-                const auto computeStart =
-                    std::chrono::steady_clock::now();
-
-                const RoutingChangeSummary routingSummary =
-                    router.recomputeAll(clone.mutableGraph());
-
-                const auto computeEnd =
-                    std::chrono::steady_clock::now();
-
-                const double computeMicroseconds =
-                    std::chrono::duration<double, std::micro>(
-                        computeEnd - computeStart)
-                        .count();
-
-                const auto route =
-                    router.explainRoute(clone.graph(), src, dst);
-
-                const std::size_t hops =
-                    route.empty() ? 0 : route.size() - 1;
-
-                MetricsCollector metrics(clone.graph());
-                SimulationEngine engine(clone.seed());
-                engine.addObserver(metrics);
-
-                const SimTime duration = clone.durationSeconds();
-                clone.run(engine, duration);
-                metrics.finalize(engine.now());
-
-                double latency = 0.0;
-                double loss = 0.0;
-                double throughput = 0.0;
-                std::size_t flowCount = 0;
-
-                for (const auto& flow : metrics.flows()) {
-                    latency += flow.avgLatencyMs;
-                    loss += flow.lossPct;
-                    throughput += flow.throughputMbps;
-                    ++flowCount;
-                }
-
-                if (flowCount > 0) {
-                    latency /= static_cast<double>(flowCount);
-                    loss /= static_cast<double>(flowCount);
-                    throughput /= static_cast<double>(flowCount);
-                }
-
-                out << std::left
-                    << std::setw(16) << algorithm
-                    << std::setw(8) << hops
-                    << std::fixed << std::setprecision(3)
-                    << std::setw(16) << latency << " ms"
-                    << std::setprecision(2)
-                    << std::setw(12) << loss
-                    << std::setprecision(3)
-                    << std::setw(15) << throughput << " Mbps"
-                    << std::setprecision(3)
-                    << std::setw(15)
-                    << metrics.network().recoveryTimeS
-                    << std::setw(18)
-                    << routingSummary.routersProcessed
-                    << std::setprecision(2)
-                    << computeMicroseconds << '\n';
-            }
-        });
-
-    registerCommand(cli, "export", "Write the trace, metrics, and manifest files",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {0, 1}, "export [dir]");
-            if (!a.empty()) s.setOutputDirectory(a[0]);
-            finishMetrics(s); s.traceLogger()->flush();
-            const auto dir = s.outputDirectory(); std::filesystem::create_directories(dir);
-            unsigned index = 1; std::string runId;
-            do { std::ostringstream name; name << "run_" << std::setw(3) << std::setfill('0') << index++; runId = name.str(); }
-            while (std::filesystem::exists(dir / (runId + ".json")));
-            nlohmann::json manifest{
-                {"seed", s.scenarioManager().seed()},
-                {"algorithm", s.engine()->routingManager().algorithmName()},
-                {"weight", s.engine()->routingManager().policyName()},
-                {"topology", s.scenarioManager().topologyPath()},
-                {"simulation_time_s", s.engine()->now()}};
-            Exporters::exportAll(dir, runId, *s.metrics(), manifest.dump(2));
-            const auto traceOut = dir / (runId + "_trace.csv");
-            std::filesystem::copy_file(s.tracePath(), traceOut, std::filesystem::copy_options::overwrite_existing);
-            out << "Exported run files to " << dir.string() << " (" << runId << ")\n";
-        });
-
+                    showMetrics);
+    registerCommand(cli, "set algo", "Select bfs, dfs, dijkstra, or bellman-ford", setAlgorithm);
+    registerCommand(cli, "set weight", "Select hops or latency routing weights", setWeight);
+    registerCommand(cli, "set seed", "Set the random seed and reset the run", setSeed);
+    registerCommand(cli, "route add", "Install a static route on a router", addStaticRoute);
+    registerCommand(cli, "add flow", "Add a constant or bursty traffic flow", addFlow);
+    registerCommand(cli, "ping", "Send echo requests between two hosts", ping);
+    registerCommand(cli, "traceroute", "Trace a simulated packet's route", traceroute);
+    registerCommand(cli, "fail link", "Schedule link failure",
+                    [](Session& session, const Args& args, std::ostream& out) {
+                        scheduleLinkEvent(session, args, out, false);
+                    });
+    registerCommand(cli, "restore link", "Schedule link restoration",
+                    [](Session& session, const Args& args, std::ostream& out) {
+                        scheduleLinkEvent(session, args, out, true);
+                    });
+    registerCommand(cli, "fail router", "Schedule router failure",
+                    [](Session& session, const Args& args, std::ostream& out) {
+                        scheduleRouterEvent(session, args, out, false);
+                    });
+    registerCommand(cli, "restore router", "Schedule router restoration",
+                    [](Session& session, const Args& args, std::ostream& out) {
+                        scheduleRouterEvent(session, args, out, true);
+                    });
+    registerCommand(cli, "congest link", "Schedule temporary link degradation", congestLink);
+    registerCommand(cli, "burst", "Schedule a temporary burst flow", scheduleBurst);
+    registerCommand(cli, "run", "Advance the simulation by a number of seconds", runFor);
+    registerCommand(cli, "step", "Execute the next event or the next n events", stepEvents);
+    registerCommand(cli, "compare", "Compare routing algorithms on the loaded scenario",
+                    compareAlgorithms);
+    registerCommand(cli, "export", "Write the trace, metrics, and manifest files", exportRun);
     registerCommand(cli, "reset", "Rebuild the engine and restore the loaded topology/scenario",
-        [](Session& s, const auto& a, auto& out) {
-            requireCount(a, {0}, "reset"); s.reset(); out << "Run reset; loaded topology/scenario retained\n";
-        });
+                    resetRun);
 }
 
-}                          
+}

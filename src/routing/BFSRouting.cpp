@@ -16,25 +16,20 @@ std::vector<NodeId> BFSRouting::computeRoute(const Graph& graph, NodeId src, Nod
     if (!graph.bfsPath(src, dst, path)) {
         return {};
     }
-
     return path;
 }
 
 std::unordered_map<NodeId, NodeId> BFSRouting::computeTable(const Graph& graph, NodeId src,
                                                             const WeightPolicy&) const {
-    std::unordered_map<NodeId, NodeId> nextHopByDestination;
-
+    std::unordered_map<NodeId, NodeId> firstHop;
     const Node* source = graph.getNode(src);
     if (source == nullptr || !source->isUp()) {
-        return nextHopByDestination;
+        return firstHop;
     }
 
     std::queue<NodeId> pending;
-    std::unordered_set<NodeId> visited;
-    std::unordered_map<NodeId, NodeId> firstHop;
-
+    std::unordered_set<NodeId> visited{src};
     pending.push(src);
-    visited.insert(src);
 
     while (!pending.empty()) {
         const NodeId current = pending.front();
@@ -47,22 +42,15 @@ std::unordered_map<NodeId, NodeId> BFSRouting::computeTable(const Graph& graph, 
         std::sort(neighbors.begin(), neighbors.end());
 
         for (const NodeId neighbor : neighbors) {
-            if (!visited.insert(neighbor).second) {
+            if (visited.count(neighbor) != 0) {
                 continue;
             }
-
+            visited.insert(neighbor);
             firstHop[neighbor] = current == src ? neighbor : firstHop.at(current);
-
             pending.push(neighbor);
         }
     }
-
-    nextHopByDestination.reserve(firstHop.size());
-    for (const auto& entry : firstHop) {
-        nextHopByDestination.emplace(entry.first, entry.second);
-    }
-
-    return nextHopByDestination;
+    return firstHop;
 }
 
 std::string BFSRouting::name() const {

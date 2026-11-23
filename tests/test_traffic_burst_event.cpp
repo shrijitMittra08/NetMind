@@ -57,6 +57,7 @@ std::unique_ptr<netmind::Graph> makeTwoHostGraph() {
 
 }             
 
+// Checks that a traffic burst sends packets 1 ms apart and reports flow start and stop events
 TEST_CASE("Traffic burst creates a temporary flow") {
     netmind::SimulationEngine engine(1234);
     BurstRecorder recorder;
@@ -86,6 +87,7 @@ TEST_CASE("Traffic burst creates a temporary flow") {
     REQUIRE(recorder.flowEvents[1] == "FLOW_STOP");
 }
 
+// Checks that a burst with zero duration, zero rate or zero packet size throws an error
 TEST_CASE("Traffic burst rejects invalid configuration") {
     REQUIRE_THROWS(
         netmind::TrafficBurstEvent(9, 1, 2, 0.0, 8.0, 1000));

@@ -15,10 +15,8 @@ class Graph {
   public:
     Graph() = default;
     ~Graph() = default;
-
     Graph(const Graph&) = delete;
     Graph& operator=(const Graph&) = delete;
-
     Graph(Graph&&) = default;
     Graph& operator=(Graph&&) = default;
 
@@ -28,32 +26,25 @@ class Graph {
 
     [[nodiscard]] Link* getLink(LinkId id);
     [[nodiscard]] const Link* getLink(LinkId id) const;
-
     [[nodiscard]] Node* getNode(NodeId id);
     [[nodiscard]] const Node* getNode(NodeId id) const;
-
     [[nodiscard]] Node* findByName(const std::string& name);
     [[nodiscard]] const Node* findByName(const std::string& name) const;
 
     [[nodiscard]] std::vector<const Link*> getNeighbours(NodeId id) const;
     [[nodiscard]] std::vector<const Link*> getActiveNeighbours(NodeId id) const;
-
     [[nodiscard]] const Link* linkBetween(NodeId a, NodeId b) const;
-
     [[nodiscard]] std::vector<NodeId> nodeIds() const;
 
     [[nodiscard]] bool bfsPath(NodeId src, NodeId dst, std::vector<NodeId>& outPath) const;
-
     [[nodiscard]] bool dfsPath(NodeId src, NodeId dst, std::vector<NodeId>& outPath) const;
-
     [[nodiscard]] std::vector<std::vector<NodeId>> connectedComponents() const;
-
-    [[nodiscard]] bool isConnected() const;
+    [[nodiscard]] bool isConnected() const { return connectedComponents().size() == 1; }
     [[nodiscard]] bool hasCycle() const;
     [[nodiscard]] std::vector<NodeId> reachableFrom(NodeId src) const;
 
-    [[nodiscard]] std::size_t numNodes() const;
-    [[nodiscard]] std::size_t numLinks() const;
+    [[nodiscard]] std::size_t numNodes() const { return nodes_.size(); }
+    [[nodiscard]] std::size_t numLinks() const { return links_.size(); }
 
   private:
     std::unordered_map<NodeId, std::unique_ptr<Node>> nodes_;

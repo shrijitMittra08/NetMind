@@ -50,6 +50,7 @@ const netmind::Router& routerA(const netmind::SimulationEngine& engine) {
 
 }             
 
+// Checks that a link failure makes the router switch to the backup path right away
 TEST_CASE("Link failure recomputes routes immediately by default") {
     netmind::SimulationEngine engine(1234);
     engine.setGraph(makeBackupPathGraph());
@@ -70,6 +71,7 @@ TEST_CASE("Link failure recomputes routes immediately by default") {
     REQUIRE(rerouted->nextHop == 4);
 }
 
+// Checks that routes keep the old next hop until the reconvergence delay has passed
 TEST_CASE("Route recomputation waits for configured reconvergence delay") {
     netmind::SimulationEngine engine(1234);
     engine.routingManager().setReconvergenceDelay(0.5);

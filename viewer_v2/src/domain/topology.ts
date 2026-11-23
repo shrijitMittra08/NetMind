@@ -6,14 +6,14 @@ export const NODE_KINDS: Record<NodeType, { prefix: string; label: string }> = {
   SWITCH: { prefix: "SW", label: "Switch" },
 };
 
-export const DEFAULT_LINK = {
-  bandwidthMbps: 100,
-  latencyMs: 2,
-  lossRate: 0,
-  queueCapacity: 64,
-};
+export const DEFAULT_LINK = { bandwidthMbps: 100, latencyMs: 2, lossRate: 0, queueCapacity: 64 };
 
 export const CANVAS = { width: 960, height: 560 };
+
+const AUTO_LAYOUT_RADIUS_X = 320;
+const AUTO_LAYOUT_RADIUS_Y = 200;
+const IP_PREFIX = "10.0.0.";
+const LAST_HOST_ADDRESS = 254;
 
 export interface BuilderNode {
   id: number;
@@ -34,10 +34,7 @@ export interface BuilderLink {
   queueCapacity: number | string;
 }
 
-export interface BuilderModel {
-  nodes: BuilderNode[];
-  links: BuilderLink[];
-}
+export interface BuilderModel { nodes: BuilderNode[]; links: BuilderLink[] }
 
 export interface TopologyIssue {
   level: "error" | "warning";
@@ -49,7 +46,7 @@ export interface TopologyIssue {
 export const emptyModel = (): BuilderModel => ({ nodes: [], links: [] });
 
 export function nextNodeId(nodes: BuilderNode[]): number {
-  return nodes.reduce((max, node) => Math.max(max, node.id), 0) + 1;
+  return Math.max(0, ...nodes.map((node) => node.id)) + 1;
 }
 
 export function nextName(nodes: BuilderNode[], type: NodeType): string {
@@ -62,8 +59,8 @@ export function nextName(nodes: BuilderNode[], type: NodeType): string {
 
 export function nextIp(nodes: BuilderNode[]): string {
   const used = new Set(nodes.map((node) => node.ip));
-  for (let n = 1; n <= 254; n += 1) {
-    if (!used.has(`10.0.0.${n}`)) return `10.0.0.${n}`;
+  for (let n = 1; n <= LAST_HOST_ADDRESS; n += 1) {
+    if (!used.has(`${IP_PREFIX}${n}`)) return `${IP_PREFIX}${n}`;
   }
   return "";
 }
@@ -91,7 +88,7 @@ export function linkExists(model: BuilderModel, a: number, b: number): boolean {
 
 export function addLink(model: BuilderModel, a: number, b: number): BuilderModel {
   if (a === b || linkExists(model, a, b)) return model;
-  const uid = model.links.reduce((max, link) => Math.max(max, link.uid), 0) + 1;
+  const uid = Math.max(0, ...model.links.map((link) => link.uid)) + 1;
   return { ...model, links: [...model.links, { uid, a, b, ...DEFAULT_LINK }] };
 }
 
@@ -113,83 +110,92 @@ function nameOf(model: BuilderModel, id: number): string {
 function isConnected(model: BuilderModel): boolean {
   const first = model.nodes[0];
   if (!first || model.nodes.length < 2) return true;
-  const adjacent = new Map<number, number[]>(model.nodes.map((node) => [node.id, []]));
+  const neighbours = new Map<number, number[]>(model.nodes.map((node) => [node.id, []]));
   for (const link of model.links) {
-    adjacent.get(link.a)?.push(link.b);
-    adjacent.get(link.b)?.push(link.a);
+    neighbours.get(link.a)?.push(link.b);
+    neighbours.get(link.b)?.push(link.a);
   }
   const seen = new Set([first.id]);
-  const queue = [first.id];
-  while (queue.length) {
-    for (const next of adjacent.get(queue.pop()!) ?? []) {
+  const toVisit = [first.id];
+  while (toVisit.length > 0) {
+    const current = toVisit.pop()!;
+    for (const next of neighbours.get(current) ?? []) {
       if (!seen.has(next)) {
         seen.add(next);
-        queue.push(next);
+        toVisit.push(next);
       }
     }
   }
   return seen.size === model.nodes.length;
 }
 
+function addError(issues: TopologyIssue[], message: string, extra: Partial<TopologyIssue> = {}): void {
+  issues.push({ level: "error", message, ...extra });
+}
+
 export function validateTopology(model: BuilderModel): TopologyIssue[] {
   const issues: TopologyIssue[] = [];
-  const error = (message: string, extra: Partial<TopologyIssue> = {}) =>
-    issues.push({ level: "error", message, ...extra });
-  const warn = (message: string) => issues.push({ level: "warning", message });
-
   if (model.nodes.length === 0) {
-    error("Add at least one node.");
+    addError(issues, "Add at least one node.");
     return issues;
   }
+  checkNamesAndIps(model, issues);
+  checkLinks(model, issues);
+  checkHostLinkCounts(model, issues);
+  if (model.nodes.filter((node) => node.type === "HOST").length < 2) {
+    issues.push({ level: "warning", message: "Add at least two hosts to be able to define traffic flows." });
+  }
+  if (!isConnected(model)) {
+    issues.push({ level: "warning", message: "The topology is not fully connected; some hosts may be unreachable." });
+  }
+  return issues;
+}
 
+function checkNamesAndIps(model: BuilderModel, issues: TopologyIssue[]): void {
   const names = new Set<string>();
   const ips = new Set<string>();
   for (const node of model.nodes) {
     const name = node.name.trim();
     const label = name || `Node ${node.id}`;
-    if (!name) error(`Node ${node.id} needs a name.`, { nodeId: node.id });
-    else if (names.has(name)) error(`Name “${name}” is used by more than one node.`, { nodeId: node.id });
+    const ip = node.ip.trim();
+    const at = { nodeId: node.id };
+    if (!name) addError(issues, `Node ${node.id} needs a name.`, at);
+    else if (names.has(name)) addError(issues, `Name “${name}” is used by more than one node.`, at);
+    if (!isValidIPv4(ip)) addError(issues, `${label}: “${node.ip}” is not a valid IPv4 address.`, at);
+    else if (ips.has(ip)) addError(issues, `IP address ${node.ip} is used by more than one node.`, at);
     names.add(name);
-
-    if (!isValidIPv4(node.ip.trim())) {
-      error(`${label}: “${node.ip}” is not a valid IPv4 address.`, { nodeId: node.id });
-    } else if (ips.has(node.ip.trim())) {
-      error(`IP address ${node.ip} is used by more than one node.`, { nodeId: node.id });
-    }
-    ips.add(node.ip.trim());
+    ips.add(ip);
   }
+}
 
-  const degree = new Map<number, number>(model.nodes.map((node) => [node.id, 0]));
+function checkLinks(model: BuilderModel, issues: TopologyIssue[]): void {
   for (const link of model.links) {
-    degree.set(link.a, (degree.get(link.a) ?? 0) + 1);
-    degree.set(link.b, (degree.get(link.b) ?? 0) + 1);
-
     const label = `${nameOf(model, link.a)} — ${nameOf(model, link.b)}`;
     const at = { linkUid: link.uid };
-    if (!(Number(link.bandwidthMbps) > 0)) error(`Link ${label}: bandwidth must be greater than 0.`, at);
-    if (!(Number(link.latencyMs) >= 0)) error(`Link ${label}: latency cannot be negative.`, at);
     const loss = Number(link.lossRate);
-    if (!(loss >= 0 && loss <= 1)) error(`Link ${label}: loss rate must be between 0 and 1.`, at);
     const queue = Number(link.queueCapacity);
+    if (!(Number(link.bandwidthMbps) > 0)) addError(issues, `Link ${label}: bandwidth must be greater than 0.`, at);
+    if (!(Number(link.latencyMs) >= 0)) addError(issues, `Link ${label}: latency cannot be negative.`, at);
+    if (!(loss >= 0 && loss <= 1)) addError(issues, `Link ${label}: loss rate must be between 0 and 1.`, at);
     if (!Number.isInteger(queue) || queue < 0) {
-      error(`Link ${label}: queue capacity must be a non-negative whole number.`, at);
+      addError(issues, `Link ${label}: queue capacity must be a non-negative whole number.`, at);
     }
   }
+}
 
+function checkHostLinkCounts(model: BuilderModel, issues: TopologyIssue[]): void {
+  const linkCount = new Map<number, number>();
+  for (const link of model.links) {
+    linkCount.set(link.a, (linkCount.get(link.a) ?? 0) + 1);
+    linkCount.set(link.b, (linkCount.get(link.b) ?? 0) + 1);
+  }
   for (const node of model.nodes) {
-    const count = degree.get(node.id) ?? 0;
+    const count = linkCount.get(node.id) ?? 0;
     if (node.type === "HOST" && count !== 1) {
-      error(`Host ${node.name || node.id} must have exactly one link (it has ${count}).`, {
-        nodeId: node.id,
-      });
+      const message = `Host ${node.name || node.id} must have exactly one link (it has ${count}).`;
+      addError(issues, message, { nodeId: node.id });
     }
   }
-
-  if (model.nodes.filter((node) => node.type === "HOST").length < 2) {
-    warn("Add at least two hosts to be able to define traffic flows.");
-  }
-  if (!isConnected(model)) warn("The topology is not fully connected; some hosts may be unreachable.");
-  return issues;
 }
 
 export function toTopology(model: BuilderModel): Topology {
@@ -223,36 +229,33 @@ export function fromTopology(topology: Topology): BuilderModel {
       type: node.type,
       name: String(node.name ?? ""),
       ip: String(node.ip ?? ""),
-      x: hasPos ? Number(pos[0]) : Math.round(CANVAS.width / 2 + Math.cos(angle) * 320),
-      y: hasPos ? Number(pos[1]) : Math.round(CANVAS.height / 2 + Math.sin(angle) * 200),
+      x: hasPos ? Number(pos[0]) : Math.round(CANVAS.width / 2 + Math.cos(angle) * AUTO_LAYOUT_RADIUS_X),
+      y: hasPos ? Number(pos[1]) : Math.round(CANVAS.height / 2 + Math.sin(angle) * AUTO_LAYOUT_RADIUS_Y),
     };
   });
-  const links = topology.links.map(
-    (link, index): BuilderLink => ({
-      uid: index + 1,
-      a: link.a,
-      b: link.b,
-      bandwidthMbps: link.bandwidthMbps ?? DEFAULT_LINK.bandwidthMbps,
-      latencyMs: link.latencyMs ?? DEFAULT_LINK.latencyMs,
-      lossRate: link.lossRate ?? DEFAULT_LINK.lossRate,
-      queueCapacity: link.queueCapacity ?? DEFAULT_LINK.queueCapacity,
-    }),
-  );
+  const links = topology.links.map((link, index): BuilderLink => ({
+    uid: index + 1,
+    a: link.a,
+    b: link.b,
+    bandwidthMbps: link.bandwidthMbps ?? DEFAULT_LINK.bandwidthMbps,
+    latencyMs: link.latencyMs ?? DEFAULT_LINK.latencyMs,
+    lossRate: link.lossRate ?? DEFAULT_LINK.lossRate,
+    queueCapacity: link.queueCapacity ?? DEFAULT_LINK.queueCapacity,
+  }));
   return { nodes, links };
 }
 
 export function parseTopologyJson(text: string): Topology {
-  let parsed: unknown;
+  let parsed: Partial<Topology> | null;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new Error("The file is not valid JSON.");
   }
-  const candidate = parsed as Partial<Topology> | null;
-  if (!candidate || !Array.isArray(candidate.nodes) || !Array.isArray(candidate.links)) {
+  if (!parsed || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.links)) {
     throw new Error("This JSON does not contain topology nodes and links.");
   }
-  return candidate as Topology;
+  return parsed as Topology;
 }
 
 export function linkNamePairs(topology: Topology): [string, string][] {

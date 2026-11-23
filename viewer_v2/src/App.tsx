@@ -8,29 +8,21 @@ import { SetupPage } from "./components/setup/SetupPage";
 import { TopologyPage } from "./components/topology/TopologyPage";
 import { WorkbenchProvider, useWorkbench } from "./state/workbench";
 
+const PAGES = {
+  topology: TopologyPage,
+  setup: SetupPage,
+  results: ResultsPage,
+  anomalies: AnomaliesPage,
+  replay: ReplayPage,
+  insights: InsightsPage,
+};
+
 function CurrentPage() {
   const { section } = useWorkbench();
-  switch (section) {
-    case "topology":
-      return <TopologyPage />;
-    case "setup":
-      return <SetupPage />;
-    case "results":
-      return <ResultsPage />;
-    case "anomalies":
-      return <AnomaliesPage />;
-    case "replay":
-      return <ReplayPage />;
-    case "insights":
-      return <InsightsPage />;
-  }
-}
-
-function SectionBoundary() {
-  const { section } = useWorkbench();
+  const Page = PAGES[section];
   return (
     <ErrorBoundary key={section}>
-      <CurrentPage />
+      <Page />
     </ErrorBoundary>
   );
 }
@@ -39,7 +31,7 @@ export default function App() {
   return (
     <WorkbenchProvider>
       <Shell>
-        <SectionBoundary />
+        <CurrentPage />
       </Shell>
     </WorkbenchProvider>
   );

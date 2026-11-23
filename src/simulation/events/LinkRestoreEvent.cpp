@@ -6,8 +6,7 @@
 
 namespace netmind {
 
-LinkRestoreEvent::LinkRestoreEvent(LinkId linkId)
-    : linkId_(linkId) {}
+LinkRestoreEvent::LinkRestoreEvent(LinkId linkId) : linkId_(linkId) {}
 
 void LinkRestoreEvent::apply(SimulationEngine& engine) {
     engine.setLinkState(linkId_, LinkState::UP);

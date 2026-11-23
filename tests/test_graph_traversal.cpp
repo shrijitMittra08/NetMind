@@ -50,6 +50,7 @@ netmind::Graph makeDiamondGraph() {
 
 }             
 
+// Checks that BFS finds the same fewest-hops path through the diamond graph every time
 TEST_CASE("Graph BFS returns a deterministic shortest-hop path") {
     netmind::Graph graph = makeDiamondGraph();
     std::vector<netmind::NodeId> path;
@@ -58,6 +59,7 @@ TEST_CASE("Graph BFS returns a deterministic shortest-hop path") {
     REQUIRE(path == std::vector<netmind::NodeId>{1, 2, 4, 5});
 }
 
+// Checks that DFS finds the expected depth-first path through the diamond graph
 TEST_CASE("Graph DFS returns a deterministic depth-first path") {
     netmind::Graph graph = makeDiamondGraph();
     std::vector<netmind::NodeId> path;
@@ -66,6 +68,7 @@ TEST_CASE("Graph DFS returns a deterministic depth-first path") {
     REQUIRE(path == std::vector<netmind::NodeId>{1, 2, 4, 5});
 }
 
+// Checks path search for start equal to goal, a missing node, and nodes with no connection
 TEST_CASE("Graph path searches handle same, missing, and disconnected nodes") {
     netmind::Graph graph;
     addNode(graph, 1, "N1");
@@ -86,6 +89,7 @@ TEST_CASE("Graph path searches handle same, missing, and disconnected nodes") {
     REQUIRE(path.empty());
 }
 
+// Checks that path searches skip nodes that are down and links that are down
 TEST_CASE("Graph path searches ignore down nodes and links") {
     netmind::Graph graph;
     addNode(graph, 1, "N1");
@@ -109,6 +113,7 @@ TEST_CASE("Graph path searches ignore down nodes and links") {
     REQUIRE_FALSE(graph.dfsPath(1, 3, path));
 }
 
+// Checks that the graph splits into the right connected groups and is not fully connected
 TEST_CASE("Graph finds active connected components") {
     netmind::Graph graph;
     addNode(graph, 1, "N1");
@@ -129,6 +134,7 @@ TEST_CASE("Graph finds active connected components") {
     REQUIRE_FALSE(graph.isConnected());
 }
 
+// Checks that the graph becomes disconnected after a link goes down or is removed
 TEST_CASE("Graph connectivity updates after link failure or removal") {
     netmind::Graph graph;
     addNode(graph, 1, "N1");
@@ -149,6 +155,7 @@ TEST_CASE("Graph connectivity updates after link failure or removal") {
     REQUIRE(graph.connectedComponents().size() == 2);
 }
 
+// Checks that a triangle of links is detected as a cycle, even after adding a branch
 TEST_CASE("Graph detects cycles in an undirected topology") {
     netmind::Graph graph;
     addNode(graph, 1, "N1");
@@ -166,6 +173,7 @@ TEST_CASE("Graph detects cycles in an undirected topology") {
     REQUIRE(graph.hasCycle());
 }
 
+// Checks that reachable nodes are listed in sorted order and unknown nodes reach nothing
 TEST_CASE("Graph reports reachable nodes in sorted order") {
     netmind::Graph graph;
     addNode(graph, 1, "N1");

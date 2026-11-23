@@ -15,9 +15,29 @@ _METRIC_WORDS = [
     ("latency_ms", r"\b(latency|delay|fast\w*|slow\w*|quick\w*)\b"),
 ]
 
+_TIME_PATTERN = r"\b(?:at|around|near|after|before|by)\s+t?\s*=?\s*(\d+(?:\.\d+)?)\s*(?:s\b|sec)"
+
+_COMPARE_SUBJECT = r"\b(algorithm|routing|method|protocol|compare|comparison|best|worst|better)\b"
+_COMPARE_RANKING = (
+    r"\b(best|worst|better|lowest|highest|most|least|fastest|slowest|shortest"
+    r"|compare|comparison|perform\w*|win)\b"
+)
+_PATH_WORDS = r"\b(path|route[ds]?|travel\w*|get\s+to|got\s+to|reach\w*|go\s+from|went\s+from)\b"
+_WHICH_ELEMENT = r"\bwhich\s+(link|device|router)\b"
+_FAILURE_WORDS = r"\b(fail\w*|went\s+down|go\s+down|outage|crash\w*|broke\w*|which\s+device|down\b)"
+_CONGESTION_WORDS = r"\b(congest\w*|bottleneck|busiest|overload\w*|utili[sz]\w*|saturat\w*|heaviest|load)\b"
+_HOW_MANY = r"\bhow\s+many\b"
+_DROP_COUNT_WORDS = r"\b(drop\w*|lost|loss)\b"
+_DROP_WORDS = r"\b(drop\w*|lost|loss|discard\w*)\b"
+_LOOSE_PATH_WORDS = r"\b(path|route|routed|travel\w*|get\s+to|reach\w*|hops?)\b"
+
+_DOWN_EVENTS = {"LINK_DOWN", "ROUTER_DOWN"}
+_UP_EVENTS = {"LINK_UP", "ROUTER_UP"}
+_FAILURE_REASONS = {"no_route", "link_down", "node_down"}
+
 
 def _time(question: str) -> float | None:
-    match = re.search(r"\b(?:at|around|near|after|before|by)\s+t?\s*=?\s*(\d+(?:\.\d+)?)\s*(?:s\b|sec)", question.lower())
+    match = re.search(_TIME_PATTERN, question.lower())
     return float(match.group(1)) if match else None
 
 
@@ -30,22 +50,19 @@ def _fmt(value: float | None, digits: int = 2) -> str:
 
 def _intent(question: str) -> str:
     text = question.lower()
-    comparing = re.search(r"\b(algorithm|routing|method|protocol|compare|comparison|best|worst|better)\b", text)
-    if comparing and re.search(r"\b(best|worst|better|lowest|highest|most|least|fastest|slowest|shortest|compare|comparison|perform\w*|win)\b", text):
+    if re.search(_COMPARE_SUBJECT, text) and re.search(_COMPARE_RANKING, text):
         return "compare"
-    if re.search(r"\b(path|route[ds]?|travel\w*|get\s+to|got\s+to|reach\w*|go\s+from|went\s+from)\b", text) and not re.search(
-        r"\bwhich\s+(link|device|router)\b", text
-    ):
+    if re.search(_PATH_WORDS, text) and not re.search(_WHICH_ELEMENT, text):
         return "path"
-    if re.search(r"\b(fail\w*|went\s+down|go\s+down|outage|crash\w*|broke\w*|which\s+device|down\b)", text):
+    if re.search(_FAILURE_WORDS, text):
         return "failure"
-    if re.search(r"\b(congest\w*|bottleneck|busiest|overload\w*|utili[sz]\w*|saturat\w*|heaviest|load)\b", text):
+    if re.search(_CONGESTION_WORDS, text):
         return "congestion"
-    if re.search(r"\bhow\s+many\b", text) and re.search(r"\b(drop\w*|lost|loss)\b", text):
+    if re.search(_HOW_MANY, text) and re.search(_DROP_COUNT_WORDS, text):
         return "drop_total"
-    if re.search(r"\b(drop\w*|lost|loss|discard\w*)\b", text):
+    if re.search(_DROP_WORDS, text):
         return "drops"
-    if re.search(r"\b(path|route|routed|travel\w*|get\s+to|reach\w*|hops?)\b", text):
+    if re.search(_LOOSE_PATH_WORDS, text):
         return "path"
     return "summary"
 
@@ -58,14 +75,25 @@ def _metric(question: str) -> str:
     return "latency_ms"
 
 
+def _and_join(names: list[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " and " + names[-1]
+
+
 def _answer_compare(session: QASession, question: str) -> tuple[str, list]:
     metric = _metric(question)
     result = tools.compare_runs(session.contexts, metric)
     calls = [("compare_runs", {"metric": metric}, result)]
-    values = {v["algorithm"]: v["value"] for v in result["values"]}
+    values = {item["algorithm"]: item["value"] for item in result["values"]}
+
     if len(values) < 2:
-        only = next(iter(values))
-        return f"Only {label(only)} was run, so there is nothing to compare it with ({result['label']}: {_fmt(values[only])} {result['unit']}).", calls
+        only = list(values)[0]
+        return (
+            f"Only {label(only)} was run, so there is nothing to compare it with "
+            f"({result['label']}: {_fmt(values[only])} {result['unit']})."
+        ), calls
+
     best = result["best"]
     digits = 0 if metric == "drops" else 2
     unit = result["unit"]
@@ -79,30 +107,43 @@ def _answer_compare(session: QASession, question: str) -> tuple[str, list]:
             f"All {len(values)} algorithms tied on {result['label']}, each at {show(best[0])}. "
             "They chose equally good routes in this scenario, so none of them is better here."
         ), calls
-    others = sorted((a for a in values if a not in best), key=lambda a: values[a] if values[a] is not None else 0,
-                    reverse=result["better"] == "lower")
-    rest = ", ".join(f"{label(a)} {show(a)}" for a in others)
+
+    others = [algorithm for algorithm in values if algorithm not in best]
+    others.sort(key=lambda algorithm: values[algorithm] or 0, reverse=result["better"] == "lower")
+    rest = ", ".join(f"{label(algorithm)} {show(algorithm)}" for algorithm in others)
+
     if result["tie"]:
-        names = ", ".join(label(a) for a in best[:-1]) + f" and {label(best[-1])}"
+        names = _and_join([label(algorithm) for algorithm in best])
         return f"{names} tied for the best {result['label']} at {show(best[0])}; the others were worse ({rest}).", calls
-    return f"{label(best[0])} had the best {result['label']} at {show(best[0])} ({result['better']} is better). The others: {rest}.", calls
+    return (
+        f"{label(best[0])} had the best {result['label']} at {show(best[0])} ({result['better']} is better). "
+        f"The others: {rest}."
+    ), calls
+
+
+def _down_subject(down_kind: str, target: str) -> str:
+    return f"The {target} link" if down_kind == "LINK_DOWN" else f"Router {target}"
 
 
 def _failure_sentences(events: list[dict[str, Any]]) -> list[str]:
-    sentences, open_at = [], {}
+    sentences = []
+    open_failures: dict[str, tuple[str, float]] = {}
     for event in events:
-        kind, target, t = event["event"], event["target"], event["time_s"]
-        if kind in {"LINK_DOWN", "ROUTER_DOWN"}:
-            open_at[target] = (kind, t)
-        elif kind in {"LINK_UP", "ROUTER_UP"} and target in open_at:
-            down_kind, start = open_at.pop(target)
-            what = f"The {target} link" if down_kind == "LINK_DOWN" else f"Router {target}"
-            sentences.append(f"{what} went down at {_fmt(start)} s and came back up at {_fmt(t)} s.")
+        kind, target, time_s = event["event"], event["target"], event["time_s"]
+        if kind in _DOWN_EVENTS:
+            open_failures[target] = (kind, time_s)
+        elif kind in _UP_EVENTS and target in open_failures:
+            down_kind, start = open_failures.pop(target)
+            sentences.append(
+                f"{_down_subject(down_kind, target)} went down at {_fmt(start)} s and came back up at {_fmt(time_s)} s."
+            )
         elif kind == "LINK_DEGRADED":
-            sentences.append(f"The {target} link was degraded (congested) from {_fmt(t)} s.")
-    for target, (kind, start) in open_at.items():
-        what = f"The {target} link" if kind == "LINK_DOWN" else f"Router {target}"
-        sentences.append(f"{what} went down at {_fmt(start)} s and stayed down for the rest of the run.")
+            sentences.append(f"The {target} link was degraded (congested) from {_fmt(time_s)} s.")
+
+    for target, (kind, start) in open_failures.items():
+        sentences.append(
+            f"{_down_subject(kind, target)} went down at {_fmt(start)} s and stayed down for the rest of the run."
+        )
     return sentences
 
 
@@ -116,12 +157,15 @@ def _answer_failure(session: QASession, _question: str) -> tuple[str, list]:
 
 
 def _answer_congestion(session: QASession, question: str) -> tuple[str, list]:
-    ctx = (session.mentioned_algorithms(question) or [session.run()])[0]
+    mentioned = session.mentioned_algorithms(question)
+    ctx = mentioned[0] if mentioned else session.run()
     result = tools.link_load(ctx)
     calls = [("link_load", {"algorithm": ctx.algorithm}, result)]
+
     busiest = result["busiest"]
     if not busiest:
         return "There is no link load data for this run.", calls
+
     overflow = result["queue_overflows"][0] if result["queue_overflows"] else None
     if overflow and overflow["channel"] != busiest["channel"]:
         return (f"The most congested link was {overflow['channel']} (the {overflow['link']} link): its queue "
@@ -129,6 +173,7 @@ def _answer_congestion(session: QASession, question: str) -> tuple[str, list]:
                 f"there because the queue was full. By average load over the whole run, the busiest was "
                 f"{busiest['channel']} at {_fmt(busiest['utilization_pct'], 1)}% of its capacity, "
                 f"without overflowing."), calls
+
     text = (f"The busiest link was {busiest['channel']} (the {busiest['link']} link), "
             f"carrying {_fmt(busiest['utilization_pct'], 1)}% of its capacity on average.")
     if overflow:
@@ -139,33 +184,22 @@ def _answer_congestion(session: QASession, question: str) -> tuple[str, list]:
     return text, calls
 
 
-_REASON_TEXT = {
-    "no_route": "no route to the destination",
-    "queue_full": "queue full (the link could not keep up)",
-    "link_down": "link down",
-    "node_down": "node down",
-    "random_loss": "random loss on the link",
-    "ttl_expired": "TTL expired",
-}
-
-
 def _answer_drops(session: QASession, question: str) -> tuple[str, list]:
     contexts = session.mentioned_algorithms(question) or session.contexts
     t = _time(question)
     t_from, t_to = (max(0.0, t - 1.0), t + 2.0) if t is not None else (None, None)
-    answers = [_drops_for_run(ctx, t_from, t_to) for ctx in contexts]
-    calls = [call for _, run_calls in answers for call in run_calls]
+
+    texts, calls = [], []
     groups: dict[str, list[str]] = {}
-    for ctx, (text, _) in zip(contexts, answers):
+    for ctx in contexts:
+        text, run_calls = _drops_for_run(ctx, t_from, t_to)
+        texts.append(text)
+        calls.extend(run_calls)
         groups.setdefault(text, []).append(label(ctx.algorithm))
+
     if len(groups) == 1:
-        return answers[0][0], calls
-    lines = [f"{_and_join(names)}: {text}" for text, names in groups.items()]
-    return "\n".join(lines), calls
-
-
-def _and_join(names: list[str]) -> str:
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        return texts[0], calls
+    return "\n".join(f"{_and_join(names)}: {text}" for text, names in groups.items()), calls
 
 
 def _drops_for_run(ctx, t_from: float | None, t_to: float | None) -> tuple[str, list]:
@@ -173,71 +207,98 @@ def _drops_for_run(ctx, t_from: float | None, t_to: float | None) -> tuple[str, 
     events = tools.network_events(ctx, None, t_to)
     calls = [("drops", {"algorithm": ctx.algorithm, "t_from": t_from, "t_to": t_to}, result),
              ("network_events", {"algorithm": ctx.algorithm, "t_to": t_to}, events)]
+
     span = f" between {_fmt(t_from)} and {_fmt(t_to)} s" if t_from is not None else ""
     if result["total"] == 0:
         return f"No packets were dropped{span}.", calls
-    reasons = sorted(result["by_reason"].items(), key=lambda kv: kv[1], reverse=True)
+
+    reasons = sorted(result["by_reason"].items(), key=lambda pair: pair[1], reverse=True)
     parts = [f"{count} because of {reason.replace('_', ' ')}" for reason, count in reasons]
     where = result["by_location"][0]["location"] if result["by_location"] else "unknown"
     text = f"{result['total']} packets were dropped{span}: " + "; ".join(parts) + f". Most were dropped at {where}."
+
+    top_reason = reasons[0][0]
     failures = _failure_sentences(events["events"])
-    if failures and reasons[0][0] in {"no_route", "link_down", "node_down"}:
+    if failures and top_reason in _FAILURE_REASONS:
         text += " This lines up with the failure: " + " ".join(failures)
-    elif reasons[0][0] == "queue_full":
+    elif top_reason == "queue_full":
         text += " The traffic offered was more than the link could carry, so its queue overflowed."
     return text, calls
 
 
-def _answer_drop_total(session: QASession, question: str) -> tuple[str, list]:
-    contexts = session.mentioned_algorithms(question) or session.contexts
+def _summaries(contexts: list) -> tuple[list[dict[str, Any]], list]:
     summaries = [tools.run_summary(ctx) for ctx in contexts]
-    calls = [("run_summary", {"algorithm": s["algorithm"]}, s) for s in summaries]
-    if len({s["drops"] for s in summaries}) == 1:
-        s = summaries[0]
+    return summaries, [("run_summary", {"algorithm": summary["algorithm"]}, summary) for summary in summaries]
+
+
+def _answer_drop_total(session: QASession, question: str) -> tuple[str, list]:
+    summaries, calls = _summaries(session.mentioned_algorithms(question) or session.contexts)
+    if len({summary["drops"] for summary in summaries}) == 1:
+        summary = summaries[0]
         scope = "In every run" if len(summaries) > 1 else "In total"
-        return f"{scope}, {s['drops']} packets were dropped, so {_fmt(s['reliability_pct'])}% of packets were delivered.", calls
-    return " ".join(f"{label(s['algorithm'])} dropped {s['drops']} packets." for s in summaries), calls
+        return (
+            f"{scope}, {summary['drops']} packets were dropped, "
+            f"so {_fmt(summary['reliability_pct'])}% of packets were delivered."
+        ), calls
+    return " ".join(f"{label(summary['algorithm'])} dropped {summary['drops']} packets." for summary in summaries), calls
+
+
+def _first_failure(session: QASession) -> dict[str, Any] | None:
+    for event in tools.network_events(session.run())["events"]:
+        if event["event"] in _DOWN_EVENTS:
+            return event
+    return None
+
+
+def _pick_flow_ends(nodes: list[str], flows: list[dict[str, Any]]) -> tuple[str, str]:
+    hosts = [node for node in nodes if any(node in (flow["src"], flow["dst"]) for flow in flows)]
+    if len(hosts) >= 2:
+        return hosts[0], hosts[1]
+    return flows[0]["src"], flows[0]["dst"]
 
 
 def _answer_path(session: QASession, question: str) -> tuple[str, list]:
     nodes = session.mentioned_nodes(question)
     t = _time(question)
     if t is None and re.search(r"\bafter\b", question.lower()):
-        failure = next((e for e in tools.network_events(session.run())["events"]
-                        if e["event"] in {"LINK_DOWN", "ROUTER_DOWN"}), None)
+        failure = _first_failure(session)
         t = failure["time_s"] + 0.5 if failure else None
+
     contexts = session.mentioned_algorithms(question) or session.contexts
-    first = tools.run_summary(contexts[0])["flows"]
-    hosts = [n for n in nodes if any(n in (f["src"], f["dst"]) for f in first)]
-    src, dst = (hosts[0], hosts[1]) if len(hosts) >= 2 else (first[0]["src"], first[0]["dst"])
+    src, dst = _pick_flow_ends(nodes, tools.run_summary(contexts[0])["flows"])
+
     calls, lines = [], []
     for ctx in contexts:
+        name = label(ctx.algorithm)
         result = tools.flow_path(ctx, src, dst, at_time=t)
         calls.append(("flow_path", {"algorithm": ctx.algorithm, "src": src, "dst": dst, "at_time": t}, result))
         if "error" in result:
-            lines.append(f"{label(ctx.algorithm)}: {result['error']}")
+            lines.append(f"{name}: {result['error']}")
             continue
         if t is not None:
-            line = f"{label(ctx.algorithm)}: at {_fmt(t)} s, traffic from {src} to {dst} went {result['path_at_time']}."
+            line = f"{name}: at {_fmt(t)} s, traffic from {src} to {dst} went {result['path_at_time']}."
         else:
-            line = f"{label(ctx.algorithm)}: traffic from {src} to {dst} went {result['path_periods'][0]['path']}."
+            line = f"{name}: traffic from {src} to {dst} went {result['path_periods'][0]['path']}."
         if result["path_changes"]:
-            changes = "; ".join(f"from {_fmt(p['from_s'])} s via {p['path']}" for p in result["path_periods"][1:4])
+            changes = "; ".join(f"from {_fmt(period['from_s'])} s via {period['path']}"
+                                for period in result["path_periods"][1:4])
             line += f" The route changed {result['path_changes']} time(s): {changes}."
         lines.append(line)
-    if len({line.split(": ", 1)[1] for line in lines}) == 1 and len(lines) > 1:
+
+    descriptions = {line.split(": ", 1)[1] for line in lines}
+    if len(descriptions) == 1 and len(lines) > 1:
         shared = lines[0].split(": ", 1)[1]
         return "All algorithms used the same route. " + shared[0].upper() + shared[1:], calls
     return "\n".join(lines), calls
 
 
 def _answer_summary(session: QASession, _question: str) -> tuple[str, list]:
-    summaries = [tools.run_summary(ctx) for ctx in session.contexts]
-    calls = [("run_summary", {"algorithm": s["algorithm"]}, s) for s in summaries]
+    summaries, calls = _summaries(session.contexts)
     lines = [
-        f"{label(s['algorithm'])}: {_fmt(s['reliability_pct'])}% delivered, {_fmt(s['latency_ms'])} ms average latency, "
-        f"{_fmt(s['throughput_mbps'])} Mbps, {s['drops']} drops."
-        for s in summaries
+        f"{label(summary['algorithm'])}: {_fmt(summary['reliability_pct'])}% delivered, "
+        f"{_fmt(summary['latency_ms'])} ms average latency, "
+        f"{_fmt(summary['throughput_mbps'])} Mbps, {summary['drops']} drops."
+        for summary in summaries
     ]
     return "Here is how the runs went.\n" + "\n".join(lines), calls
 
@@ -256,10 +317,7 @@ _HANDLERS = {
 def answer_with_rules(session: QASession, question: str) -> dict[str, Any]:
     intent = _intent(question)
     answer, calls = _HANDLERS[intent](session, question)
-    return {
-        "engine": "rules",
-        "intent": intent,
-        "answer": answer,
-        "tool_calls": [{"name": name, "args": {k: v for k, v in args.items() if v is not None}} for name, args, _ in calls],
-        "verified": True,
-    }
+    tool_calls = []
+    for name, args, _result in calls:
+        tool_calls.append({"name": name, "args": {key: value for key, value in args.items() if value is not None}})
+    return {"engine": "rules", "intent": intent, "answer": answer, "tool_calls": tool_calls, "verified": True}

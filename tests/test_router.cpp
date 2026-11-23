@@ -70,6 +70,7 @@ public:
 
 }             
 
+// Checks that a static route wins over a dynamic route installed for the same destination
 TEST_CASE("Forwarding table keeps static routes when dynamic routes are installed") {
     netmind::ForwardingTable table;
 
@@ -84,6 +85,7 @@ TEST_CASE("Forwarding table keeps static routes when dynamic routes are installe
     REQUIRE(route->source == netmind::ForwardingTable::Source::STATIC);
 }
 
+// Checks that clearing dynamic routes removes them but keeps static routes
 TEST_CASE("Forwarding table clears dynamic routes and keeps static routes") {
     netmind::ForwardingTable table;
 
@@ -96,6 +98,7 @@ TEST_CASE("Forwarding table clears dynamic routes and keeps static routes") {
     REQUIRE(table.contains(9));
 }
 
+// Checks that the route list comes back sorted by destination id
 TEST_CASE("Forwarding table returns routes sorted by destination") {
     netmind::ForwardingTable table;
 
@@ -109,6 +112,7 @@ TEST_CASE("Forwarding table returns routes sorted by destination") {
     REQUIRE(routes[1].first == 9);
 }
 
+// Checks that the old setNextHop and nextHop functions still work
 TEST_CASE("Forwarding table preserves the existing next-hop interface") {
     netmind::ForwardingTable table;
 
@@ -119,6 +123,7 @@ TEST_CASE("Forwarding table preserves the existing next-hop interface") {
     REQUIRE(*table.nextHop(9) == 4);
 }
 
+// Checks that a router forwards a packet to the next hop and lowers its TTL by one
 TEST_CASE("Router forwards using its route and decreases TTL") {
     netmind::Router router(2, "R1", "10.0.0.2");
     router.forwardingTable().install(9, 4, 1.0);
@@ -141,6 +146,7 @@ TEST_CASE("Router forwards using its route and decreases TTL") {
     REQUIRE_FALSE(ctx.dropped.has_value());
 }
 
+// Checks that a router drops a packet with TTL 1 and reports TTL expired
 TEST_CASE("Router drops a packet whose TTL is about to expire") {
     netmind::Router router(2, "R1", "10.0.0.2");
     MockSimContext ctx;
@@ -159,6 +165,7 @@ TEST_CASE("Router drops a packet whose TTL is about to expire") {
     REQUIRE_FALSE(ctx.transmitted.has_value());
 }
 
+// Checks that a router drops a packet with a no-route reason when it has no route
 TEST_CASE("Router drops a packet when no route exists") {
     netmind::Router router(2, "R1", "10.0.0.2");
     MockSimContext ctx;
@@ -176,6 +183,7 @@ TEST_CASE("Router drops a packet when no route exists") {
     REQUIRE_FALSE(ctx.transmitted.has_value());
 }
 
+// Checks that a router delivers a packet addressed to itself instead of forwarding it
 TEST_CASE("Router delivers a packet addressed to itself") {
     netmind::Router router(2, "R1", "10.0.0.2");
     MockSimContext ctx;

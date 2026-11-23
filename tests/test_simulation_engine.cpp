@@ -43,6 +43,7 @@ std::shared_ptr<RecordingEvent> makeEvent(
 
 }             
 
+// Checks that each step runs only the next event, in time order and then in scheduling order
 TEST_CASE("SimulationEngine step executes exactly one event") {
     netmind::SimulationEngine engine(1234);
     std::vector<std::pair<std::string, netmind::SimTime>> log;
@@ -71,6 +72,7 @@ TEST_CASE("SimulationEngine step executes exactly one event") {
     REQUIRE(engine.finished());
 }
 
+// Checks that runUntil runs only events up to the given time and leaves later ones waiting
 TEST_CASE("SimulationEngine runUntil processes events through end time") {
     netmind::SimulationEngine engine(1234);
     std::vector<std::pair<std::string, netmind::SimTime>> log;
@@ -94,6 +96,7 @@ TEST_CASE("SimulationEngine runUntil processes events through end time") {
     REQUIRE(engine.finished());
 }
 
+// Checks that run processes all pending events and moves the clock to the last one
 TEST_CASE("SimulationEngine run processes every pending event") {
     netmind::SimulationEngine engine(1234);
     std::vector<std::pair<std::string, netmind::SimTime>> log;
@@ -108,6 +111,7 @@ TEST_CASE("SimulationEngine run processes every pending event") {
     REQUIRE(engine.finished());
 }
 
+// Checks that negative, infinite, NaN or past event times and going back in time throw errors
 TEST_CASE("SimulationEngine rejects invalid event times") {
     netmind::SimulationEngine engine(1234);
     std::vector<std::pair<std::string, netmind::SimTime>> log;
@@ -138,6 +142,7 @@ TEST_CASE("SimulationEngine rejects invalid event times") {
     REQUIRE_THROWS_AS(engine.runUntil(1.0), netmind::ConfigError);
 }
 
+// Checks that each engine gives out packet ids starting at 1 and counting up on its own
 TEST_CASE("SimulationEngine allocates distinct packet IDs") {
     netmind::SimulationEngine first(1);
     netmind::SimulationEngine second(2);
@@ -147,6 +152,7 @@ TEST_CASE("SimulationEngine allocates distinct packet IDs") {
     REQUIRE(second.allocatePacketId() == 1);
 }
 
+// Checks that adding an observer twice counts it once and removing it stops notifications
 TEST_CASE("SimulationEngine observer registration avoids duplicates") {
     class DeliveryObserver final : public netmind::SimObserver {
     public:

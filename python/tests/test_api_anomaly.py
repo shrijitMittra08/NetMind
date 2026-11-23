@@ -38,6 +38,7 @@ def write_run(data_dir, windows, events=EVENTS, run_id="run_001"):
     (data_dir / f"{run_id}.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
+# Checks that the anomaly report marks the event time window and gives a reason for each flag
 def test_run_report_marks_event_window_and_explains_flags(data_dir):
     windows, _ = train(data_dir)
     write_run(data_dir, windows)
@@ -57,6 +58,7 @@ def test_run_report_marks_event_window_and_explains_flags(data_dir):
     assert summary["first_flag_delay_s"] == 0.0
 
 
+# Checks that a run with no events has no disturbance bands and no first-flag delay
 def test_runs_without_events_have_no_bands(data_dir):
     windows, _ = train(data_dir)
     write_run(data_dir, windows, events=[])
@@ -66,6 +68,7 @@ def test_runs_without_events_have_no_bands(data_dir):
     assert report["summary"]["first_flag_delay_s"] is None
 
 
+# Checks that a missing trained model gives an error message instead of raising an exception
 def test_missing_model_is_reported_not_raised(data_dir):
     windows = synthetic_windows(seed=7)
     write_run(data_dir, windows)
@@ -73,6 +76,7 @@ def test_missing_model_is_reported_not_raised(data_dir):
     assert "not been trained" in result["error"]
 
 
+# Checks that the API rejects bad run ids and plot names and serves valid plots and results
 def test_endpoints_validate_run_ids_and_plot_names(data_dir):
     windows, results = train(data_dir)
     write_run(data_dir, windows)
@@ -97,6 +101,7 @@ def test_endpoints_validate_run_ids_and_plot_names(data_dir):
     assert missing.status_code == 400 and "has not been generated" in missing.json()["error"]
 
 
+# Checks that bundled ML assets are used when the data folder lacks them, and local files win
 def test_bundled_assets_are_used_when_the_data_volume_lacks_them(tmp_path, monkeypatch):
     data = tmp_path / "data"
     assets = tmp_path / "assets"

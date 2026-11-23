@@ -74,6 +74,7 @@ def make_run(directory, run_id="run_001", seed=7):
     )
 
 
+# Checks that reading a run loads the manifest and all CSV tables with the right column types
 def test_read_run_returns_typed_frames_and_manifest(tmp_path):
     make_run(tmp_path)
 
@@ -89,6 +90,7 @@ def test_read_run_returns_typed_frames_and_manifest(tmp_path):
     assert run.network.loc[0, "total_drops"] == 1
 
 
+# Checks that reading a trace CSV with a missing column raises a schema error
 def test_read_trace_rejects_changed_schema(tmp_path):
     path = tmp_path / "trace.csv"
     write_csv(
@@ -101,6 +103,7 @@ def test_read_trace_rejects_changed_schema(tmp_path):
         read_trace(path)
 
 
+# Checks that reading many runs and combining windows adds run id, algorithm and seed columns
 def test_read_runs_and_combine_windows_add_run_metadata(tmp_path):
     make_run(tmp_path, "run_001", seed=7)
     make_run(tmp_path, "run_002", seed=8)

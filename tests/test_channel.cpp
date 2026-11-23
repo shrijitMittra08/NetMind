@@ -4,6 +4,7 @@
 
 #include <vector>
 
+// Checks that a channel refuses new packets once its queue is full
 TEST_CASE("Channel enforces its queue capacity") {
     netmind::Channel channel(
         {7, netmind::Direction::AtoB},
@@ -22,6 +23,7 @@ TEST_CASE("Channel enforces its queue capacity") {
     REQUIRE(channel.front().id == 1);
 }
 
+// Checks that finishing a transmission only works for the current one, using its generation number
 TEST_CASE("Channel completes only the current transmission") {
     netmind::Channel channel(
         {7, netmind::Direction::AtoB},
@@ -66,6 +68,7 @@ TEST_CASE("Channel completes only the current transmission") {
     REQUIRE(channel.empty());
 }
 
+// Checks that flushing a channel returns its queued packets and cancels the pending transmission
 TEST_CASE("Channel flush removes queued packets and invalidates events") {
     netmind::Channel channel(
         {7, netmind::Direction::AtoB},

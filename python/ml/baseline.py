@@ -20,7 +20,6 @@ PHYSICS_COLUMNS = {
     "throughput_mbps": "physics_throughput_mbps",
     "loss_pct": "physics_loss_pct",
 }
-
 FLAG_FLOORS = {"avg_latency_ms": 0.5, "throughput_mbps": 0.5, "loss_pct": 1.0}
 FLAG_RELATIVE = {"avg_latency_ms": 0.10, "throughput_mbps": 0.10, "loss_pct": 0.0}
 
@@ -31,9 +30,9 @@ def event_pattern_of(events: list[dict[str, Any]]) -> str:
         return "burst"
     if "CONGESTION" in types:
         return "congestion"
-    if types & {"ROUTER_FAILURE", "ROUTER_RESTORE"}:
+    if "ROUTER_FAILURE" in types or "ROUTER_RESTORE" in types:
         return "router_failure"
-    if types & {"LINK_FAILURE", "LINK_RESTORE"}:
+    if "LINK_FAILURE" in types or "LINK_RESTORE" in types:
         return "link_failure"
     return "none"
 
@@ -57,8 +56,7 @@ def _scenario_for(run: pd.Series, topology: scenario_model.Topology) -> dict[str
 
 
 def build_run_features(runs: pd.DataFrame) -> pd.DataFrame:
-    required = {"topology_path", "algorithm", "event_pattern"}
-    missing = sorted(required.difference(runs.columns))
+    missing = sorted({"topology_path", "algorithm", "event_pattern"}.difference(runs.columns))
     if missing:
         raise ValueError(f"Run table is missing required columns: {missing}")
     if runs.empty:
@@ -72,10 +70,8 @@ def build_run_features(runs: pd.DataFrame) -> pd.DataFrame:
         scenario = _scenario_for(run, topology)
         scenario.setdefault("routing", {}).setdefault("algorithm", str(run["algorithm"]))
         result = scenario_model.estimate(topology, scenario)
-        features = dict(result.features)
-        features["physics_latency_ms"] = result.latency_ms
-        features["physics_throughput_mbps"] = result.throughput_mbps
-        features["physics_loss_pct"] = result.loss_pct
+        features = {**result.features, "physics_latency_ms": result.latency_ms,
+                    "physics_throughput_mbps": result.throughput_mbps, "physics_loss_pct": result.loss_pct}
         pattern = str(run["event_pattern"]).strip().lower()
         for name in EVENT_PATTERNS:
             features[f"event_{name}"] = float(pattern == name)
@@ -84,41 +80,35 @@ def build_run_features(runs: pd.DataFrame) -> pd.DataFrame:
 
 
 def _target_values(runs: pd.DataFrame) -> pd.DataFrame:
-    required = {"avg_latency_ms", "avg_throughput_mbps"}
-    missing = sorted(required.difference(runs.columns))
+    missing = sorted({"avg_latency_ms", "avg_throughput_mbps"}.difference(runs.columns))
     if missing:
         raise ValueError(f"Run table is missing target columns: {missing}")
 
-    loss = pd.to_numeric(runs["loss_pct"], errors="coerce") if "loss_pct" in runs.columns else None
+    loss = None
+    if "loss_pct" in runs.columns:
+        loss = pd.to_numeric(runs["loss_pct"], errors="coerce")
     if "reliability_pct" in runs.columns:
         from_reliability = 100.0 - pd.to_numeric(runs["reliability_pct"], errors="coerce")
         loss = from_reliability if loss is None else loss.fillna(from_reliability)
     if loss is None:
         raise ValueError("Run table needs either 'loss_pct' or 'reliability_pct'")
 
-    targets = pd.DataFrame({
-        "avg_latency_ms": pd.to_numeric(runs["avg_latency_ms"], errors="coerce"),
-        "throughput_mbps": pd.to_numeric(runs["avg_throughput_mbps"], errors="coerce"),
-        "loss_pct": loss,
-    }, index=runs.index)
+    latency = pd.to_numeric(runs["avg_latency_ms"], errors="coerce")
+    throughput = pd.to_numeric(runs["avg_throughput_mbps"], errors="coerce")
+    targets = pd.DataFrame({"avg_latency_ms": latency, "throughput_mbps": throughput, "loss_pct": loss},
+                           index=runs.index)
     if not np.isfinite(targets.to_numpy(dtype=float)).all():
         raise ValueError("Run target metrics must contain finite numbers")
     return targets
 
 
 def _clip(target: str, values: np.ndarray) -> np.ndarray:
-    return np.clip(values, 0.0, 100.0) if target == "loss_pct" else np.clip(values, 0.0, None)
+    return np.clip(values, 0.0, 100.0 if target == "loss_pct" else None)
 
 
 class ExpectedMetricBaseline:
-    def __init__(
-        self,
-        *,
-        n_estimators: int = 200,
-        random_state: int = 42,
-        deviation_multiplier: float = 3.0,
-        learn_correction: bool = False,
-    ) -> None:
+    def __init__(self, *, n_estimators: int = 200, random_state: int = 42, deviation_multiplier: float = 3.0,
+                 learn_correction: bool = False) -> None:
         if n_estimators < 1:
             raise ValueError("n_estimators must be at least 1")
         if deviation_multiplier <= 0:
@@ -138,7 +128,9 @@ class ExpectedMetricBaseline:
 
     def _expected(self, model: RandomForestRegressor | None, features: pd.DataFrame, target: str) -> np.ndarray:
         physics = features[PHYSICS_COLUMNS[target]].to_numpy(dtype=float)
-        return _clip(target, physics if model is None else physics + model.predict(features))
+        if model is None:
+            return _clip(target, physics)
+        return _clip(target, physics + model.predict(features))
 
     def threshold(self, target: str, expected: np.ndarray) -> np.ndarray:
         return np.maximum.reduce([
@@ -158,24 +150,30 @@ class ExpectedMetricBaseline:
             result[f"{target}_deviation_flag"] = np.abs(deviation) > self.threshold(target, expected[target])
         return result
 
+    def _held_out_expected(self, features: pd.DataFrame, targets: pd.DataFrame, groups: pd.Series,
+                           target: str) -> np.ndarray:
+        residual = targets[target] - features[PHYSICS_COLUMNS[target]]
+        predicted = np.zeros(len(targets))
+        splitter = GroupKFold(n_splits=min(5, groups.nunique()))
+        for train, test in splitter.split(features, groups=groups):
+            model = self._forest().fit(features.iloc[train], residual.iloc[train])
+            predicted[test] = self._expected(model, features.iloc[test], target)
+        return predicted
+
     def fit(self, runs: pd.DataFrame, features: pd.DataFrame | None = None) -> "ExpectedMetricBaseline":
         if "topology_path" not in runs.columns:
             raise ValueError("Run table must contain 'topology_path'")
-        features = build_run_features(runs) if features is None else features
+        if features is None:
+            features = build_run_features(runs)
         targets = _target_values(runs)
         groups = runs["topology_path"].astype(str).map(lambda p: Path(p).stem)
         if groups.nunique() < 2:
             raise ValueError("At least two different topologies are required for topology-grouped validation")
 
-        splitter = GroupKFold(n_splits=min(5, groups.nunique()))
         out_of_fold: dict[str, np.ndarray] = {}
         for target in TARGET_COLUMNS:
             if self.learn_correction:
-                residual = targets[target] - features[PHYSICS_COLUMNS[target]]
-                predicted = np.zeros(len(runs))
-                for train, test in splitter.split(features, groups=groups):
-                    model = self._forest().fit(features.iloc[train], residual.iloc[train])
-                    predicted[test] = self._expected(model, features.iloc[test], target)
+                predicted = self._held_out_expected(features, targets, groups, target)
             else:
                 predicted = self._expected(None, features, target)
             out_of_fold[target] = predicted
@@ -184,10 +182,11 @@ class ExpectedMetricBaseline:
 
         self.validation_predictions_ = self._rows(targets, out_of_fold, runs.index)
         self.feature_columns_ = tuple(features.columns)
-        self.models_ = {
-            target: self._forest().fit(features, targets[target] - features[PHYSICS_COLUMNS[target]])
-            for target in TARGET_COLUMNS
-        } if self.learn_correction else {}
+        self.models_ = {}
+        if self.learn_correction:
+            for target in TARGET_COLUMNS:
+                residual = targets[target] - features[PHYSICS_COLUMNS[target]]
+                self.models_[target] = self._forest().fit(features, residual)
         return self
 
     def predict(self, runs: pd.DataFrame) -> pd.DataFrame:
@@ -196,9 +195,7 @@ class ExpectedMetricBaseline:
         features = build_run_features(runs)
         if tuple(features.columns) != self.feature_columns_:
             raise ValueError("Run features do not match the fitted model")
-        expected = {
-            target: self._expected(self.models_.get(target), features, target) for target in TARGET_COLUMNS
-        }
+        expected = {target: self._expected(self.models_.get(target), features, target) for target in TARGET_COLUMNS}
         result = self._rows(_target_values(runs), expected, runs.index)
         if "run_id" in runs.columns:
             result.insert(0, "run_id", runs["run_id"])
@@ -219,17 +216,10 @@ class ExpectedMetricBaseline:
         return model
 
 
-def evaluate_expected_baseline(
-    runs: pd.DataFrame,
-    *,
-    n_estimators: int = 200,
-    random_state: int = 42,
-    deviation_multiplier: float = 3.0,
-) -> tuple[ExpectedMetricBaseline, pd.DataFrame]:
-    model = ExpectedMetricBaseline(
-        n_estimators=n_estimators, random_state=random_state, deviation_multiplier=deviation_multiplier
-    ).fit(runs)
-    assert model.validation_predictions_ is not None
+def evaluate_expected_baseline(runs: pd.DataFrame, *, n_estimators: int = 200, random_state: int = 42,
+                               deviation_multiplier: float = 3.0) -> tuple[ExpectedMetricBaseline, pd.DataFrame]:
+    model = ExpectedMetricBaseline(n_estimators=n_estimators, random_state=random_state,
+                                   deviation_multiplier=deviation_multiplier).fit(runs)
     result = model.validation_predictions_.copy()
     if "run_id" in runs.columns:
         result.insert(0, "run_id", runs["run_id"])

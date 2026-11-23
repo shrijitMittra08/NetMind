@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, FileStack, FileUp, Info, PencilRuler, X } from "lucide-react";
 import { toTopology } from "../../domain/topology";
+import type { NodeType, Topology } from "../../lib/types";
 import { useWorkbench } from "../../state/workbench";
 import { Segmented } from "../ui";
 import { Builder } from "./Builder";
@@ -8,24 +9,31 @@ import { ImportPanel } from "./ImportPanel";
 import { ScenarioImportPanel } from "./ScenarioImportPanel";
 import { TopologyPreview } from "./TopologyPreview";
 
+type TopologyMode = "build" | "import" | "scenario";
+
+const NODE_TYPES: readonly NodeType[] = ["HOST", "ROUTER", "SWITCH"];
+const DEFAULT_QUEUE_CAPACITY = 64;
+
+function comparableJson(topology: Topology | null): string {
+  const nodes = (topology?.nodes ?? []).map(({ id, type, name, ip }) => ({ id, type, name, ip }));
+  const links = (topology?.links ?? []).map(({ a, b, bandwidthMbps, latencyMs, lossRate, queueCapacity }) => ({
+    a,
+    b,
+    bandwidthMbps,
+    latencyMs,
+    lossRate,
+    queueCapacity: queueCapacity ?? DEFAULT_QUEUE_CAPACITY,
+  }));
+  return JSON.stringify({ nodes, links });
+}
+
 export function TopologyPage() {
   const { topology, topologyName, applyTopology, clearTopology, builder, goTo } = useWorkbench();
   const canvasDiffers = useMemo(() => {
     if (builder.nodes.length === 0 && !topology) return false;
-    const canvas = toTopology(builder);
-    const strip = (t: typeof canvas | null) =>
-      JSON.stringify({
-        nodes: (t?.nodes ?? []).map(({ id, type, name, ip }) => ({ id, type, name, ip })),
-        links: (t?.links ?? []).map(({ a, b, bandwidthMbps, latencyMs, lossRate, queueCapacity }) => ({
-          a, b, bandwidthMbps, latencyMs, lossRate, queueCapacity: queueCapacity ?? 64,
-        })),
-      });
-    return strip(canvas) !== strip(topology);
+    return comparableJson(toTopology(builder)) !== comparableJson(topology);
   }, [builder, topology]);
-  const [mode, setMode] = useState<"build" | "import" | "scenario">("build");
-  const counts = topology
-    ? (["HOST", "ROUTER", "SWITCH"] as const).map((type) => [type, topology.nodes.filter((n) => n.type === type).length] as const)
-    : [];
+  const [mode, setMode] = useState<TopologyMode>("build");
 
   return (
     <div className="topology-page">
@@ -87,14 +95,16 @@ export function TopologyPage() {
                 <div>
                   <span>{topology.links.length}</span>links
                 </div>
-                {counts
-                  .filter(([, count]) => count > 0)
-                  .map(([type, count]) => (
+                {NODE_TYPES.map((type) => {
+                  const count = topology.nodes.filter((node) => node.type === type).length;
+                  if (count === 0) return null;
+                  return (
                     <div key={type}>
                       <span>{count}</span>
                       {type.toLowerCase()}s
                     </div>
-                  ))}
+                  );
+                })}
               </div>
               <button type="button" className="btn primary" onClick={() => goTo("setup")}>
                 Configure simulation <ArrowRight />

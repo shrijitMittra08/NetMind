@@ -14,6 +14,7 @@ def add_event(graph, key, event_type, time_s, target):
     )
 
 
+# Checks that a link-failure fact counts only drops on that link and shows the path change
 def test_failure_fact_cites_only_matching_drops_and_compares_packet_paths():
     graph = nx.MultiDiGraph()
     graph.add_node("device:r1", node_type="Device", name="R1")
@@ -104,6 +105,7 @@ def test_failure_fact_cites_only_matching_drops_and_compares_packet_paths():
     assert "1 matching link_down drop(s)" in failure_fact["text"]
 
 
+# Checks that a congestion fact counts only queue-full drops on that link during the congestion
 def test_congestion_fact_limits_drops_to_target_and_congestion_interval():
     graph = nx.MultiDiGraph()
     graph.add_node("device:a", node_type="Device", name="A")
@@ -180,6 +182,7 @@ def test_congestion_fact_limits_drops_to_target_and_congestion_interval():
     assert "against capacity 4" in congestion_fact["text"]
 
 
+# Checks that an anomaly fact names the closest event that happened just before it
 def test_anomaly_fact_cites_nearest_preceding_event():
     graph = nx.MultiDiGraph()
     graph.add_node(
@@ -212,6 +215,7 @@ def test_anomaly_fact_cites_nearest_preceding_event():
     assert "ROUTER_DOWN on R1" in anomaly_facts[0]["text"]
 
 
+# Checks that a negative anomaly look-back time is rejected with an error
 def test_negative_anomaly_lookback_is_rejected():
     with pytest.raises(ValueError, match="finite and non-negative"):
         extract_facts(nx.MultiDiGraph(), [], anomaly_lookback_seconds=-1)

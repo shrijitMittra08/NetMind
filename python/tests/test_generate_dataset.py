@@ -40,6 +40,7 @@ def make_task(topology, event_pattern="link_failure"):
     )
 
 
+# Checks that a built scenario uses the topology, algorithm, load, seed and a link failure event
 def test_scenario_uses_topology_algorithm_load_seed_and_failure_events(tmp_path):
     topology_path = tmp_path / "topology.json"
     write_topology(topology_path)
@@ -62,6 +63,7 @@ def test_scenario_uses_topology_algorithm_load_seed_and_failure_events(tmp_path)
     assert json.loads(metadata["scenario_json"])["flows"] == scenario["flows"]
 
 
+# Checks that building the same scenario twice gives exactly the same result
 def test_scenarios_are_reproducible(tmp_path):
     topology_path = tmp_path / "topology.json"
     write_topology(topology_path)
@@ -70,6 +72,7 @@ def test_scenarios_are_reproducible(tmp_path):
     assert build_scenario(make_task(topology, "congestion")) == build_scenario(make_task(topology, "congestion"))
 
 
+# Checks that a burst scenario adds a new flow with a fresh id between the two hosts
 def test_burst_scenario_adds_a_new_flow_between_valid_hosts(tmp_path):
     topology_path = tmp_path / "topology.json"
     write_topology(topology_path)
@@ -84,6 +87,7 @@ def test_burst_scenario_adds_a_new_flow_between_valid_hosts(tmp_path):
     assert event["time_s"] < scenario["duration_s"]
 
 
+# Checks that the task list covers every algorithm and is the same for the same random seed
 def test_task_sweep_includes_all_algorithms_and_is_reproducible(tmp_path):
     topology_path = tmp_path / "topology.json"
     write_topology(topology_path)

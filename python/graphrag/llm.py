@@ -11,8 +11,8 @@ def _load_env_file() -> None:
     if not _ENV_FILE.is_file():
         return
     for line in _ENV_FILE.read_text(encoding="utf-8").splitlines():
-        key, sep, value = line.strip().partition("=")
-        if sep and key and not key.startswith("#"):
+        key, separator, value = line.strip().partition("=")
+        if separator and key and not key.startswith("#"):
             os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
@@ -33,8 +33,12 @@ def is_configured() -> bool:
 
 def describe() -> dict[str, Any]:
     config = settings()
-    host = config["base_url"].split("//")[-1].split("/")[0] if config["base_url"] else ""
-    return {"engine": "agent" if is_configured() else "rules", "model": config["model"] or None, "provider": host or None}
+    host = config["base_url"].split("//")[-1].split("/")[0]
+    return {
+        "engine": "agent" if is_configured() else "rules",
+        "model": config["model"] or None,
+        "provider": host or None,
+    }
 
 
 def chat_model():
@@ -43,11 +47,5 @@ def chat_model():
     from langchain_openai import ChatOpenAI
 
     config = settings()
-    return ChatOpenAI(
-        model=config["model"],
-        base_url=config["base_url"],
-        api_key=config["api_key"],
-        temperature=0,
-        timeout=float(config["timeout"] or 30),
-        max_retries=1,
-    )
+    return ChatOpenAI(model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
+                      temperature=0, timeout=float(config["timeout"] or 30), max_retries=1)

@@ -14,7 +14,6 @@ class Command {
 
     [[nodiscard]] virtual std::string name() const = 0;
     [[nodiscard]] virtual std::string help() const = 0;
-
     virtual void execute(Session& session, const std::vector<std::string>& args,
                          std::ostream& output) = 0;
 };

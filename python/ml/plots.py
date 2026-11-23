@@ -21,25 +21,20 @@ def _save(figure: plt.Figure, path: Path) -> Path:
     return path
 
 
-def _shade_labels(axis: plt.Axes, run: pd.DataFrame) -> None:
-    for start in run.loc[run["is_anomaly"] == 1, "t_start"]:
-        axis.axvspan(start, start + 1.0, color=COLORS["band"], alpha=0.6, lw=0)
-
-
 def _example_runs(frame: pd.DataFrame) -> list[str]:
     test = frame[frame["split"] == "test"] if "split" in frame.columns else frame
     chosen: list[str] = []
     for pattern in DISTURBED_PATTERNS:
         runs = test[test["event_pattern"] == pattern]
-        if runs.empty:
-            continue
-        chosen.append(str(sorted(runs["run_id"].unique())[0]))
+        if not runs.empty:
+            chosen.append(str(sorted(runs["run_id"].unique())[0]))
     return chosen
 
 
 def plot_run_anomalies(axis: plt.Axes, run: pd.DataFrame, flag_column: str, title: str) -> None:
     run = run.sort_values("t_start")
-    _shade_labels(axis, run)
+    for start in run.loc[run["is_anomaly"] == 1, "t_start"]:
+        axis.axvspan(start, start + 1.0, color=COLORS["band"], alpha=0.6, lw=0)
     axis.plot(run["t_start"], run["avg_latency_ms"], color=COLORS["actual"], lw=1.6, label="latency (ms)")
     flagged = run[run[flag_column].astype(bool)]
     axis.scatter(flagged["t_start"], flagged["avg_latency_ms"], color=COLORS["flag"], zorder=3, s=22,
@@ -58,9 +53,8 @@ def plot_anomaly_timeline(
     runs = _example_runs(frame)
     if not runs:
         raise ValueError("No disturbed runs to plot")
-    columns = 2
-    rows = (len(runs) + 1) // columns
-    figure, axes = plt.subplots(rows, columns, figsize=(12, 3.6 * rows), squeeze=False)
+    rows = (len(runs) + 1) // 2
+    figure, axes = plt.subplots(rows, 2, figsize=(12, 3.6 * rows), squeeze=False)
     for axis, run_id in zip(axes.flat, runs):
         run = frame[frame["run_id"] == run_id]
         pattern = run["event_pattern"].iloc[0]

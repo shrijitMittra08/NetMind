@@ -15,6 +15,7 @@ const topo: Topology = {
 };
 
 describe("simulation setup", () => {
+  // Checks that newly added flows and events use valid names from the topology
   it("creates rows that are valid for the topology as added", () => {
     const settings: SimSettings = { config: DEFAULT_CONFIG, flows: [makeFlow(topo)], events: [makeEvent(topo)] };
     expect(settings.flows[0]).toMatchObject({ src: "PC1", dst: "PC2" });
@@ -22,6 +23,7 @@ describe("simulation setup", () => {
     expect(findSetupProblems(topo, settings)).toEqual([]);
   });
 
+  // Checks that empty or unknown node names are reported as setup problems
   it("reports empty or stale names instead of letting the simulator fail", () => {
     const settings: SimSettings = {
       config: DEFAULT_CONFIG,
@@ -34,6 +36,7 @@ describe("simulation setup", () => {
     ]);
   });
 
+  // Checks that a renamed node updates flows and blanks event names that no longer exist
   it("repairs flows and blanks stale event references after a topology change", () => {
     const renamed: Topology = {
       ...topo,
@@ -45,6 +48,7 @@ describe("simulation setup", () => {
     expect(repaired.events[0]).toMatchObject({ a: "", b: "R1" });
   });
 
+  // Checks that the API payload is built correctly and burst flows get ids after normal flows
   it("builds the API payload, numbering burst flows after the regular flows", () => {
     const settings: SimSettings = {
       config: DEFAULT_CONFIG,

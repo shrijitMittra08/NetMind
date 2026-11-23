@@ -82,6 +82,7 @@ void addSwitchTestTopology(SwitchTestContext& ctx) {
 
 }             
 
+// Checks that a switch sends a packet to every other neighbor but not back where it came from
 TEST_CASE("Switch floods to active neighbors except the incoming link") {
     SwitchTestContext ctx;
     addSwitchTestTopology(ctx);
@@ -109,6 +110,7 @@ TEST_CASE("Switch floods to active neighbors except the incoming link") {
     REQUIRE(ctx.transmissions[1].packet.id == 50);
 }
 
+// Checks that a switch ignores a packet with an id it has already forwarded
 TEST_CASE("Switch does not forward the same packet id twice") {
     SwitchTestContext ctx;
     addSwitchTestTopology(ctx);
@@ -127,6 +129,7 @@ TEST_CASE("Switch does not forward the same packet id twice") {
     REQUIRE(ctx.transmissions.size() == 2);
 }
 
+// Checks that a switch does not flood a packet toward a neighbor that is down
 TEST_CASE("Switch floods only over active links") {
     SwitchTestContext ctx;
     addSwitchTestTopology(ctx);

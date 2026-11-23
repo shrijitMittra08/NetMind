@@ -58,6 +58,7 @@ netmind::Graph makeEqualCostGraph() {
 
 }
 
+// Checks that Bellman-Ford picks the lowest-latency path through the diamond topology
 TEST_CASE("Bellman-Ford finds the lowest-latency diamond route") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::BellmanFordRouting routing;
@@ -67,6 +68,7 @@ TEST_CASE("Bellman-Ford finds the lowest-latency diamond route") {
             std::vector<netmind::NodeId>{1, 2, 3, 4, 5, 7, 8});
 }
 
+// Checks that Bellman-Ford and Dijkstra find routes of the same length for every node pair
 TEST_CASE("Bellman-Ford and Dijkstra agree on non-negative weights") {
     const netmind::Graph graph = loadSample("medium10.json");
     netmind::BellmanFordRouting bellmanFord;
@@ -87,6 +89,7 @@ TEST_CASE("Bellman-Ford and Dijkstra agree on non-negative weights") {
     }
 }
 
+// Checks that the Bellman-Ford table gives the right next hop for each reachable node
 TEST_CASE("Bellman-Ford computes next hops for reachable destinations") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::BellmanFordRouting routing;
@@ -101,6 +104,7 @@ TEST_CASE("Bellman-Ford computes next hops for reachable destinations") {
     REQUIRE(table.at(4) == 2);
 }
 
+// Checks that Bellman-Ford leaves out destinations cut off by a removed link
 TEST_CASE("Bellman-Ford omits unreachable destinations") {
     netmind::Graph graph = loadSample("small4.json");
     REQUIRE(graph.removeLink(2));
@@ -117,6 +121,7 @@ TEST_CASE("Bellman-Ford omits unreachable destinations") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that Bellman-Ford skips a router that is marked down
 TEST_CASE("Bellman-Ford ignores down nodes and links") {
     netmind::Graph graph = loadSample("small4.json");
     auto* router = graph.getNode(3);
@@ -134,6 +139,7 @@ TEST_CASE("Bellman-Ford ignores down nodes and links") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that on equal-cost paths Bellman-Ford chooses the next hop with the smaller id
 TEST_CASE("Bellman-Ford breaks equal-cost ties by smaller next-hop id") {
     const netmind::Graph graph = makeEqualCostGraph();
     netmind::BellmanFordRouting routing;
@@ -145,6 +151,7 @@ TEST_CASE("Bellman-Ford breaks equal-cost ties by smaller next-hop id") {
     REQUIRE(table.at(5) == 2);
 }
 
+// Checks that Bellman-Ford throws a ConfigError when it finds a negative-weight cycle
 TEST_CASE("Bellman-Ford detects a reachable negative cycle") {
     netmind::Graph graph;
 
@@ -158,6 +165,7 @@ TEST_CASE("Bellman-Ford detects a reachable negative cycle") {
     REQUIRE_THROWS_AS(routing.computeRoute(graph, 1, 2, negativeWeight), netmind::ConfigError);
 }
 
+// Checks that Bellman-Ford reports its name as "Bellman-Ford"
 TEST_CASE("Bellman-Ford identifies itself by name") {
     netmind::BellmanFordRouting routing;
     REQUIRE(routing.name() == "Bellman-Ford");

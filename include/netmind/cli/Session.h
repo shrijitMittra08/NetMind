@@ -26,7 +26,6 @@ class Session {
 
     [[nodiscard]] ScenarioManager& scenarioManager() noexcept;
     [[nodiscard]] const ScenarioManager& scenarioManager() const noexcept;
-
     [[nodiscard]] SimulationEngine* engine() noexcept;
     [[nodiscard]] const SimulationEngine* engine() const noexcept;
 
@@ -44,9 +43,7 @@ class Session {
     [[nodiscard]] FlowId nextFlowId() const;
     [[nodiscard]] const std::vector<std::string>& stepMessages() const noexcept;
     void clearStepMessages() noexcept;
-
     [[nodiscard]] const std::vector<std::unique_ptr<SimObserver>>& observers() const noexcept;
-
     [[nodiscard]] const std::filesystem::path& outputDirectory() const noexcept;
     void setOutputDirectory(std::filesystem::path directory);
 
@@ -56,15 +53,12 @@ class Session {
 
   private:
     ScenarioManager scenarioManager_;
-
     std::vector<std::unique_ptr<SimObserver>> observers_;
     std::unique_ptr<SimulationEngine> engine_;
     MetricsCollector* metrics_{};
     TraceLogger* traceLogger_{};
-    SimObserver* consoleObserver_{};
     std::filesystem::path tracePath_;
     std::vector<std::string> stepMessages_;
-
     std::filesystem::path outputDirectory_{"data"};
     bool exitRequested_{false};
 };

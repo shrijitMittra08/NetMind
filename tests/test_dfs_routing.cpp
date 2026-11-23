@@ -23,6 +23,7 @@ netmind::Graph loadSample(const std::string& filename) {
 
 }
 
+// Checks that DFS always returns the same expected path on the weighted diamond topology
 TEST_CASE("DFSRouting returns a deterministic path on the weighted diamond") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::DFSRouting routing;
@@ -32,6 +33,7 @@ TEST_CASE("DFSRouting returns a deterministic path on the weighted diamond") {
             std::vector<netmind::NodeId>{1, 2, 3, 4, 5, 7, 8});
 }
 
+// Checks that DFS and Dijkstra pick the same route here while BFS picks a different one
 TEST_CASE("DFS and Dijkstra match on this sample while BFS chooses differently") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::DFSRouting dfs;
@@ -48,6 +50,7 @@ TEST_CASE("DFS and Dijkstra match on this sample while BFS chooses differently")
     REQUIRE(dfsRoute != bfsRoute);
 }
 
+// Checks that the DFS table gives the right next hop for each reachable node
 TEST_CASE("DFSRouting builds a next-hop table for reachable nodes") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::DFSRouting routing;
@@ -62,6 +65,7 @@ TEST_CASE("DFSRouting builds a next-hop table for reachable nodes") {
     REQUIRE(table.at(4) == 2);
 }
 
+// Checks that DFS finds no route to nodes cut off by a removed link
 TEST_CASE("DFSRouting omits destinations unreachable after link removal") {
     netmind::Graph graph = loadSample("small4.json");
     REQUIRE(graph.removeLink(2));
@@ -78,6 +82,7 @@ TEST_CASE("DFSRouting omits destinations unreachable after link removal") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that DFS skips a node that is marked down
 TEST_CASE("DFSRouting ignores down nodes") {
     netmind::Graph graph = loadSample("small4.json");
     auto* node = graph.getNode(3);
@@ -95,6 +100,7 @@ TEST_CASE("DFSRouting ignores down nodes") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that DFS returns just the node when source equals destination and nothing for a missing node
 TEST_CASE("DFSRouting handles same-node and missing-node routes") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::DFSRouting routing;
@@ -104,6 +110,7 @@ TEST_CASE("DFSRouting handles same-node and missing-node routes") {
     REQUIRE(routing.computeRoute(graph, 2, 99, policy).empty());
 }
 
+// Checks that DFS reports its name as "DFS"
 TEST_CASE("DFSRouting identifies itself by name") {
     netmind::DFSRouting routing;
     REQUIRE(routing.name() == "DFS");

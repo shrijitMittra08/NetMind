@@ -8,32 +8,30 @@
 
 namespace netmind {
 
-    class SimContext;
+class SimContext;
 
-    class Node : public NetworkEntity {
-        public:
-        Node(NodeId id, std::string name, std::string ip, NodeType type);
-        Node(const Node&) = delete;
-        Node& operator=(const Node&) = delete;
-        ~Node() override = default;
+class Node : public NetworkEntity {
+  public:
+    Node(NodeId id, std::string name, std::string ip, NodeType type);
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
+    ~Node() override = default;
 
-        [[nodiscard]] NodeId getId() const override;
-        [[nodiscard]] const std::string& name() const;
-        [[nodiscard]] const std::string& ip() const;
-        [[nodiscard]] NodeType type() const;
-        [[nodiscard]] bool isUp() const;
+    [[nodiscard]] NodeId getId() const override { return id_; }
+    [[nodiscard]] const std::string& name() const { return name_; }
+    [[nodiscard]] const std::string& ip() const { return ip_; }
+    [[nodiscard]] NodeType type() const { return type_; }
+    [[nodiscard]] bool isUp() const { return up_; }
+    void setUp(bool up) { up_ = up; }
 
-        void setUp(bool up);
+    virtual void receivePacket(Packet pkt, LinkId inLink, SimContext& ctx) = 0;
 
-        virtual void receivePacket(
-            Packet pkt, LinkId inLink, SimContext& ctx) = 0;
-        
-        private:
-        NodeId id_;
-        std::string name_;
-        std::string ip_;
-        NodeType type_;
-        bool up_{true};
-    };
+  private:
+    NodeId id_;
+    std::string name_;
+    std::string ip_;
+    NodeType type_;
+    bool up_{true};
+};
 
 }

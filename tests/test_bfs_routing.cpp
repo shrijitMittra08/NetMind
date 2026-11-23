@@ -22,6 +22,7 @@ netmind::Graph loadSample(const std::string& filename) {
 
 }
 
+// Checks that BFS returns the route with the fewest hops, ignoring latency
 TEST_CASE("BFSRouting returns a fewest-hop route") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::BFSRouting routing;
@@ -32,6 +33,7 @@ TEST_CASE("BFSRouting returns a fewest-hop route") {
     REQUIRE(route == std::vector<netmind::NodeId>{1, 2, 6, 7, 8});
 }
 
+// Checks that BFS returns an empty route when the destination cannot be reached
 TEST_CASE("BFSRouting returns an empty route when destination is unreachable") {
     netmind::Graph graph = loadSample("small4.json");
     REQUIRE(graph.removeLink(2));
@@ -42,6 +44,7 @@ TEST_CASE("BFSRouting returns an empty route when destination is unreachable") {
     REQUIRE(routing.computeRoute(graph, 1, 4, hopPolicy).empty());
 }
 
+// Checks that BFS returns just the source node when source and destination are the same
 TEST_CASE("BFSRouting returns a one-node path when source equals destination") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::BFSRouting routing;
@@ -50,6 +53,7 @@ TEST_CASE("BFSRouting returns a one-node path when source equals destination") {
     REQUIRE(routing.computeRoute(graph, 2, 2, hopPolicy) == std::vector<netmind::NodeId>{2});
 }
 
+// Checks that the BFS table maps every destination to the correct first hop
 TEST_CASE("BFSRouting computeTable gives each destination its first hop") {
     const netmind::Graph graph = loadSample("small4.json");
     netmind::BFSRouting routing;
@@ -64,6 +68,7 @@ TEST_CASE("BFSRouting computeTable gives each destination its first hop") {
     REQUIRE(table.at(4) == 2);
 }
 
+// Checks that the BFS table leaves out destinations cut off by a removed link
 TEST_CASE("BFSRouting table omits destinations beyond a removed link") {
     netmind::Graph graph = loadSample("small4.json");
     REQUIRE(graph.removeLink(2));
@@ -79,6 +84,7 @@ TEST_CASE("BFSRouting table omits destinations beyond a removed link") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that BFS skips a router that is marked down
 TEST_CASE("BFSRouting ignores down links and down nodes") {
     netmind::Graph graph = loadSample("small4.json");
     netmind::BFSRouting routing;
@@ -96,6 +102,7 @@ TEST_CASE("BFSRouting ignores down links and down nodes") {
     REQUIRE(table.find(4) == table.end());
 }
 
+// Checks that BFS uses the smaller node id to break ties between equal-hop paths
 TEST_CASE("BFSRouting uses node id order to break equal-hop ties") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::BFSRouting routing;
@@ -107,6 +114,7 @@ TEST_CASE("BFSRouting uses node id order to break equal-hop ties") {
     REQUIRE(table.at(7) == 2);
 }
 
+// Checks that BFS reports its name as "BFS"
 TEST_CASE("BFSRouting identifies itself by name") {
     netmind::BFSRouting routing;
     REQUIRE(routing.name() == "BFS");

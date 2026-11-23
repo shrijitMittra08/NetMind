@@ -54,6 +54,7 @@ nlohmann::json validTopology() {
 
 }             
 
+// Checks that loading JSON builds the right nodes, links, link settings and host gateways
 TEST_CASE("TopologyLoader builds nodes, links, and host gateways") {
     const netmind::Graph graph =
         netmind::TopologyLoader::loadFromJson(validTopology());
@@ -79,6 +80,7 @@ TEST_CASE("TopologyLoader builds nodes, links, and host gateways") {
     REQUIRE(graph.linkBetween(2, 3)->queueCapacity() == 32);
 }
 
+// Checks that a node with type SWITCH is created as a Switch object
 TEST_CASE("TopologyLoader creates Switch nodes") {
     nlohmann::json document = {
         {"nodes", {
@@ -125,6 +127,7 @@ TEST_CASE("TopologyLoader creates Switch nodes") {
     REQUIRE(dynamic_cast<const netmind::Switch*>(graph.getNode(3)) != nullptr);
 }
 
+// Checks that a link without a queue capacity gets the default capacity of 64
 TEST_CASE("TopologyLoader applies the default queue capacity") {
     const netmind::Graph graph =
         netmind::TopologyLoader::loadFromJson(validTopology());
@@ -132,6 +135,7 @@ TEST_CASE("TopologyLoader applies the default queue capacity") {
     REQUIRE(graph.linkBetween(1, 2)->queueCapacity() == 64);
 }
 
+// Checks that a topology split into two separate parts still loads and reports two components
 TEST_CASE("TopologyLoader accepts disconnected graphs") {
     nlohmann::json document = {
         {"nodes", {
@@ -187,6 +191,7 @@ TEST_CASE("TopologyLoader accepts disconnected graphs") {
     REQUIRE(graph.connectedComponents().size() == 2);
 }
 
+// Checks that all node and link mistakes are reported together in one error message
 TEST_CASE("TopologyLoader aggregates invalid node and link errors") {
     nlohmann::json document = {
         {"nodes", {
@@ -228,6 +233,7 @@ TEST_CASE("TopologyLoader aggregates invalid node and link errors") {
     }
 }
 
+// Checks that a host with no links or linked to another host is rejected
 TEST_CASE("TopologyLoader rejects hosts without exactly one router link") {
     SECTION("host has no links") {
         nlohmann::json document = {
@@ -282,6 +288,7 @@ TEST_CASE("TopologyLoader rejects hosts without exactly one router link") {
     }
 }
 
+// Checks that a JSON array or an empty object is rejected as a topology
 TEST_CASE("TopologyLoader rejects malformed root structure") {
     REQUIRE_THROWS_AS(
         netmind::TopologyLoader::loadFromJson(nlohmann::json::array()),

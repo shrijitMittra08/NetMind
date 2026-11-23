@@ -15,6 +15,7 @@ def write_run(directory, latency, topology_path):
     return manifest
 
 
+# Checks that a rewritten run with the same id is loaded again instead of using the old cache
 def test_reused_run_id_is_reloaded_not_served_from_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(netmind_api, "DATA_DIR", tmp_path)
     monkeypatch.setattr(netmind_api, "_QA_CACHE", {})
@@ -32,6 +33,7 @@ def test_reused_run_id_is_reloaded_not_served_from_cache(tmp_path, monkeypatch):
     assert second.network["avg_latency_ms"] == 9.0
 
 
+# Checks that finishing a script run sets reconvergence delay to 0 and reports a no-flow error
 def test_script_runs_finish_without_a_reconvergence_setting(tmp_path, monkeypatch):
     monkeypatch.setattr(netmind_api, "DATA_DIR", tmp_path)
     seen = {}

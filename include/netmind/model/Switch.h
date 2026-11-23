@@ -7,16 +7,12 @@
 namespace netmind {
 
 class Switch : public Node {
-public:
+  public:
     Switch(NodeId id, std::string name, std::string ip);
 
-    void receivePacket(
-        Packet pkt,
-        LinkId inLink,
-        SimContext& ctx
-    ) override;
+    void receivePacket(Packet pkt, LinkId inLink, SimContext& ctx) override;
 
-private:
+  private:
     std::unordered_set<PacketId> seenPacketIds_;
 };
 

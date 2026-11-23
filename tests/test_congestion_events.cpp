@@ -46,6 +46,7 @@ std::unique_ptr<netmind::Graph> makeLinkGraph() {
 
 }             
 
+// Checks that congestion cuts a link's bandwidth and adds loss, then undoes it when time is up
 TEST_CASE("Congestion temporarily degrades and then restores a link") {
     netmind::SimulationEngine engine(1234);
     NetworkEventRecorder recorder;
@@ -79,6 +80,7 @@ TEST_CASE("Congestion temporarily degrades and then restores a link") {
     REQUIRE(recorder.times[1] == 2.5);
 }
 
+// Checks that a congestion event throws an error for a zero factor, negative loss or zero duration
 TEST_CASE("Congestion event rejects invalid parameters") {
     REQUIRE_THROWS_AS(
         netmind::CongestionEvent(10, 0.0, 0.0, 1.0),

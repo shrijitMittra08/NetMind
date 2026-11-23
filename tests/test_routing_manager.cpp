@@ -23,6 +23,7 @@ netmind::Graph loadSample(const std::string& filename) {
 
 }
 
+// Checks that a new routing manager uses Dijkstra, latency weights and zero reconvergence delay
 TEST_CASE("RoutingManager defaults to Dijkstra with latency weights") {
     const netmind::RoutingManager manager;
 
@@ -31,6 +32,7 @@ TEST_CASE("RoutingManager defaults to Dijkstra with latency weights") {
     REQUIRE(manager.reconvergenceDelay() == 0.0);
 }
 
+// Checks that algorithm and policy can be changed by name and bad names throw without changing them
 TEST_CASE("RoutingManager changes algorithms and policies by factory name") {
     netmind::RoutingManager manager;
 
@@ -47,6 +49,7 @@ TEST_CASE("RoutingManager changes algorithms and policies by factory name") {
     REQUIRE(manager.policyName() == "hops");
 }
 
+// Checks that recomputing fills in correct next hops for every router in the small topology
 TEST_CASE("RoutingManager recomputes tables for every up router") {
     netmind::Graph graph = loadSample("small4.json");
     netmind::RoutingManager manager;
@@ -65,6 +68,7 @@ TEST_CASE("RoutingManager recomputes tables for every up router") {
     REQUIRE(router2->forwardingTable().nextHop(1) == 2);
 }
 
+// Checks that recomputing a second time with no changes reports zero changed entries
 TEST_CASE("RoutingManager reports zero changes for a stable recomputation") {
     netmind::Graph graph = loadSample("small4.json");
     netmind::RoutingManager manager;
@@ -76,6 +80,7 @@ TEST_CASE("RoutingManager reports zero changes for a stable recomputation") {
     REQUIRE(secondSummary.entriesChanged == 0);
 }
 
+// Checks that a router switches to the backup path after a link is removed
 TEST_CASE("RoutingManager updates routes after a link is removed") {
     netmind::Graph graph = loadSample("ring_backup.json");
     netmind::RoutingManager manager;
@@ -93,6 +98,7 @@ TEST_CASE("RoutingManager updates routes after a link is removed") {
     REQUIRE(router1->forwardingTable().nextHop(6) == 5);
 }
 
+// Checks that a static route is kept and not overwritten when routes are recomputed
 TEST_CASE("RoutingManager preserves static entries during recomputation") {
     netmind::Graph graph = loadSample("ring_backup.json");
     netmind::RoutingManager manager;
@@ -109,6 +115,7 @@ TEST_CASE("RoutingManager preserves static entries during recomputation") {
     REQUIRE(entry->source == netmind::ForwardingTable::Source::STATIC);
 }
 
+// Checks that routes can be recomputed for just one chosen router
 TEST_CASE("RoutingManager recomputes one router at a time") {
     netmind::Graph graph = loadSample("small4.json");
     netmind::RoutingManager manager;
@@ -123,6 +130,7 @@ TEST_CASE("RoutingManager recomputes one router at a time") {
     REQUIRE(router->forwardingTable().nextHop(4) == 3);
 }
 
+// Checks that recomputing for a host or a missing node throws a topology error
 TEST_CASE("RoutingManager rejects recomputation for a non-router") {
     netmind::Graph graph = loadSample("small4.json");
     netmind::RoutingManager manager;
@@ -131,6 +139,7 @@ TEST_CASE("RoutingManager rejects recomputation for a non-router") {
     REQUIRE_THROWS_AS(manager.recomputeFor(graph, 99), netmind::TopologyError);
 }
 
+// Checks that routers that are down are skipped when all routes are recomputed
 TEST_CASE("RoutingManager skips down routers during full recomputation") {
     netmind::Graph graph = loadSample("small4.json");
     auto* router = graph.getNode(3);
@@ -143,6 +152,7 @@ TEST_CASE("RoutingManager skips down routers during full recomputation") {
     REQUIRE(summary.routersProcessed == 1);
 }
 
+// Checks that a route explanation lists the path, each hop cost and the total cost
 TEST_CASE("RoutingManager explains routes and their hop costs") {
     const netmind::Graph graph = loadSample("diamond_weighted.json");
     netmind::RoutingManager manager;
@@ -155,6 +165,7 @@ TEST_CASE("RoutingManager explains routes and their hop costs") {
     REQUIRE(manager.explainRoute(graph, 1, 8) == explanation.path);
 }
 
+// Checks that explaining an unreachable route gives an empty path and zero cost
 TEST_CASE("RoutingManager reports no explanation for unreachable routes") {
     netmind::Graph graph = loadSample("small4.json");
     REQUIRE(graph.removeLink(2));
@@ -167,6 +178,7 @@ TEST_CASE("RoutingManager reports no explanation for unreachable routes") {
     REQUIRE(explanation.totalCost == 0.0);
 }
 
+// Checks that a valid reconvergence delay is saved and a negative one throws an error
 TEST_CASE("RoutingManager validates reconvergence delay") {
     netmind::RoutingManager manager;
 

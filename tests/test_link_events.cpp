@@ -63,6 +63,7 @@ netmind::Packet makePacket(netmind::PacketId id) {
 
 }             
 
+// Checks that a link failure drops both queued packets as link-down and marks the link down
 TEST_CASE("Link failure flushes queued packets in both directions") {
     netmind::SimulationEngine engine(1234);
     EventRecorder observer;
@@ -90,6 +91,7 @@ TEST_CASE("Link failure flushes queued packets in both directions") {
     REQUIRE(link->state() == netmind::LinkState::DOWN);
 }
 
+// Checks that a packet already travelling on a link is dropped when that link fails
 TEST_CASE("Link failure invalidates a packet already in flight") {
     netmind::SimulationEngine engine(1234);
     EventRecorder observer;
@@ -114,6 +116,7 @@ TEST_CASE("Link failure invalidates a packet already in flight") {
     REQUIRE(link->state() == netmind::LinkState::DOWN);
 }
 
+// Checks that a failed link comes back up after a restore event and both events are reported
 TEST_CASE("Link restore returns a failed link to the up state") {
     netmind::SimulationEngine engine(1234);
     EventRecorder observer;

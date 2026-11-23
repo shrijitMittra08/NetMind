@@ -11,40 +11,31 @@
 namespace netmind {
 
 class TraceLogger : public SimObserver {
-  public:
+public:
     using NodeNameResolver = std::function<std::string(NodeId)>;
     using ChannelNameResolver = std::function<std::string(const ChannelId&)>;
 
     explicit TraceLogger(const std::string& outputPath);
-
     TraceLogger(const std::string& outputPath, NodeNameResolver nodeNameResolver,
                 ChannelNameResolver channelNameResolver);
-
     ~TraceLogger() override;
 
     void flush();
 
     void onSent(SimTime time, const Packet& packet) override;
-
     void onEnqueue(SimTime time, const Packet& packet, const ChannelId& channel,
                    std::size_t queueLength) override;
-
     void onTxStart(SimTime time, const Packet& packet, const ChannelId& channel,
                    SimTime eta) override;
-
     void onArrive(SimTime time, const Packet& packet, NodeId node, NodeId from) override;
-
     void onForward(SimTime time, const Packet& packet, NodeId at, NodeId next) override;
-
     void onDelivered(SimTime time, const Packet& packet) override;
-
     void onDropped(SimTime time, const Packet& packet, const std::string& where,
                    DropReason reason) override;
-
     void onNetworkEvent(SimTime time, const std::string& type, const std::string& target,
                         const std::string& detail) override;
 
-  private:
+private:
     struct FlowTraceInfo {
         std::string sourceName;
         std::string destinationName;
@@ -52,6 +43,12 @@ class TraceLogger : public SimObserver {
 
     [[nodiscard]] std::string nameOf(NodeId id) const;
     [[nodiscard]] std::string channelName(const ChannelId& channel) const;
+    void writeRow(const std::string& time, const std::string& eventType,
+                  const std::string& packetId, const std::string& flowId,
+                  const std::string& location, const std::string& detail);
+    void writePacketRow(SimTime time, const std::string& eventType, const Packet& packet,
+                        const std::string& location, const std::string& detail);
+    void writeFlowRow(SimTime time, const std::string& type, const std::string& target);
 
     std::ofstream output_;
     std::size_t linesSinceFlush_{0};

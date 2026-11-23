@@ -17,6 +17,9 @@ from graphrag.session import ALGORITHM_LABELS, QASession, label
 MAX_RETRIES = 1
 VERIFIER = "verifier"
 RECURSION_LIMIT = 16
+_HISTORY_TURNS = 6
+_MAX_TOOL_EVENTS = 40
+
 _NUMBER = re.compile(r"(?<![\w.])-?\d+(?:,\d{3})*(?:\.\d+)?(?![\w])")
 _DIGIT_GROUP = re.compile(r"(?<=\d)[   ](?=\d{3}(?!\d))")
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
@@ -33,61 +36,60 @@ def _dump(value: Any) -> str:
 
 
 def build_tools(session: QASession) -> list[StructuredTool]:
-
     def guarded(function: Callable[..., Any]) -> Callable[..., str]:
         @functools.wraps(function)
         def call(*args: Any, **kwargs: Any) -> str:
             try:
                 return _dump(function(*args, **kwargs))
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 return _dump({"error": str(error)})
 
         return call
 
     def list_runs() -> Any:
-        """List the runs being discussed: algorithm, run id, routing weight and seed."""
         return [{"algorithm": c.algorithm, "run_id": c.run_id, "weight": c.weight, "seed": c.seed} for c in session.contexts]
 
     def compare_algorithms(metric: str) -> Any:
-        """Rank all runs on one metric and say which algorithm(s) were best, reporting ties.
-        metric is one of: latency_ms, throughput_mbps, reliability_pct, drops, recovery_time_s, avg_hops."""
         return tools.compare_runs(session.contexts, metric)
 
     def run_summary(algorithm: str = "") -> Any:
-        """End-of-run totals for one run (reliability, latency, throughput, drops, recovery time, per-flow stats).
-        algorithm: bfs, dfs, dijkstra or bellman-ford; empty for the first run."""
         return tools.run_summary(session.run(algorithm))
 
     def busiest_links(algorithm: str = "") -> Any:
-        """Link load for one run: busiest link directions by average utilisation, and queues that overflowed."""
         return tools.link_load(session.run(algorithm))
 
     def dropped_packets(algorithm: str = "", from_s: float | None = None, to_s: float | None = None) -> Any:
-        """Dropped packets in one run, optionally between from_s and to_s seconds, grouped by reason and location."""
         return tools.drops(session.run(algorithm), from_s, to_s)
 
     def network_events(algorithm: str = "", from_s: float | None = None, to_s: float | None = None) -> Any:
-        """Link and router failures, recoveries, degradations, route updates and flow start/stop, in time order."""
         result = tools.network_events(session.run(algorithm), from_s, to_s)
-        result["events"] = result["events"][:40]
+        result["events"] = result["events"][:_MAX_TOOL_EVENTS]
         return result
 
     def flow_path(src: str, dst: str, algorithm: str = "", at_s: float | None = None) -> Any:
-        """The hop-by-hop path packets took from host src to host dst, the path at time at_s, and when it changed."""
         return tools.flow_path(session.run(algorithm), src, dst, at_s)
 
     def window_metrics(algorithm: str = "", from_s: float | None = None, to_s: float | None = None) -> Any:
-        """Per-second metrics (latency, throughput, loss, utilisation) for one run; idle windows are flagged."""
         return tools.window_metrics(session.run(algorithm), from_s, to_s)
 
     def topology() -> Any:
-        """The network's devices (hosts, routers, switches) and links with bandwidth and latency."""
         return tools.topology_info(session.run())
 
-    functions = [list_runs, compare_algorithms, run_summary, busiest_links, dropped_packets,
-                 network_events, flow_path, window_metrics, topology]
-    return [StructuredTool.from_function(guarded(f), name=f.__name__, description=" ".join((f.__doc__ or "").split()))
-            for f in functions]
+    descriptions = [
+        (list_runs, "List the runs being discussed: algorithm, run id, routing weight and seed."),
+        (compare_algorithms, "Rank all runs on one metric and say which algorithm(s) were best, reporting ties. "
+                             "metric is one of: latency_ms, throughput_mbps, reliability_pct, drops, recovery_time_s, avg_hops."),
+        (run_summary, "End-of-run totals for one run (reliability, latency, throughput, drops, recovery time, per-flow stats). "
+                      "algorithm: bfs, dfs, dijkstra or bellman-ford; empty for the first run."),
+        (busiest_links, "Link load for one run: busiest link directions by average utilisation, and queues that overflowed."),
+        (dropped_packets, "Dropped packets in one run, optionally between from_s and to_s seconds, grouped by reason and location."),
+        (network_events, "Link and router failures, recoveries, degradations, route updates and flow start/stop, in time order."),
+        (flow_path, "The hop-by-hop path packets took from host src to host dst, the path at time at_s, and when it changed."),
+        (window_metrics, "Per-second metrics (latency, throughput, loss, utilisation) for one run; idle windows are flagged."),
+        (topology, "The network's devices (hosts, routers, switches) and links with bandwidth and latency."),
+    ]
+    return [StructuredTool.from_function(guarded(function), name=function.__name__, description=description)
+            for function, description in descriptions]
 
 
 def system_prompt(session: QASession) -> str:
@@ -114,19 +116,16 @@ def _text(message: BaseMessage) -> str:
     return _THINK.sub("", str(content)).strip()
 
 
-def _ungroup(text: str) -> str:
-    return _DIGIT_GROUP.sub("", text)
-
-
 def _numbers(text: str) -> list[str]:
-    return [n.replace(",", "") for n in _NUMBER.findall(_ungroup(text))]
+    return [number.replace(",", "") for number in _NUMBER.findall(_DIGIT_GROUP.sub("", text))]
 
 
 def unverified_numbers(answer: str, evidence: str, names: list[str]) -> list[str]:
     cleaned = answer
     for name in sorted(names + list(ALGORITHM_LABELS.values()), key=len, reverse=True):
         cleaned = re.sub(rf"\b{re.escape(name)}\b", " ", cleaned, flags=re.IGNORECASE)
-    known = [float(n) for n in _numbers(evidence)]
+
+    known = [float(number) for number in _numbers(evidence)]
     missing = []
     for raw in _numbers(cleaned):
         value = float(raw)
@@ -134,7 +133,7 @@ def unverified_numbers(answer: str, evidence: str, names: list[str]) -> list[str
         tolerance = 0.5 * 10 ** -decimals + 1e-9
         if decimals == 0 and abs(value) <= 10:
             continue
-        if not any(abs(value - k) <= tolerance for k in known):
+        if not any(abs(value - known_value) <= tolerance for known_value in known):
             missing.append(raw)
     return missing
 
@@ -143,22 +142,19 @@ def build_graph(llm: Any, session: QASession):
     tool_list = build_tools(session)
     model = llm.bind_tools(tool_list)
     prompt = SystemMessage(system_prompt(session))
-    names = session.node_names
-
-    def _is_verifier(message: HumanMessage) -> bool:
-        return str(message.id or "").startswith(f"{VERIFIER}-")
 
     def agent(state: AgentState) -> dict[str, Any]:
         return {"messages": [model.invoke([prompt, *state["messages"]])]}
 
     def verify(state: AgentState) -> dict[str, Any]:
         messages = state["messages"]
-        answer = _text(messages[-1])
-        evidence = " ".join(
-            _text(m) for m in messages
-            if isinstance(m, ToolMessage) or (isinstance(m, HumanMessage) and not _is_verifier(m))
-        )
-        missing = unverified_numbers(answer, evidence, names)
+        evidence_parts = []
+        for message in messages:
+            is_verifier = str(message.id or "").startswith(f"{VERIFIER}-")
+            if isinstance(message, ToolMessage) or (isinstance(message, HumanMessage) and not is_verifier):
+                evidence_parts.append(_text(message))
+
+        missing = unverified_numbers(_text(messages[-1]), " ".join(evidence_parts), session.node_names)
         attempts = state.get("attempts", 0) + 1
         update: dict[str, Any] = {"attempts": attempts, "verified": not missing, "unverified": missing}
         if missing and attempts <= MAX_RETRIES:
@@ -190,7 +186,7 @@ def answer_with_agent(
     history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     messages: list[BaseMessage] = []
-    for turn in (history or [])[-6:]:
+    for turn in (history or [])[-_HISTORY_TURNS:]:
         if turn.get("question") and turn.get("answer"):
             messages += [HumanMessage(turn["question"]), AIMessage(turn["answer"])]
     messages.append(HumanMessage(question))
@@ -199,12 +195,7 @@ def answer_with_agent(
         {"messages": messages, "attempts": 0, "verified": False, "unverified": []},
         config={"recursion_limit": RECURSION_LIMIT},
     )
-    new_messages = state["messages"][len(messages):]
-    calls = [
-        {"name": call["name"], "args": call.get("args", {})}
-        for message in new_messages if isinstance(message, AIMessage)
-        for call in message.tool_calls
-    ]
+
     if not state["verified"]:
         fallback = answer_with_rules(session, question)
         fallback["fallback_reason"] = (
@@ -212,6 +203,11 @@ def answer_with_agent(
             f"({', '.join(state['unverified'])}), so the rule-based answer is shown instead."
         )
         return fallback
+
+    calls = []
+    for message in state["messages"][len(messages):]:
+        if isinstance(message, AIMessage):
+            calls += [{"name": call["name"], "args": call.get("args", {})} for call in message.tool_calls]
     return {
         "engine": "agent",
         "intent": "agent",

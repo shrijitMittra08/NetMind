@@ -6,8 +6,7 @@
 
 namespace netmind {
 
-LinkFailureEvent::LinkFailureEvent(LinkId linkId)
-    : linkId_(linkId) {}
+LinkFailureEvent::LinkFailureEvent(LinkId linkId) : linkId_(linkId) {}
 
 void LinkFailureEvent::apply(SimulationEngine& engine) {
     engine.setLinkState(linkId_, LinkState::DOWN);

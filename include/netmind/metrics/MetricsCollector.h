@@ -71,46 +71,21 @@ struct NetworkMetrics {
 
 class MetricsCollector : public SimObserver {
 public:
-    explicit MetricsCollector(
-        const Graph& graph,
-        SimTime windowSize = 1.0);
+    explicit MetricsCollector(const Graph& graph, SimTime windowSize = 1.0);
 
     void onSent(SimTime time, const Packet& packet) override;
-    void onEnqueue(
-        SimTime time,
-        const Packet& packet,
-        const ChannelId& channel,
-        std::size_t qlen) override;
-    void onQueueChanged(
-        SimTime time,
-        const ChannelId& channel,
-        std::size_t qlen) override;
-    void onTxStart(
-        SimTime time,
-        const Packet& packet,
-        const ChannelId& channel,
-        SimTime eta) override;
-    void onArrive(
-        SimTime time,
-        const Packet& packet,
-        NodeId at,
-        NodeId from) override;
-    void onForward(
-        SimTime time,
-        const Packet& packet,
-        NodeId at,
-        NodeId next) override;
+    void onEnqueue(SimTime time, const Packet& packet, const ChannelId& channel,
+                   std::size_t qlen) override;
+    void onQueueChanged(SimTime time, const ChannelId& channel, std::size_t qlen) override;
+    void onTxStart(SimTime time, const Packet& packet, const ChannelId& channel,
+                   SimTime eta) override;
+    void onArrive(SimTime time, const Packet& packet, NodeId at, NodeId from) override;
+    void onForward(SimTime time, const Packet& packet, NodeId at, NodeId next) override;
     void onDelivered(SimTime time, const Packet& packet) override;
-    void onDropped(
-        SimTime time,
-        const Packet& packet,
-        const std::string& where,
-        DropReason reason) override;
-    void onNetworkEvent(
-        SimTime time,
-        const std::string& type,
-        const std::string& target,
-        const std::string& detail) override;
+    void onDropped(SimTime time, const Packet& packet, const std::string& where,
+                   DropReason reason) override;
+    void onNetworkEvent(SimTime time, const std::string& type, const std::string& target,
+                        const std::string& detail) override;
 
     void finalize(SimTime endTime);
 
@@ -128,6 +103,16 @@ private:
         std::uint64_t channelKey{};
     };
 
+    struct JitterTracker {
+        double lastLatencyMs{};
+        double latencyDeltaSum{};
+        std::size_t latencyDeltaCount{};
+        bool hasLastLatency{};
+
+        void add(double latencyMs);
+        [[nodiscard]] double average() const;
+    };
+
     struct FlowState {
         FlowMetrics metrics;
         SimTime startTime{};
@@ -138,10 +123,7 @@ private:
         double dataBytesDelivered{};
         double latencySumMs{};
         double rttSumMs{};
-        double lastLatencyMs{};
-        double latencyDeltaSum{};
-        std::size_t latencyDeltaCount{};
-        bool hasLastLatency{};
+        JitterTracker jitter;
         std::vector<double> latenciesMs;
         double hopSum{};
     };
@@ -157,6 +139,8 @@ private:
         std::size_t dropsQueue{};
         std::size_t dropsLoss{};
         std::size_t dropsDown{};
+
+        void addQueueAreaUntil(SimTime time);
     };
 
     struct WindowState {
@@ -166,22 +150,29 @@ private:
         std::size_t maxQueue{};
         double deliveredBytes{};
         std::vector<double> latenciesMs;
-        double lastLatencyMs{};
-        double latencyDeltaSum{};
-        std::size_t latencyDeltaCount{};
-        bool hasLastLatency{};
+        JitterTracker jitter;
         std::map<std::uint64_t, double> txBitsByChannel;
         std::size_t activeFailures{};
     };
 
     [[nodiscard]] std::size_t windowIndex(SimTime time) const;
     [[nodiscard]] ChannelState& channelState(const ChannelId& channel);
-    void updateQueue(
-        SimTime time,
-        const ChannelId& channel,
-        std::size_t queueLength);
+    void updateQueue(SimTime time, const ChannelId& channel, std::size_t queueLength);
     void ensureWindowsThrough(SimTime time);
+    [[nodiscard]] WindowState& windowAt(SimTime time);
+    [[nodiscard]] FlowState& flowStateFor(const Packet& packet);
     [[nodiscard]] std::string channelName(const ChannelId& channel) const;
+
+    void recordFlowDelivery(FlowState& flow, const Packet& packet, SimTime time, double latencyMs);
+    void handleFlowEvent(SimTime time, const std::string& type, const std::string& target,
+                         const std::string& detail);
+    void handleLinkEvent(SimTime time, const std::string& type, const std::string& target);
+
+    void buildNetworkMetrics();
+    [[nodiscard]] FlowMetrics summarizeFlow(const FlowState& state) const;
+    [[nodiscard]] ChannelMetrics summarizeChannel(const ChannelState& state) const;
+    [[nodiscard]] WindowMetrics summarizeWindow(std::size_t index, const WindowState& state) const;
+    [[nodiscard]] double peakUtilizationPct(const WindowState& state, SimTime duration) const;
 
     const Graph& graph_;
     SimTime windowSize_;
@@ -194,7 +185,6 @@ private:
     std::map<LinkId, SimTime> linkDownTimes_;
     std::map<LinkId, double> linkDowntimeS_;
     std::map<std::string, SimTime> activeFailures_;
-
     std::map<FlowId, SimTime> interruptedFlows_;
 
     std::vector<FlowMetrics> flows_;

@@ -3,9 +3,9 @@ interface DesktopBridge {
 }
 
 export async function saveTextFile(text: string, filename: string, type = "text/plain"): Promise<void> {
-  const native = (window as Window & DesktopBridge).pywebview?.api?.save_text;
-  if (native) {
-    await native(filename, text);
+  const nativeSave = (window as Window & DesktopBridge).pywebview?.api?.save_text;
+  if (nativeSave) {
+    await nativeSave(filename, text);
     return;
   }
   const url = URL.createObjectURL(new Blob([text], { type }));

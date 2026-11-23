@@ -6,10 +6,12 @@
 #include "netmind/model/Router.h"
 #include "netmind/model/Switch.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -19,6 +21,10 @@
 
 namespace netmind {
 namespace {
+
+using Json = nlohmann::json;
+
+constexpr std::size_t DEFAULT_QUEUE_CAPACITY = 64;
 
 struct NodeRecord {
     NodeId id{};
@@ -33,472 +39,359 @@ struct LinkRecord {
     double bandwidthMbps{};
     double latencyMs{};
     double lossRate{};
-    std::size_t queueCapacity{64};
+    std::size_t queueCapacity{DEFAULT_QUEUE_CAPACITY};
 };
 
-void addError(
-    std::vector<std::string>& errors,
-    const std::string& message
-) {
+struct SeenNodeValues {
+    std::unordered_set<NodeId> ids;
+    std::unordered_set<std::string> names;
+    std::unordered_set<std::string> ips;
+};
+
+struct ParsedTopology {
+    std::vector<std::string> errors;
+    std::vector<NodeRecord> nodes;
+    std::unordered_map<NodeId, std::size_t> nodeIndexById;
+    std::vector<LinkRecord> links;
+    std::unordered_set<std::uint64_t> seenEdges;
+    std::unordered_map<NodeId, std::size_t> hostLinkCounts;
+    std::unordered_map<NodeId, NodeId> hostNeighbour;
+
+    [[nodiscard]] bool hasNode(NodeId id) const { return nodeIndexById.count(id) > 0; }
+    [[nodiscard]] const NodeRecord& node(NodeId id) const { return nodes[nodeIndexById.at(id)]; }
+};
+
+bool addError(std::vector<std::string>& errors, const std::string& message) {
     errors.push_back(message);
+    return false;
 }
 
 std::string errorSummary(const std::vector<std::string>& errors) {
     std::ostringstream message;
     message << "Invalid topology";
-
     for (const std::string& error : errors) {
         message << "\n- " << error;
     }
-
     return message.str();
 }
 
-bool readNodeId(
-    const nlohmann::json& object,
-    const char* field,
-    NodeId& result
-) {
-    const auto it = object.find(field);
-    if (it == object.end()) {
+bool readNonNegativeInteger(const Json& object, const char* field, std::uint64_t& result) {
+    if (!object.contains(field)) {
         return false;
     }
+    const Json& value = object.at(field);
+    if (value.is_number_unsigned()) {
+        result = value.get<std::uint64_t>();
+        return true;
+    }
+    if (value.is_number_integer() && value.get<std::int64_t>() >= 0) {
+        result = static_cast<std::uint64_t>(value.get<std::int64_t>());
+        return true;
+    }
+    return false;
+}
 
+bool readNodeId(const Json& object, const char* field, NodeId& result) {
     std::uint64_t value = 0;
-
-    try {
-        if (it->is_number_unsigned()) {
-            value = it->get<std::uint64_t>();
-        } else if (it->is_number_integer()) {
-            const std::int64_t signedValue = it->get<std::int64_t>();
-            if (signedValue < 0) {
-                return false;
-            }
-            value = static_cast<std::uint64_t>(signedValue);
-        } else {
-            return false;
-        }
-    } catch (const nlohmann::json::exception&) {
+    if (!readNonNegativeInteger(object, field, value) || value > std::numeric_limits<NodeId>::max()) {
         return false;
     }
-
-    if (value > std::numeric_limits<NodeId>::max()) {
-        return false;
-    }
-
     result = static_cast<NodeId>(value);
     return true;
 }
 
-bool readDouble(
-    const nlohmann::json& object,
-    const char* field,
-    double& result
-) {
-    const auto it = object.find(field);
-    if (it == object.end() || !it->is_number()) {
-        return false;
-    }
-
-    try {
-        result = it->get<double>();
-    } catch (const nlohmann::json::exception&) {
-        return false;
-    }
-
-    return std::isfinite(result);
-}
-
-bool readQueueCapacity(
-    const nlohmann::json& object,
-    std::size_t& result
-) {
-    const auto it = object.find("queueCapacity");
-    if (it == object.end()) {
-        result = 64;
+bool readQueueCapacity(const Json& object, std::size_t& result) {
+    if (!object.contains("queueCapacity")) {
+        result = DEFAULT_QUEUE_CAPACITY;
         return true;
     }
-
     std::uint64_t value = 0;
-
-    try {
-        if (it->is_number_unsigned()) {
-            value = it->get<std::uint64_t>();
-        } else if (it->is_number_integer()) {
-            const std::int64_t signedValue = it->get<std::int64_t>();
-            if (signedValue < 0) {
-                return false;
-            }
-            value = static_cast<std::uint64_t>(signedValue);
-        } else {
-            return false;
-        }
-    } catch (const nlohmann::json::exception&) {
+    if (!readNonNegativeInteger(object, "queueCapacity", value) ||
+        value > std::numeric_limits<std::size_t>::max()) {
         return false;
     }
-
-    if (value > std::numeric_limits<std::size_t>::max()) {
-        return false;
-    }
-
     result = static_cast<std::size_t>(value);
     return true;
 }
 
-bool validNodeType(const std::string& type) {
-    return type == "HOST" || type == "ROUTER" || type == "SWITCH";
+bool readDouble(const Json& object, const char* field, double& result) {
+    if (!object.contains(field) || !object.at(field).is_number()) {
+        return false;
+    }
+    result = object.at(field).get<double>();
+    return std::isfinite(result);
+}
+
+bool readString(const Json& object, const char* field, std::string& result) {
+    if (!object.contains(field) || !object.at(field).is_string()) {
+        return false;
+    }
+    result = object.at(field).get<std::string>();
+    return true;
 }
 
 std::uint64_t edgeKey(NodeId a, NodeId b) {
-    const NodeId low = a < b ? a : b;
-    const NodeId high = a < b ? b : a;
-
-    return (static_cast<std::uint64_t>(low) << 32U) |
-           static_cast<std::uint64_t>(high);
+    return (static_cast<std::uint64_t>(std::min(a, b)) << 32U) |
+           static_cast<std::uint64_t>(std::max(a, b));
 }
 
-}             
+const Json* findArray(const Json& document, const char* field, std::vector<std::string>& errors) {
+    const std::string name = field;
+    if (!document.contains(field)) {
+        errors.push_back("Missing required field '" + name + "'");
+        return nullptr;
+    }
+    const Json& value = document.at(field);
+    if (!value.is_array()) {
+        errors.push_back("'" + name + "' must be an array");
+        return nullptr;
+    }
+    return &value;
+}
+
+bool checkNodeId(const Json& node, const std::string& prefix, SeenNodeValues& seen,
+                 NodeRecord& record, std::vector<std::string>& errors) {
+    if (!readNodeId(node, "id", record.id)) {
+        return addError(errors, prefix + ".id must be a valid node id");
+    }
+    if (!seen.ids.insert(record.id).second) {
+        return addError(errors, prefix + " has duplicate node id " + std::to_string(record.id));
+    }
+    return true;
+}
+
+bool checkNodeType(const Json& node, const std::string& prefix, NodeRecord& record,
+                   std::vector<std::string>& errors) {
+    if (!readString(node, "type", record.type)) {
+        return addError(errors, prefix + ".type must be a string");
+    }
+    if (record.type != "HOST" && record.type != "ROUTER" && record.type != "SWITCH") {
+        return addError(errors, prefix + ".type must be HOST, ROUTER, or SWITCH");
+    }
+    return true;
+}
+
+bool checkNodeName(const Json& node, const std::string& prefix, SeenNodeValues& seen,
+                   NodeRecord& record, std::vector<std::string>& errors) {
+    if (!readString(node, "name", record.name)) {
+        return addError(errors, prefix + ".name must be a string");
+    }
+    if (record.name.empty()) {
+        return addError(errors, prefix + ".name must not be empty");
+    }
+    if (!seen.names.insert(record.name).second) {
+        return addError(errors, prefix + " has duplicate name '" + record.name + "'");
+    }
+    return true;
+}
+
+bool checkNodeIp(const Json& node, const std::string& prefix, SeenNodeValues& seen,
+                 NodeRecord& record, std::vector<std::string>& errors) {
+    if (!readString(node, "ip", record.ip)) {
+        return addError(errors, prefix + ".ip must be a string");
+    }
+    if (!isValidIpv4(record.ip)) {
+        return addError(errors, prefix + ".ip is not a valid IPv4 address");
+    }
+    if (!seen.ips.insert(record.ip).second) {
+        return addError(errors, prefix + " has duplicate IP address '" + record.ip + "'");
+    }
+    return true;
+}
+
+bool checkNodePosition(const Json& node, const std::string& prefix,
+                       std::vector<std::string>& errors) {
+    if (!node.contains("pos")) {
+        return true;
+    }
+    const Json& position = node.at("pos");
+    const bool validPosition = position.is_array() && position.size() == 2 &&
+                               position[0].is_number() && position[1].is_number();
+    if (!validPosition) {
+        return addError(errors, prefix + ".pos must be an optional two-number array");
+    }
+    return true;
+}
+
+void checkNodes(const Json& nodesJson, ParsedTopology& topology) {
+    SeenNodeValues seen;
+    for (std::size_t index = 0; index < nodesJson.size(); ++index) {
+        const Json& node = nodesJson[index];
+        const std::string prefix = "nodes[" + std::to_string(index) + "]";
+        if (!node.is_object()) {
+            topology.errors.push_back(prefix + " must be an object");
+            continue;
+        }
+        NodeRecord record;
+        const bool idOk = checkNodeId(node, prefix, seen, record, topology.errors);
+        const bool typeOk = checkNodeType(node, prefix, record, topology.errors);
+        const bool nameOk = checkNodeName(node, prefix, seen, record, topology.errors);
+        const bool ipOk = checkNodeIp(node, prefix, seen, record, topology.errors);
+        const bool positionOk = checkNodePosition(node, prefix, topology.errors);
+        if (idOk && typeOk && nameOk && ipOk && positionOk) {
+            topology.nodeIndexById.emplace(record.id, topology.nodes.size());
+            topology.nodes.push_back(std::move(record));
+        }
+    }
+}
+
+bool checkLinkFields(const Json& link, const std::string& prefix, LinkRecord& record,
+                     std::vector<std::string>& errors) {
+    bool valid = true;
+    if (!readNodeId(link, "a", record.a)) {
+        valid = addError(errors, prefix + ".a must be a valid node id");
+    }
+    if (!readNodeId(link, "b", record.b)) {
+        valid = addError(errors, prefix + ".b must be a valid node id");
+    }
+    if (!readDouble(link, "bandwidthMbps", record.bandwidthMbps)) {
+        valid = addError(errors, prefix + ".bandwidthMbps must be a finite number");
+    } else if (record.bandwidthMbps <= 0.0) {
+        valid = addError(errors, prefix + ".bandwidthMbps must be positive");
+    }
+    if (!readDouble(link, "latencyMs", record.latencyMs)) {
+        valid = addError(errors, prefix + ".latencyMs must be a finite number");
+    } else if (record.latencyMs < 0.0) {
+        valid = addError(errors, prefix + ".latencyMs must be non-negative");
+    }
+    if (!readDouble(link, "lossRate", record.lossRate)) {
+        valid = addError(errors, prefix + ".lossRate must be a finite number");
+    } else if (record.lossRate < 0.0 || record.lossRate > 1.0) {
+        valid = addError(errors, prefix + ".lossRate must be in [0, 1]");
+    }
+    if (!readQueueCapacity(link, record.queueCapacity)) {
+        valid = addError(errors, prefix + ".queueCapacity must be a non-negative integer");
+    }
+    return valid;
+}
+
+bool checkLinkEndpoints(const std::string& prefix, const LinkRecord& record,
+                        ParsedTopology& topology) {
+    bool valid = true;
+    if (record.a == record.b) {
+        valid = addError(topology.errors, prefix + " cannot connect a node to itself");
+    }
+    if (!topology.hasNode(record.a) || !topology.hasNode(record.b)) {
+        valid = addError(topology.errors, prefix + " refers to a node id that does not exist");
+    }
+    return valid;
+}
+
+void recordHostNeighbours(const LinkRecord& record, ParsedTopology& topology) {
+    if (topology.node(record.a).type == "HOST") {
+        ++topology.hostLinkCounts[record.a];
+        topology.hostNeighbour[record.a] = record.b;
+    }
+    if (topology.node(record.b).type == "HOST") {
+        ++topology.hostLinkCounts[record.b];
+        topology.hostNeighbour[record.b] = record.a;
+    }
+}
+
+void checkLinks(const Json& linksJson, ParsedTopology& topology) {
+    for (std::size_t index = 0; index < linksJson.size(); ++index) {
+        const Json& link = linksJson[index];
+        const std::string prefix = "links[" + std::to_string(index) + "]";
+        if (!link.is_object()) {
+            topology.errors.push_back(prefix + " must be an object");
+            continue;
+        }
+        LinkRecord record;
+        if (!checkLinkFields(link, prefix, record, topology.errors) ||
+            !checkLinkEndpoints(prefix, record, topology)) {
+            continue;
+        }
+        if (!topology.seenEdges.insert(edgeKey(record.a, record.b)).second) {
+            topology.errors.push_back(prefix + " duplicates a link between the same nodes");
+            continue;
+        }
+        recordHostNeighbours(record, topology);
+        topology.links.push_back(record);
+    }
+}
+
+void checkHostConnections(ParsedTopology& topology) {
+    for (const NodeRecord& node : topology.nodes) {
+        if (node.type != "HOST") {
+            continue;
+        }
+        if (topology.hostLinkCounts.count(node.id) == 0 || topology.hostLinkCounts.at(node.id) != 1) {
+            topology.errors.push_back("Host '" + node.name + "' must have exactly one link");
+            continue;
+        }
+        if (topology.node(topology.hostNeighbour.at(node.id)).type != "ROUTER") {
+            topology.errors.push_back("Host '" + node.name + "' must connect to a router");
+        }
+    }
+    if (topology.links.size() > static_cast<std::size_t>(std::numeric_limits<LinkId>::max())) {
+        topology.errors.push_back("Topology contains too many links");
+    }
+}
+
+std::unique_ptr<Node> makeNode(const NodeRecord& node) {
+    if (node.type == "HOST") {
+        return std::make_unique<Host>(node.id, node.name, node.ip);
+    }
+    if (node.type == "ROUTER") {
+        return std::make_unique<Router>(node.id, node.name, node.ip);
+    }
+    return std::make_unique<Switch>(node.id, node.name, node.ip);
+}
+
+Graph buildGraph(const ParsedTopology& topology) {
+    Graph graph;
+    for (const NodeRecord& node : topology.nodes) {
+        graph.addNode(makeNode(node));
+    }
+    LinkId linkId = 1;
+    for (const LinkRecord& link : topology.links) {
+        graph.addLink(std::make_unique<Link>(linkId, link.a, link.b, link.bandwidthMbps,
+                                             link.latencyMs, link.lossRate, link.queueCapacity));
+        ++linkId;
+    }
+    for (const NodeRecord& node : topology.nodes) {
+        if (node.type == "HOST") {
+            auto* host = dynamic_cast<Host*>(graph.getNode(node.id));
+            host->setGatewayId(topology.hostNeighbour.at(node.id));
+        }
+    }
+    return graph;
+}
+
+}
 
 Graph TopologyLoader::loadFromFile(const std::string& filePath) {
     std::ifstream input(filePath);
     if (!input) {
-        throw TopologyError(
-            "Could not open topology file: " + filePath);
+        throw TopologyError("Could not open topology file: " + filePath);
     }
-
     nlohmann::json document;
-
     try {
         input >> document;
     } catch (const nlohmann::json::exception& error) {
-        throw TopologyError(
-            "Could not parse topology file '" + filePath +
-            "': " + error.what());
+        throw TopologyError("Could not parse topology file '" + filePath + "': " + error.what());
     }
-
     return loadFromJson(document);
 }
 
 Graph TopologyLoader::loadFromJson(const nlohmann::json& document) {
-    std::vector<std::string> errors;
-
     if (!document.is_object()) {
         throw TopologyError("Topology root must be a JSON object");
     }
-
-    const auto nodesIt = document.find("nodes");
-    const auto linksIt = document.find("links");
-
-    const nlohmann::json* nodesJson = nullptr;
-    const nlohmann::json* linksJson = nullptr;
-
-    if (nodesIt == document.end()) {
-        addError(errors, "Missing required field 'nodes'");
-    } else if (!nodesIt->is_array()) {
-        addError(errors, "'nodes' must be an array");
-    } else {
-        nodesJson = &*nodesIt;
-    }
-
-    if (linksIt == document.end()) {
-        addError(errors, "Missing required field 'links'");
-    } else if (!linksIt->is_array()) {
-        addError(errors, "'links' must be an array");
-    } else {
-        linksJson = &*linksIt;
-    }
-
-    std::vector<NodeRecord> nodeRecords;
-    std::unordered_map<NodeId, std::size_t> nodeRecordById;
-    std::unordered_set<NodeId> nodeIds;
-    std::unordered_set<std::string> nodeNames;
-    std::unordered_set<std::string> nodeIps;
-
+    ParsedTopology topology;
+    const Json* nodesJson = findArray(document, "nodes", topology.errors);
+    const Json* linksJson = findArray(document, "links", topology.errors);
     if (nodesJson != nullptr) {
-        for (std::size_t index = 0; index < nodesJson->size(); ++index) {
-            const nlohmann::json& node = (*nodesJson)[index];
-            const std::string prefix =
-                "nodes[" + std::to_string(index) + "]";
-
-            if (!node.is_object()) {
-                addError(errors, prefix + " must be an object");
-                continue;
-            }
-
-            bool valid = true;
-            NodeRecord record;
-
-            if (!readNodeId(node, "id", record.id)) {
-                addError(errors, prefix + ".id must be a valid node id");
-                valid = false;
-            } else if (!nodeIds.insert(record.id).second) {
-                addError(
-                    errors,
-                    prefix + " has duplicate node id " +
-                    std::to_string(record.id));
-                valid = false;
-            }
-
-            const auto typeIt = node.find("type");
-            if (typeIt == node.end() || !typeIt->is_string()) {
-                addError(errors, prefix + ".type must be a string");
-                valid = false;
-            } else {
-                record.type = typeIt->get<std::string>();
-                if (!validNodeType(record.type)) {
-                    addError(
-                        errors,
-                        prefix + ".type must be HOST, ROUTER, or SWITCH");
-                    valid = false;
-                }
-            }
-
-            const auto nameIt = node.find("name");
-            if (nameIt == node.end() || !nameIt->is_string()) {
-                addError(errors, prefix + ".name must be a string");
-                valid = false;
-            } else {
-                record.name = nameIt->get<std::string>();
-                if (record.name.empty()) {
-                    addError(errors, prefix + ".name must not be empty");
-                    valid = false;
-                } else if (!nodeNames.insert(record.name).second) {
-                    addError(
-                        errors,
-                        prefix + " has duplicate name '" + record.name + "'");
-                    valid = false;
-                }
-            }
-
-            const auto ipIt = node.find("ip");
-            if (ipIt == node.end() || !ipIt->is_string()) {
-                addError(errors, prefix + ".ip must be a string");
-                valid = false;
-            } else {
-                record.ip = ipIt->get<std::string>();
-                if (!isValidIpv4(record.ip)) {
-                    addError(
-                        errors,
-                        prefix + ".ip is not a valid IPv4 address");
-                    valid = false;
-                } else if (!nodeIps.insert(record.ip).second) {
-                    addError(
-                        errors,
-                        prefix + " has duplicate IP address '" +
-                        record.ip + "'");
-                    valid = false;
-                }
-            }
-
-                                                                    
-            const auto positionIt = node.find("pos");
-            if (positionIt != node.end()) {
-                bool validPosition =
-                    positionIt->is_array() &&
-                    positionIt->size() == 2;
-
-                if (validPosition) {
-                    validPosition =
-                        (*positionIt)[0].is_number() &&
-                        (*positionIt)[1].is_number();
-                }
-
-                if (!validPosition) {
-                    addError(
-                        errors,
-                        prefix + ".pos must be an optional two-number array");
-                    valid = false;
-                }
-            }
-
-            if (valid) {
-                nodeRecordById.emplace(record.id, nodeRecords.size());
-                nodeRecords.push_back(std::move(record));
-            }
-        }
+        checkNodes(*nodesJson, topology);
     }
-
-    std::vector<LinkRecord> linkRecords;
-    std::unordered_map<NodeId, std::size_t> hostLinkCounts;
-    std::unordered_map<NodeId, NodeId> hostNeighbor;
-    std::unordered_set<std::uint64_t> seenEdges;
-
     if (linksJson != nullptr) {
-        for (std::size_t index = 0; index < linksJson->size(); ++index) {
-            const nlohmann::json& link = (*linksJson)[index];
-            const std::string prefix =
-                "links[" + std::to_string(index) + "]";
-
-            if (!link.is_object()) {
-                addError(errors, prefix + " must be an object");
-                continue;
-            }
-
-            bool valid = true;
-            LinkRecord record;
-
-            if (!readNodeId(link, "a", record.a)) {
-                addError(errors, prefix + ".a must be a valid node id");
-                valid = false;
-            }
-
-            if (!readNodeId(link, "b", record.b)) {
-                addError(errors, prefix + ".b must be a valid node id");
-                valid = false;
-            }
-
-            if (!readDouble(link, "bandwidthMbps", record.bandwidthMbps)) {
-                addError(
-                    errors,
-                    prefix + ".bandwidthMbps must be a finite number");
-                valid = false;
-            } else if (record.bandwidthMbps <= 0.0) {
-                addError(errors, prefix + ".bandwidthMbps must be positive");
-                valid = false;
-            }
-
-            if (!readDouble(link, "latencyMs", record.latencyMs)) {
-                addError(
-                    errors,
-                    prefix + ".latencyMs must be a finite number");
-                valid = false;
-            } else if (record.latencyMs < 0.0) {
-                addError(errors, prefix + ".latencyMs must be non-negative");
-                valid = false;
-            }
-
-            if (!readDouble(link, "lossRate", record.lossRate)) {
-                addError(
-                    errors,
-                    prefix + ".lossRate must be a finite number");
-                valid = false;
-            } else if (record.lossRate < 0.0 || record.lossRate > 1.0) {
-                addError(errors, prefix + ".lossRate must be in [0, 1]");
-                valid = false;
-            }
-
-            if (!readQueueCapacity(link, record.queueCapacity)) {
-                addError(
-                    errors,
-                    prefix + ".queueCapacity must be a non-negative integer");
-                valid = false;
-            }
-
-            if (valid) {
-                if (record.a == record.b) {
-                    addError(errors, prefix + " cannot connect a node to itself");
-                    valid = false;
-                }
-
-                if (nodeRecordById.find(record.a) == nodeRecordById.end() ||
-                    nodeRecordById.find(record.b) == nodeRecordById.end()) {
-                    addError(
-                        errors,
-                        prefix + " refers to a node id that does not exist");
-                    valid = false;
-                }
-            }
-
-            if (valid) {
-                const std::uint64_t key = edgeKey(record.a, record.b);
-                if (!seenEdges.insert(key).second) {
-                    addError(
-                        errors,
-                        prefix + " duplicates a link between the same nodes");
-                    valid = false;
-                }
-            }
-
-            if (!valid) {
-                continue;
-            }
-
-            const NodeRecord& nodeA =
-                nodeRecords[nodeRecordById.at(record.a)];
-            const NodeRecord& nodeB =
-                nodeRecords[nodeRecordById.at(record.b)];
-
-            if (nodeA.type == "HOST") {
-                ++hostLinkCounts[record.a];
-                hostNeighbor[record.a] = record.b;
-            }
-            if (nodeB.type == "HOST") {
-                ++hostLinkCounts[record.b];
-                hostNeighbor[record.b] = record.a;
-            }
-
-            linkRecords.push_back(record);
-        }
+        checkLinks(*linksJson, topology);
     }
-
-    for (const NodeRecord& node : nodeRecords) {
-        if (node.type != "HOST") {
-            continue;
-        }
-
-        const std::size_t count = hostLinkCounts[node.id];
-        if (count != 1) {
-            addError(
-                errors,
-                "Host '" + node.name + "' must have exactly one link");
-            continue;
-        }
-
-        const NodeId neighborId = hostNeighbor.at(node.id);
-        const NodeRecord& neighbor =
-            nodeRecords[nodeRecordById.at(neighborId)];
-
-        if (neighbor.type != "ROUTER") {
-            addError(
-                errors,
-                "Host '" + node.name + "' must connect to a router");
-        }
+    checkHostConnections(topology);
+    if (!topology.errors.empty()) {
+        throw TopologyError(errorSummary(topology.errors));
     }
-
-    if (linkRecords.size() >
-        static_cast<std::size_t>(std::numeric_limits<LinkId>::max())) {
-        addError(errors, "Topology contains too many links");
-    }
-
-    if (!errors.empty()) {
-        throw TopologyError(errorSummary(errors));
-    }
-
-    Graph graph;
-
-    for (const NodeRecord& node : nodeRecords) {
-        if (node.type == "HOST") {
-            graph.addNode(
-                std::make_unique<Host>(node.id, node.name, node.ip));
-        } else if (node.type == "ROUTER") {
-            graph.addNode(
-                std::make_unique<Router>(node.id, node.name, node.ip));
-        } else {
-            graph.addNode(
-                std::make_unique<Switch>(node.id, node.name, node.ip));
-        }
-    }
-
-    LinkId linkId = 1;
-    for (const LinkRecord& link : linkRecords) {
-        graph.addLink(std::make_unique<Link>(
-            linkId++,
-            link.a,
-            link.b,
-            link.bandwidthMbps,
-            link.latencyMs,
-            link.lossRate,
-            link.queueCapacity));
-    }
-
-    for (const NodeRecord& node : nodeRecords) {
-        if (node.type == "HOST") {
-            auto* host = dynamic_cast<Host*>(graph.getNode(node.id));
-            host->setGatewayId(hostNeighbor.at(node.id));
-        }
-    }
-
-    return graph;
+    return buildGraph(topology);
 }
 
 }

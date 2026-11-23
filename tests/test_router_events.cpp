@@ -68,6 +68,7 @@ netmind::Packet makePacket(netmind::PacketId id) {
 
 }             
 
+// Checks that a router failure drops packets waiting on its links and marks the router down
 TEST_CASE("Router failure drops packets queued on adjacent links") {
     netmind::SimulationEngine engine(1234);
     RouterEventRecorder observer;
@@ -94,6 +95,7 @@ TEST_CASE("Router failure drops packets queued on adjacent links") {
     REQUIRE_FALSE(router->isUp());
 }
 
+// Checks that a router failure drops a packet that is already travelling toward it
 TEST_CASE("Router failure invalidates a packet already in flight") {
     netmind::SimulationEngine engine(1234);
     RouterEventRecorder observer;
@@ -113,6 +115,7 @@ TEST_CASE("Router failure invalidates a packet already in flight") {
     REQUIRE(observer.dropReasons[0] == netmind::DropReason::NODE_DOWN);
 }
 
+// Checks that a failed router comes back up and both down and up events are reported
 TEST_CASE("Router recovery restores the router and emits both events") {
     netmind::SimulationEngine engine(1234);
     RouterEventRecorder observer;

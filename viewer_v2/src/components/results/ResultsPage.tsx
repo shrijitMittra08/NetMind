@@ -8,7 +8,15 @@ import { EmptyState, Segmented } from "../ui";
 
 type MetricKey = "latency_ms" | "throughput_mbps" | "reliability_pct" | "drops" | "recovery_time_s" | "avg_hops";
 
-const METRICS: { key: MetricKey; label: string; unit: string; better: "low" | "high"; digits: number }[] = [
+interface MetricInfo {
+  key: MetricKey;
+  label: string;
+  unit: string;
+  better: "low" | "high";
+  digits: number;
+}
+
+const METRICS: MetricInfo[] = [
   { key: "latency_ms", label: "Latency", unit: "ms", better: "low", digits: 2 },
   { key: "throughput_mbps", label: "Throughput", unit: "Mbps", better: "high", digits: 2 },
   { key: "reliability_pct", label: "Reliability", unit: "%", better: "high", digits: 2 },
@@ -18,22 +26,23 @@ const METRICS: { key: MetricKey; label: string; unit: string; better: "low" | "h
 ];
 
 const SERIES = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"];
+const seriesColor = (index: number) => SERIES[index % SERIES.length]!;
 
-const value = (summary: RunSummary, key: MetricKey): number | null => {
+function metricValue(summary: RunSummary, key: MetricKey): number | null {
   const v = summary[key];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
-};
+}
 
 function bestIndex(runs: RunResult[], key: MetricKey, better: "low" | "high"): number | null {
-  const values = runs.map((run) => value(run.summary, key));
+  const values = runs.map((run) => metricValue(run.summary, key));
   const finite = values.filter((v): v is number => v !== null);
   if (finite.length < 2 || finite.every((v) => v === finite[0])) return null;
   const target = better === "low" ? Math.min(...finite) : Math.max(...finite);
   return values.indexOf(target);
 }
 
-function ComparisonChart({ runs, metric }: { runs: RunResult[]; metric: (typeof METRICS)[number] }) {
-  const values = runs.map((run) => value(run.summary, metric.key) ?? 0);
+function ComparisonChart({ runs, metric }: { runs: RunResult[]; metric: MetricInfo }) {
+  const values = runs.map((run) => metricValue(run.summary, metric.key) ?? 0);
   const max = Math.max(...values, 1e-9);
   const best = bestIndex(runs, metric.key, metric.better);
   return (
@@ -42,10 +51,10 @@ function ComparisonChart({ runs, metric }: { runs: RunResult[]; metric: (typeof 
         <div key={run.run_id} className="bar-row">
           <span className="bar-label">{algorithmLabel(run.algorithm)}</span>
           <div className="bar-track">
-            <div className="bar-fill" style={{ width: `${(values[i]! / max) * 100}%`, background: SERIES[i % SERIES.length] }} />
+            <div className="bar-fill" style={{ width: `${(values[i]! / max) * 100}%`, background: seriesColor(i) }} />
           </div>
           <span className={`bar-value${best === i ? " best" : ""}`}>
-            {fmt(value(run.summary, metric.key), metric.digits)}
+            {fmt(metricValue(run.summary, metric.key), metric.digits)}
             {metric.unit && <small> {metric.unit}</small>}
           </span>
         </div>
@@ -57,21 +66,57 @@ function ComparisonChart({ runs, metric }: { runs: RunResult[]; metric: (typeof 
   );
 }
 
+function ComparisonTable({ runs }: { runs: RunResult[] }) {
+  return (
+    <div className="table-wrap">
+      <table className="data">
+        <thead>
+          <tr>
+            <th>Algorithm</th>
+            <th>Run</th>
+            {METRICS.map((m) => (
+              <th key={m.key} className="num">
+                {m.label}
+                {m.unit && ` (${m.unit})`}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run, i) => (
+            <tr key={run.run_id}>
+              <td>
+                <span className="kpi-dot" style={{ background: seriesColor(i) }} /> {algorithmLabel(run.algorithm)}
+              </td>
+              <td className="mono muted">{run.run_id}</td>
+              {METRICS.map((m) => (
+                <td key={m.key} className={`num${bestIndex(runs, m.key, m.better) === i ? " best" : ""}`}>
+                  {fmt(metricValue(run.summary, m.key), m.digits)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const BASELINE_LABELS: Record<string, { label: string; unit: string }> = {
   avg_latency_ms: { label: "Avg latency", unit: "ms" },
   throughput_mbps: { label: "Throughput", unit: "Mbps" },
   loss_pct: { label: "Packet loss", unit: "%" },
 };
 
+function deviationText(metric: BaselineMetric): string {
+  if (metric.name === "loss_pct") return fmtSigned(metric.delta, 2, " pp");
+  if (metric.deviation_pct !== null) return fmtSigned(metric.deviation_pct, 1, "%");
+  return fmtSigned(metric.delta, 3);
+}
+
 function BaselineGauge({ metric }: { metric: BaselineMetric }) {
   const info = BASELINE_LABELS[metric.name] ?? { label: metric.name, unit: "" };
   const scale = Math.max(metric.actual ?? 0, metric.expected ?? 0, 1e-9);
-  const deviation =
-    metric.name === "loss_pct"
-      ? fmtSigned(metric.delta, 2, " pp")
-      : metric.deviation_pct !== null
-        ? fmtSigned(metric.deviation_pct, 1, "%")
-        : fmtSigned(metric.delta, 3);
   return (
     <div className={`gauge${metric.flagged ? " flagged" : ""}`}>
       <div className="row">
@@ -79,28 +124,88 @@ function BaselineGauge({ metric }: { metric: BaselineMetric }) {
         <div className="spacer" />
         <span className={`badge ${metric.flagged ? "warning" : "success"}`}>
           {metric.flagged ? <TriangleAlert /> : <CircleCheck />}
-          {deviation}
+          {deviationText(metric)}
         </span>
       </div>
       <div className="gauge-bars">
-        <div className="gauge-line">
-          <span>Actual</span>
-          <div className="gauge-track">
-            <div className="gauge-fill actual" style={{ width: `${((metric.actual ?? 0) / scale) * 100}%` }} />
+        {[
+          { label: "Actual", kind: "actual", value: metric.actual },
+          { label: "Expected", kind: "expected", value: metric.expected },
+        ].map((line) => (
+          <div key={line.kind} className="gauge-line">
+            <span>{line.label}</span>
+            <div className="gauge-track">
+              <div className={`gauge-fill ${line.kind}`} style={{ width: `${((line.value ?? 0) / scale) * 100}%` }} />
+            </div>
+            <strong>{fmt(line.value, 3)}</strong>
           </div>
-          <strong>{fmt(metric.actual, 3)}</strong>
-        </div>
-        <div className="gauge-line">
-          <span>Expected</span>
-          <div className="gauge-track">
-            <div className="gauge-fill expected" style={{ width: `${((metric.expected ?? 0) / scale) * 100}%` }} />
-          </div>
-          <strong>{fmt(metric.expected, 3)}</strong>
-        </div>
+        ))}
       </div>
       <span className="muted small">
         {info.unit} · {metric.flagged ? "large deviation from the model's expectation" : "within the expected range"}
       </span>
+    </div>
+  );
+}
+
+function anomalyButtonText(flagged: number): string {
+  if (flagged === 1) return "1 anomalous second";
+  return `${flagged === 0 ? "No" : flagged} anomalous seconds`;
+}
+
+function RunKpiCard({ run, index, onOpenAnomalies }: { run: RunResult; index: number; onOpenAnomalies: () => void }) {
+  return (
+    <article className="kpi card">
+      <div className="row">
+        <span className="kpi-dot" style={{ background: seriesColor(index) }} />
+        <strong>{algorithmLabel(run.algorithm)}</strong>
+        <div className="spacer" />
+        <span className="badge mono">{run.run_id}</span>
+      </div>
+      <div className="kpi-grid">
+        <div>
+          <span>{fmt(run.summary.reliability_pct, 2)}%</span>reliability
+        </div>
+        <div>
+          <span>{fmt(run.summary.latency_ms, 2)}</span>ms latency
+        </div>
+        <div>
+          <span>{fmt(run.summary.throughput_mbps, 2)}</span>Mbps
+        </div>
+        <div>
+          <span>{run.summary.drops}</span>drops
+        </div>
+      </div>
+      {isReport(run.anomaly) && (
+        <button type="button" className="kpi-anomaly" onClick={onOpenAnomalies}>
+          <Activity />
+          {anomalyButtonText(run.anomaly.summary.flagged)}
+        </button>
+      )}
+    </article>
+  );
+}
+
+function RunBaseline({ run, index }: { run: RunResult; index: number }) {
+  return (
+    <div className="baseline-run">
+      <div className="row">
+        <span className="kpi-dot" style={{ background: seriesColor(index) }} />
+        <strong>{algorithmLabel(run.algorithm)}</strong>
+        <span className="muted mono small">{run.run_id}</span>
+      </div>
+      {"error" in run.baseline ? (
+        <div className="notice danger">
+          <CircleAlert />
+          {run.baseline.error}
+        </div>
+      ) : (
+        <div className="grid-3">
+          {run.baseline.metrics.map((m) => (
+            <BaselineGauge key={m.name} metric={m} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -125,43 +230,15 @@ export function ResultsPage() {
     <div className="stack" style={{ "--gap": "20px" } as React.CSSProperties}>
       <div className="kpis">
         {runs.map((run, i) => (
-          <article key={run.run_id} className="kpi card">
-            <div className="row">
-              <span className="kpi-dot" style={{ background: SERIES[i % SERIES.length] }} />
-              <strong>{algorithmLabel(run.algorithm)}</strong>
-              <div className="spacer" />
-              <span className="badge mono">{run.run_id}</span>
-            </div>
-            <div className="kpi-grid">
-              <div>
-                <span>{fmt(run.summary.reliability_pct, 2)}%</span>reliability
-              </div>
-              <div>
-                <span>{fmt(run.summary.latency_ms, 2)}</span>ms latency
-              </div>
-              <div>
-                <span>{fmt(run.summary.throughput_mbps, 2)}</span>Mbps
-              </div>
-              <div>
-                <span>{run.summary.drops}</span>drops
-              </div>
-            </div>
-            {isReport(run.anomaly) && (
-              <button
-                type="button"
-                className="kpi-anomaly"
-                onClick={() => {
-                  setFocusRunId(run.run_id);
-                  goTo("anomalies");
-                }}
-              >
-                <Activity />
-                {run.anomaly.summary.flagged === 0
-                  ? "No anomalous seconds"
-                  : `${run.anomaly.summary.flagged} anomalous second${run.anomaly.summary.flagged === 1 ? "" : "s"}`}
-              </button>
-            )}
-          </article>
+          <RunKpiCard
+            key={run.run_id}
+            run={run}
+            index={i}
+            onOpenAnomalies={() => {
+              setFocusRunId(run.run_id);
+              goTo("anomalies");
+            }}
+          />
         ))}
       </div>
 
@@ -178,37 +255,7 @@ export function ResultsPage() {
         </div>
         <div className="card-body stack" style={{ "--gap": "22px" } as React.CSSProperties}>
           <ComparisonChart runs={runs} metric={metric} />
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Algorithm</th>
-                  <th>Run</th>
-                  {METRICS.map((m) => (
-                    <th key={m.key} className="num">
-                      {m.label}
-                      {m.unit && ` (${m.unit})`}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run, i) => (
-                  <tr key={run.run_id}>
-                    <td>
-                      <span className="kpi-dot" style={{ background: SERIES[i % SERIES.length] }} /> {algorithmLabel(run.algorithm)}
-                    </td>
-                    <td className="mono muted">{run.run_id}</td>
-                    {METRICS.map((m) => (
-                      <td key={m.key} className={`num${bestIndex(runs, m.key, m.better) === i ? " best" : ""}`}>
-                        {fmt(value(run.summary, m.key), m.digits)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ComparisonTable runs={runs} />
         </div>
       </section>
 
@@ -221,25 +268,7 @@ export function ResultsPage() {
         </div>
         <div className="card-body stack" style={{ "--gap": "18px" } as React.CSSProperties}>
           {runs.map((run, i) => (
-            <div key={run.run_id} className="baseline-run">
-              <div className="row">
-                <span className="kpi-dot" style={{ background: SERIES[i % SERIES.length] }} />
-                <strong>{algorithmLabel(run.algorithm)}</strong>
-                <span className="muted mono small">{run.run_id}</span>
-              </div>
-              {"error" in run.baseline ? (
-                <div className="notice danger">
-                  <CircleAlert />
-                  {run.baseline.error}
-                </div>
-              ) : (
-                <div className="grid-3">
-                  {run.baseline.metrics.map((m) => (
-                    <BaselineGauge key={m.name} metric={m} />
-                  ))}
-                </div>
-              )}
-            </div>
+            <RunBaseline key={run.run_id} run={run} index={i} />
           ))}
         </div>
       </section>

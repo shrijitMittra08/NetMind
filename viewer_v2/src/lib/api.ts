@@ -36,22 +36,17 @@ async function requestJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   } catch {
     throw new ApiError("Cannot reach the NetMind service. Is the API running?", 0);
   }
-
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
     throw new ApiError("The NetMind service returned an unreadable response.", response.status);
   }
-
-  if (!response.ok) {
-    const message =
-      typeof payload === "object" && payload && "error" in payload
-        ? String((payload as { error: unknown }).error)
-        : `Request failed (${response.status}).`;
-    throw new ApiError(message, response.status);
+  if (response.ok) return payload as T;
+  if (typeof payload === "object" && payload && "error" in payload) {
+    throw new ApiError(String(payload.error), response.status);
   }
-  return payload as T;
+  throw new ApiError(`Request failed (${response.status}).`, response.status);
 }
 
 const post = <T>(url: string, body: unknown) =>
@@ -61,10 +56,7 @@ export const api = {
   health: () => requestJson<{ ok: boolean; data_directory: string }>("/api/health"),
 
   runSimulation: (topology: Topology, topologyName: string, settings: SimSettings, algorithms: string[]) =>
-    post<{ runs: RunResult[] }>("/api/gui/run", {
-      ...buildPayload(topology, topologyName, settings),
-      algorithms,
-    }),
+    post<{ runs: RunResult[] }>("/api/gui/run", { ...buildPayload(topology, topologyName, settings), algorithms }),
 
   runScript: (topology: Topology, script: string, exportResults: boolean, settings: SimSettings) =>
     post<ScriptRunResult>("/api/script/run", {
@@ -74,18 +66,8 @@ export const api = {
       settings: buildPayload(topology, "", settings),
     }),
 
-  saveScenario: (
-    topology: Topology,
-    topologyName: string,
-    settings: SimSettings,
-    name: string,
-    overwrite: boolean,
-  ) =>
-    post<SavedScenario>("/api/scenario/save", {
-      ...buildPayload(topology, topologyName, settings),
-      name,
-      overwrite,
-    }),
+  saveScenario: (topology: Topology, topologyName: string, settings: SimSettings, name: string, overwrite: boolean) =>
+    post<SavedScenario>("/api/scenario/save", { ...buildPayload(topology, topologyName, settings), name, overwrite }),
 
   listScenarios: () => requestJson<{ scenarios: { name: string }[] }>("/api/scenarios"),
 
@@ -97,8 +79,7 @@ export const api = {
   resolveScenarioTopology: (scenario: Record<string, unknown>) =>
     post<{ topology: Topology; topology_name: string }>("/api/scenario/resolve", { scenario }),
 
-  runFiles: (runId: string) =>
-    requestJson<{ files: RunFile[] }>(`/api/gui/runs/${encodeURIComponent(runId)}/files`),
+  runFiles: (runId: string) => requestJson<{ files: RunFile[] }>(`/api/gui/runs/${encodeURIComponent(runId)}/files`),
 
   askGraphRag: (runIds: string[], question: string, history: ChatTurn[] = []) =>
     post<GraphRagAnswer>("/api/graphrag/query", { run_ids: runIds, question, history }),

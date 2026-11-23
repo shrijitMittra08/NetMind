@@ -94,6 +94,7 @@ def runs(tmp_path):
     return contexts
 
 
+# Checks that the run summary uses the simulator totals and shows host names, not ids
 def test_run_summary_uses_simulator_totals_and_host_names(runs):
     summary = tools.run_summary(runs[0])
     assert summary["latency_ms"] == 5.0
@@ -101,6 +102,7 @@ def test_run_summary_uses_simulator_totals_and_host_names(runs):
     assert summary["flows"][0]["src"] == "PC1" and summary["flows"][0]["dst"] == "PC2"
 
 
+# Checks that runs whose latency is almost equal are reported as a tie for best
 def test_compare_runs_reports_ties_within_tolerance(runs):
     result = tools.compare_runs(runs, "latency_ms")
     assert result["best"] == ["bfs", "dijkstra"]
@@ -108,6 +110,7 @@ def test_compare_runs_reports_ties_within_tolerance(runs):
     assert result["all_equal"] is False
 
 
+# Checks that compare_runs finds a single winner, knows higher is better, and rejects bad metrics
 def test_compare_runs_single_winner_and_higher_is_better(runs):
     assert tools.compare_runs(runs[1:], "latency_ms")["best"] == ["dijkstra"]
     assert tools.compare_runs(runs, "reliability_pct")["better"] == "higher"
@@ -115,12 +118,14 @@ def test_compare_runs_single_winner_and_higher_is_better(runs):
         tools.compare_runs(runs, "speed")
 
 
+# Checks that link_load names the busiest channel and the link whose queue overflowed
 def test_link_load_names_busiest_channel_and_queue_overflows(runs):
     load = tools.link_load(runs[0])
     assert load["busiest"]["channel"] == "R1→R3"
     assert load["queue_overflows"][0]["link"] == "R1–R3"
 
 
+# Checks that drops counts each drop reason and can be limited to a time range
 def test_drops_counts_every_reason_and_respects_time_range(runs):
     everything = tools.drops(runs[0])
     assert everything["total"] == 2
@@ -128,6 +133,7 @@ def test_drops_counts_every_reason_and_respects_time_range(runs):
     assert tools.drops(runs[0], 1.5, 2.0)["by_reason"] == {"queue_full": 1}
 
 
+# Checks that network events show link and router names instead of numeric ids
 def test_network_events_name_links_and_routers(runs):
     events = tools.network_events(runs[0])["events"]
     named = [(e["event"], e["target"]) for e in events]
@@ -136,6 +142,7 @@ def test_network_events_name_links_and_routers(runs):
     assert ("LINK_UP", "R1–R2") in named
 
 
+# Checks that flow_path follows the detour after a failure and the return to the old path
 def test_flow_path_tracks_detour_and_recovery(runs):
     path = tools.flow_path(runs[0], "PC1", "PC2", at_time=1.2)
     assert path["path_at_time"] == "PC1 → R1 → R3 → R2 → PC2"
@@ -148,12 +155,14 @@ def test_flow_path_tracks_detour_and_recovery(runs):
     assert "error" in tools.flow_path(runs[0], "PC2", "PC1")
 
 
+# Checks that windows with no traffic are marked idle instead of showing zero latency
 def test_window_metrics_flag_idle_windows_instead_of_zero_latency(runs):
     first, second = tools.window_metrics(runs[0])["windows"]
     assert first["idle"] is True and first["avg_latency_ms"] is None
     assert second["avg_latency_ms"] == 12.0
 
 
+# Checks that the congestion answer names the link whose queue overflowed and its drop count
 def test_congestion_answer_names_the_link_whose_queue_overflowed(runs):
     import pandas as pd
 
@@ -172,6 +181,7 @@ def test_congestion_answer_names_the_link_whose_queue_overflowed(runs):
     assert "7438 packets were dropped there" in answer and "PC1→R1 at 60" in answer
 
 
+# Checks that the drop answer reports every run, grouping runs that have the same result
 def test_drop_answer_covers_every_run_not_just_the_first(runs):
     from graphrag.answer_rules import answer_with_rules
     from graphrag.session import QASession

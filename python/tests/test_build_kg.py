@@ -11,6 +11,7 @@ def write_csv(path, columns, rows):
         writer.writerows(rows)
 
 
+# Checks that the knowledge graph links topology, run, flows, events and anomaly windows together
 def test_build_graph_connects_topology_run_flow_events_and_windows(tmp_path):
     run_id = "run_001"
     topology_path = tmp_path / "topology.json"

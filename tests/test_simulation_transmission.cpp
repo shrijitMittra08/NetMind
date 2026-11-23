@@ -65,6 +65,7 @@ public:
 
 }             
 
+// Checks that a packet goes from host to host through a router and arrives at the expected time
 TEST_CASE("SimulationEngine transmits a packet through a router") {
     auto graph = std::make_unique<netmind::Graph>();
 

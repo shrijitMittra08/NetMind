@@ -76,6 +76,7 @@ nlohmann::json validScenario() {
 
 }             
 
+// Checks that a scenario file loads the topology and seed and sends the expected flow packets
 TEST_CASE("ScenarioManager loads and runs a configured scenario") {
     const auto scenarioPath =
         writeScenario(
@@ -104,6 +105,7 @@ TEST_CASE("ScenarioManager loads and runs a configured scenario") {
     std::filesystem::remove(scenarioPath);
 }
 
+// Checks that a flow naming a host that does not exist makes scenario loading fail
 TEST_CASE("ScenarioManager rejects flow references to unknown hosts") {
     auto document = validScenario();
     document["flows"][0]["src"] = "MissingHost";
@@ -122,6 +124,7 @@ TEST_CASE("ScenarioManager rejects flow references to unknown hosts") {
     std::filesystem::remove(scenarioPath);
 }
 
+// Checks that running longer than the scenario duration throws a config error
 TEST_CASE("ScenarioManager rejects a run beyond the scenario duration") {
     const auto scenarioPath =
         writeScenario(
@@ -140,6 +143,7 @@ TEST_CASE("ScenarioManager rejects a run beyond the scenario duration") {
     std::filesystem::remove(scenarioPath);
 }
 
+// Checks that a cloned scenario keeps the same seed and topology but uses the new algorithm
 TEST_CASE("ScenarioManager cloneWith preserves the scenario and seed") {
     const auto scenarioPath =
         writeScenario(
@@ -163,6 +167,7 @@ TEST_CASE("ScenarioManager cloneWith preserves the scenario and seed") {
     std::filesystem::remove(scenarioPath);
 }
 
+// Checks that cloning a scenario with an unknown algorithm name throws a config error
 TEST_CASE("ScenarioManager cloneWith rejects an unknown algorithm") {
     const auto scenarioPath =
         writeScenario(

@@ -29,6 +29,7 @@ netmind::Packet makePacket(
 
 }             
 
+// Checks flow and network metrics against hand-worked numbers and that window totals match
 TEST_CASE("MetricsCollector matches hand-calculated results and cross-checks") {
     netmind::Graph graph;
     netmind::MetricsCollector metrics(graph);

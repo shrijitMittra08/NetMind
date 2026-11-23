@@ -11,6 +11,7 @@ const chain = () => {
 };
 
 describe("topology builder model", () => {
+  // Checks that new nodes get unique names and IP addresses
   it("names and addresses new nodes uniquely", () => {
     expect(chain().nodes.map((n) => [n.name, n.ip])).toEqual([
       ["PC1", "10.0.0.1"],
@@ -19,17 +20,20 @@ describe("topology builder model", () => {
     ]);
   });
 
+  // Checks that a valid chain passes validation and duplicate or self links are ignored
   it("accepts a valid chain and ignores duplicate or self links", () => {
     const m = addLink(addLink(chain(), 2, 3), 1, 1);
     expect(m.links).toHaveLength(2);
     expect(validateTopology(m)).toEqual([]);
   });
 
+  // Checks that a host with no link is reported as an error
   it("requires each host to have exactly one link", () => {
     const errors = validateTopology(removeNode(chain(), 2)).map((i) => i.message);
     expect(errors).toContain("Host PC1 must have exactly one link (it has 0).");
   });
 
+  // Checks that duplicate names, invalid IPs and out-of-range loss rates are reported
   it("flags duplicate names, bad IPs and out-of-range link values", () => {
     const m = chain();
     m.nodes[2]!.name = "PC1";
@@ -41,6 +45,7 @@ describe("topology builder model", () => {
     expect(messages).toMatch(/loss rate must be between 0 and 1/);
   });
 
+  // Checks that a topology converted to JSON and back keeps the same data and positions
   it("round-trips through the topology JSON format with positions", () => {
     const json = toTopology(chain());
     expect(json.nodes[1]).toEqual({ id: 2, type: "ROUTER", name: "R1", ip: "10.0.0.2", pos: [100, 0] });

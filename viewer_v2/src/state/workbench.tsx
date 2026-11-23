@@ -61,55 +61,61 @@ interface Workbench {
 
 const WorkbenchContext = createContext<Workbench | null>(null);
 
+function usePersistedState<T>(key: string, fallback: () => T) {
+  const [value, setValue] = useState<T>(() => load(key, fallback()));
+  useEffect(() => {
+    save(key, value);
+  }, [key, value]);
+  return [value, setValue] as const;
+}
+
+function findProblems(
+  setupMode: SetupMode,
+  topology: Topology | null,
+  settings: SimSettings,
+  algorithms: Algorithm[],
+  script: string,
+  parsedScript: ParsedScript,
+): string[] {
+  if (setupMode === "interactive") {
+    const list = findSetupProblems(topology, settings);
+    if (algorithms.length === 0) list.push("Choose at least one routing algorithm to run.");
+    return list;
+  }
+  const list = topology ? [] : ["Load or build a topology first."];
+  if (!script.trim()) list.push("Write a script to run.");
+  for (const note of parsedScript.notes) {
+    if (note.level === "error") list.push(`Line ${note.line}: ${note.message}`);
+  }
+  return list;
+}
+
 export function WorkbenchProvider({ children }: { children: ReactNode }) {
   const [section, setSection] = useState<Section>("topology");
-  const [topology, setTopology] = useState<Topology | null>(() => load("topology", null));
-  const [topologyName, setTopologyName] = useState<string>(() => load("topologyName", ""));
-  const [builder, setBuilder] = useState<BuilderModel>(() => load("builder", emptyModel()));
-  const [builderFileName, setBuilderFileName] = useState(() => load("builderFileName", "my_topology"));
-  const [settings, setSettings] = useState<SimSettings>(() =>
-    load("settings", { config: DEFAULT_CONFIG, flows: [makeFlow(null)], events: [] }),
-  );
-  const [setupMode, setSetupMode] = useState<SetupMode>(() => load("setupMode", "interactive"));
-  const [algorithms, setAlgorithms] = useState<Algorithm[]>(() => load("algorithms", [...ALGORITHMS]));
-  const [script, setScript] = useState<string>(() => load("script", ""));
+  const [topology, setTopology] = usePersistedState<Topology | null>("topology", () => null);
+  const [topologyName, setTopologyName] = usePersistedState("topologyName", () => "");
+  const [builder, setBuilder] = usePersistedState("builder", emptyModel);
+  const [builderFileName, setBuilderFileName] = usePersistedState("builderFileName", () => "my_topology");
+  const [settings, setSettings] = usePersistedState<SimSettings>("settings", () => ({
+    config: DEFAULT_CONFIG,
+    flows: [makeFlow(null)],
+    events: [],
+  }));
+  const [setupMode, setSetupMode] = usePersistedState<SetupMode>("setupMode", () => "interactive");
+  const [algorithms, setAlgorithms] = usePersistedState<Algorithm[]>("algorithms", () => [...ALGORITHMS]);
+  const [script, setScript] = usePersistedState("script", () => "");
   const [exportResults, setExportResults] = useState(true);
   const [scriptResult, setScriptResult] = useState<ScriptRunResult | null>(null);
   const [runs, setRuns] = useState<RunResult[]>([]);
   const [focusRunId, setFocusRunId] = useState<string | null>(null);
   const [run, setRun] = useState<RunState>({ status: "idle", startedAt: 0, label: "", error: "" });
 
-  useEffect(() => {
-    save("topology", topology);
-  }, [topology]);
-  useEffect(() => {
-    save("topologyName", topologyName);
-  }, [topologyName]);
-  useEffect(() => {
-    save("builder", builder);
-  }, [builder]);
-  useEffect(() => {
-    save("builderFileName", builderFileName);
-  }, [builderFileName]);
-  useEffect(() => {
-    save("settings", settings);
-  }, [settings]);
-  useEffect(() => {
-    save("setupMode", setupMode);
-  }, [setupMode]);
-  useEffect(() => {
-    save("algorithms", algorithms);
-  }, [algorithms]);
-  useEffect(() => {
-    save("script", script);
-  }, [script]);
-
   const applyTopology = useCallback((next: Topology, name: string) => {
     setTopology(next);
     setTopologyName(name);
     setSettings((current) => repairForTopology(next, current));
     setScriptResult(null);
-  }, []);
+  }, [setTopology, setTopologyName, setSettings]);
 
   const applyScenario = useCallback((next: Topology, name: string, nextSettings: SimSettings) => {
     setTopology(next);
@@ -117,44 +123,30 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
     setSettings(nextSettings);
     setSetupMode("interactive");
     setScriptResult(null);
-  }, []);
+  }, [setTopology, setTopologyName, setSettings, setSetupMode]);
 
   const clearTopology = useCallback(() => {
     setTopology(null);
     setTopologyName("");
     setScriptResult(null);
-  }, []);
+  }, [setTopology, setTopologyName]);
 
   const parsedScript = useMemo(
     () => parseScript(script, topology, settings.config),
     [script, topology, settings.config],
   );
-
   const activeSettings = setupMode === "script" ? parsedScript.settings : settings;
-
-  const problems = useMemo(() => {
-    if (setupMode === "interactive") {
-      const list = findSetupProblems(topology, settings);
-      if (algorithms.length === 0) list.push("Choose at least one routing algorithm to run.");
-      return list;
-    }
-    const list = topology ? [] : ["Load or build a topology first."];
-    if (!script.trim()) list.push("Write a script to run.");
-    for (const note of parsedScript.notes) {
-      if (note.level === "error") list.push(`Line ${note.line}: ${note.message}`);
-    }
-    return list;
-  }, [setupMode, topology, settings, algorithms, script, parsedScript]);
+  const problems = useMemo(
+    () => findProblems(setupMode, topology, settings, algorithms, script, parsedScript),
+    [setupMode, topology, settings, algorithms, script, parsedScript],
+  );
 
   const startRun = useCallback(async () => {
     if (!topology || problems.length > 0) return;
     const scripted = setupMode === "script";
-    setRun({
-      status: "running",
-      startedAt: Date.now(),
-      label: scripted ? "Running script" : `Simulating ${algorithms.length} algorithm${algorithms.length === 1 ? "" : "s"}`,
-      error: "",
-    });
+    const plural = algorithms.length === 1 ? "" : "s";
+    const label = scripted ? "Running script" : `Simulating ${algorithms.length} algorithm${plural}`;
+    setRun({ status: "running", startedAt: Date.now(), label, error: "" });
     if (scripted) setScriptResult(null);
     try {
       if (scripted) {
@@ -178,36 +170,13 @@ export function WorkbenchProvider({ children }: { children: ReactNode }) {
   }, [topology, topologyName, problems, setupMode, algorithms, script, exportResults, parsedScript, settings]);
 
   const value: Workbench = {
-    section,
-    goTo: setSection,
-    topology,
-    topologyName,
-    applyTopology,
-    applyScenario,
-    clearTopology,
-    builder,
-    setBuilder,
-    builderFileName,
-    setBuilderFileName,
-    settings,
-    setSettings,
-    setupMode,
-    setSetupMode,
-    algorithms,
-    setAlgorithms,
-    script,
-    setScript,
-    parsedScript,
-    scriptResult,
-    exportResults,
-    setExportResults,
-    activeSettings,
-    problems,
-    runs,
-    focusRunId,
-    setFocusRunId,
-    run,
-    startRun,
+    section, goTo: setSection,
+    topology, topologyName, applyTopology, applyScenario, clearTopology,
+    builder, setBuilder, builderFileName, setBuilderFileName,
+    settings, setSettings, setupMode, setSetupMode, algorithms, setAlgorithms,
+    script, setScript, parsedScript, scriptResult, exportResults, setExportResults,
+    activeSettings, problems,
+    runs, focusRunId, setFocusRunId, run, startRun,
   };
 
   return <WorkbenchContext.Provider value={value}>{children}</WorkbenchContext.Provider>;

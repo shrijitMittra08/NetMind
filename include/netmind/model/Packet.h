@@ -25,29 +25,8 @@ struct Packet {
     std::vector<NodeId> pathTaken;
     DropReason dropReason{DropReason::NO_ROUTE};
 
-    [[nodiscard]] static Packet cloneForReply(
-        const Packet& original,
-        PacketId replyId) {
-        Packet reply = original;
-
-        reply.id = replyId;
-        std::swap(reply.srcId, reply.dstId);
-        reply.type = PacketType::ECHO_REPLY;
-        reply.ttl = DEFAULT_TTL;
-        reply.timestampSent = 0.0;
-        reply.timestampDelivered = 0.0;
-        reply.status = PacketStatus::CREATED;
-        reply.pathTaken.clear();
-        reply.dropReason = DropReason::NO_ROUTE;
-
-        return reply;
-    }
-
-    [[nodiscard]] static Packet cloneForRetransmit(
-        const Packet& original,
-        PacketId retransmitId) {
+    [[nodiscard]] static Packet cloneForRetransmit(const Packet& original, PacketId retransmitId) {
         Packet retransmit = original;
-
         retransmit.id = retransmitId;
         retransmit.ttl = DEFAULT_TTL;
         retransmit.timestampSent = 0.0;
@@ -55,8 +34,14 @@ struct Packet {
         retransmit.status = PacketStatus::CREATED;
         retransmit.pathTaken.clear();
         retransmit.dropReason = DropReason::NO_ROUTE;
-
         return retransmit;
+    }
+
+    [[nodiscard]] static Packet cloneForReply(const Packet& original, PacketId replyId) {
+        Packet reply = cloneForRetransmit(original, replyId);
+        std::swap(reply.srcId, reply.dstId);
+        reply.type = PacketType::ECHO_REPLY;
+        return reply;
     }
 };
 

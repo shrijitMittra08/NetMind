@@ -6,8 +6,7 @@
 
 namespace netmind {
 
-RouterRestoreEvent::RouterRestoreEvent(NodeId routerId)
-    : routerId_(routerId) {}
+RouterRestoreEvent::RouterRestoreEvent(NodeId routerId) : routerId_(routerId) {}
 
 void RouterRestoreEvent::apply(SimulationEngine& engine) {
     engine.setRouterState(routerId_, true);

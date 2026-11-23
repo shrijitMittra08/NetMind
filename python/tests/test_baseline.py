@@ -64,6 +64,7 @@ def make_runs(topology_paths):
     return pd.DataFrame(rows)
 
 
+# Checks that run features include topology stats, algorithm and event flags and physics estimates
 def test_build_run_features_includes_topology_algorithm_and_event_inputs(tmp_path):
     topology_path = write_topology(tmp_path / "topology.json")
     runs = make_runs([topology_path]).iloc[:1].copy()
@@ -82,6 +83,7 @@ def test_build_run_features_includes_topology_algorithm_and_event_inputs(tmp_pat
     assert features.loc[0, "physics_latency_ms"] == pytest.approx(3.24)
 
 
+# Checks that features use the scenario flows and link failures to estimate loss and throughput
 def test_features_follow_the_scenario_flows_and_failures(tmp_path):
     topology_path = write_topology(tmp_path / "topology.json")
     scenario = {
@@ -105,6 +107,7 @@ def test_features_follow_the_scenario_flows_and_failures(tmp_path):
     assert features.loc[0, "physics_throughput_mbps"] == pytest.approx(5.0)
 
 
+# Checks that the baseline gives expected values and deviation flags for every run and metric
 def test_grouped_baseline_produces_expected_metrics_and_deviation_flags(tmp_path):
     first = write_topology(tmp_path / "topology_a.json")
     second = write_topology(tmp_path / "topology_b.json", extra_link=True)
@@ -134,6 +137,7 @@ def test_grouped_baseline_produces_expected_metrics_and_deviation_flags(tmp_path
     assert np.isfinite(predictions["loss_pct_expected"]).all()
 
 
+# Checks that a trained baseline model can be saved to disk and loaded back to predict again
 def test_model_can_be_saved_and_loaded(tmp_path):
     first = write_topology(tmp_path / "topology_a.json")
     second = write_topology(tmp_path / "topology_b.json", extra_link=True)
@@ -150,6 +154,7 @@ def test_model_can_be_saved_and_loaded(tmp_path):
     assert len(loaded.predict(runs)) == len(runs)
 
 
+# Checks that training fails with an error when all runs use only one topology
 def test_grouped_validation_requires_multiple_topologies(tmp_path):
     topology_path = write_topology(tmp_path / "topology.json")
     runs = make_runs([topology_path])

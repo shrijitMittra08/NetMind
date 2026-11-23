@@ -39,6 +39,7 @@ const files: RunFile[] = [
 ];
 
 describe("csv", () => {
+  // Checks that the CSV parser handles quoted commas, doubled quotes and a BOM in the header
   it("parses quoted fields and BOM headers", () => {
     expect(parseCsv('﻿a,b\n"x,1","say ""hi"""\n')).toEqual([{ a: "x,1", b: 'say "hi"' }]);
   });
@@ -47,6 +48,7 @@ describe("csv", () => {
 describe("replay model", () => {
   const model = buildReplayModel(files, "run_001");
 
+  // Checks that the replay model reads the algorithm, flows with host names and link utilisation
   it("reads metadata, flows by host name and utilisation", () => {
     expect(model.algorithm).toBe("bfs");
     expect(model.flows[0]).toMatchObject({ src: "PC1", dst: "PC2", dropped: 1 });
@@ -54,6 +56,7 @@ describe("replay model", () => {
     expect(model.endTime).toBe(3);
   });
 
+  // Checks that packet hops are tracked over time and a hop ends where the packet was dropped
   it("tracks packet hops, ending a hop where the packet was dropped", () => {
     expect(model.segments.map((s) => [s.from, s.to, s.tStart, s.tEnd])).toEqual([
       ["PC1", "R1", 0, 0.002],
@@ -65,6 +68,7 @@ describe("replay model", () => {
     expect(packetsAt(model, 0.5)).toEqual([]);
   });
 
+  // Checks that link and router up/down state is worked out correctly at different times
   it("derives link and router state over time", () => {
     expect(stateAt(model.linkIntervals, 1.2).get("2")).toBe("down");
     expect(stateAt(model.linkIntervals, 2.5).has("2")).toBe(false);
@@ -72,6 +76,7 @@ describe("replay model", () => {
     expect(model.incidents.map((i) => i.label)).toEqual(["R1–PC2 down", "R1 down", "R1–PC2 up"]);
   });
 
+  // Checks that jump targets list the drop time and each link or router incident time
   it("offers jump targets for incidents and drop bursts", () => {
     expect(jumpTargets(model)).toEqual([0.003, 1, 1.5, 2]);
   });

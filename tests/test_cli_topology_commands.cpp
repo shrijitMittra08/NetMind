@@ -45,6 +45,7 @@ std::filesystem::path writeScenarioFile() {
 
 }             
 
+// Checks that load reads a topology file and show topology prints its nodes and links
 TEST_CASE("CLI loads a topology and displays its nodes and links") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);
@@ -65,6 +66,7 @@ TEST_CASE("CLI loads a topology and displays its nodes and links") {
     CHECK(text.find("100.00") != std::string::npos);
 }
 
+// Checks that load also accepts a scenario file and loads its topology
 TEST_CASE("CLI load accepts a scenario file") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);
@@ -82,6 +84,7 @@ TEST_CASE("CLI load accepts a scenario file") {
     std::filesystem::remove(path, ignored);
 }
 
+// Checks that show topology prints an error when nothing has been loaded yet
 TEST_CASE("CLI show topology reports when no topology is loaded") {
     netmind::cli::Session session;
     netmind::cli::CommandLineInterface cli(session);

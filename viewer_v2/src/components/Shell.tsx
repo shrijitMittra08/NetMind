@@ -1,77 +1,31 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import {
-  Activity,
-  ChartColumnBig,
-  CircleCheck,
-  Moon,
-  Network,
-  PlayCircle,
-  SlidersHorizontal,
-  Sparkles,
-  Sun,
-} from "lucide-react";
+import { Activity, ChartColumnBig, CircleCheck, Moon, Network } from "lucide-react";
+import { PlayCircle, SlidersHorizontal, Sparkles, Sun } from "lucide-react";
 import { api } from "../lib/api";
 import { load, save } from "../state/storage";
 import { useWorkbench } from "../state/workbench";
 import type { Section } from "../state/workbench";
 
 type Theme = "light" | "dark";
+type ApiStatus = "checking" | "online" | "offline";
 
-function useTheme(): [Theme, (theme: Theme) => void] {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = load<string>("theme", "");
-    if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    save("theme", theme);
-  }, [theme]);
-  return [theme, setTheme];
+const HEALTH_CHECK_INTERVAL_MS = 15000;
+
+const API_STATUS_TEXT: Record<ApiStatus, string> = {
+  checking: "Connecting…",
+  online: "Service online",
+  offline: "Service offline",
+};
+
+interface NavEntry {
+  id: Section;
+  label: string;
+  icon: ReactNode;
+  needsRuns?: boolean;
 }
 
-function ThemeSwitch({ theme, onChange }: { theme: Theme; onChange: (theme: Theme) => void }) {
-  const dark = theme === "dark";
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={dark}
-      aria-label="Dark mode"
-      className="theme-switch"
-      onClick={() => onChange(dark ? "light" : "dark")}
-    >
-      <Sun className="theme-icon sun" />
-      <span className="theme-track">
-        <span className="theme-thumb" />
-      </span>
-      <Moon className="theme-icon moon" />
-      <span className="theme-label">{dark ? "Dark" : "Light"}</span>
-    </button>
-  );
-}
-
-function useApiStatus(): "checking" | "online" | "offline" {
-  const [status, setStatus] = useState<"checking" | "online" | "offline">("checking");
-  useEffect(() => {
-    let alive = true;
-    const check = () =>
-      api
-        .health()
-        .then(() => alive && setStatus("online"))
-        .catch(() => alive && setStatus("offline"));
-    check();
-    const timer = window.setInterval(check, 15000);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-    };
-  }, []);
-  return status;
-}
-
-const NAV: { id: Section; label: string; icon: ReactNode; needsRuns?: boolean }[] = [
+const NAV: NavEntry[] = [
   { id: "topology", label: "Topology", icon: <Network /> },
   { id: "setup", label: "Simulation", icon: <SlidersHorizontal /> },
   { id: "results", label: "Results", icon: <ChartColumnBig />, needsRuns: true },
@@ -80,21 +34,50 @@ const NAV: { id: Section; label: string; icon: ReactNode; needsRuns?: boolean }[
   { id: "insights", label: "Insights", icon: <Sparkles />, needsRuns: true },
 ];
 
-const SECTION_TITLES: Record<Section, { title: string; subtitle: string }> = {
-  topology: { title: "Topology", subtitle: "Build a network on the canvas or import a topology file." },
-  setup: { title: "Simulation", subtitle: "Configure traffic and events, or script the run like the CLI." },
-  results: { title: "Results", subtitle: "Compare routing algorithms against each other and the ML baseline." },
-  anomalies: { title: "Anomalies", subtitle: "See which seconds of the current run looked abnormal, and why." },
-  replay: { title: "Replay", subtitle: "Watch packets move through the network, step by step." },
-  insights: { title: "Insights", subtitle: "Ask about the runs in plain language; answers are built from the run data." },
+const SUBTITLES: Record<Section, string> = {
+  topology: "Build a network on the canvas or import a topology file.",
+  setup: "Configure traffic and events, or script the run like the CLI.",
+  results: "Compare routing algorithms against each other and the ML baseline.",
+  anomalies: "See which seconds of the current run looked abnormal, and why.",
+  replay: "Watch packets move through the network, step by step.",
+  insights: "Ask about the runs in plain language; answers are built from the run data.",
 };
+
+function initialTheme(): Theme {
+  const saved = load<string>("theme", "");
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function useApiStatus(): ApiStatus {
+  const [status, setStatus] = useState<ApiStatus>("checking");
+  useEffect(() => {
+    let alive = true;
+    const update = (next: ApiStatus) => {
+      if (alive) setStatus(next);
+    };
+    const check = () => api.health().then(() => update("online")).catch(() => update("offline"));
+    check();
+    const timer = window.setInterval(check, HEALTH_CHECK_INTERVAL_MS);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+  return status;
+}
 
 export function Shell({ children }: { children: ReactNode }) {
   const { section, goTo, topology, runs, run } = useWorkbench();
-  const [theme, setTheme] = useTheme();
-  const apiStatus = useApiStatus();
+  const [theme, setTheme] = useState<Theme>(initialTheme);
   const done: Partial<Record<Section, boolean>> = { topology: Boolean(topology), setup: runs.length > 0 };
-  const heading = SECTION_TITLES[section];
+  const dark = theme === "dark";
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    save("theme", theme);
+  }, [theme]);
+  const apiStatus = useApiStatus();
 
   return (
     <div className="shell">
@@ -109,7 +92,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <nav aria-label="Workbench sections">
           {NAV.map((item, index) => {
-            const disabled = item.needsRuns && runs.length === 0;
+            const disabled = Boolean(item.needsRuns) && runs.length === 0;
             return (
               <button
                 key={item.id}
@@ -125,9 +108,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 {item.icon}
                 <span className="nav-label">{item.label}</span>
                 {done[item.id] && <CircleCheck className="nav-done" aria-label="done" />}
-                {item.needsRuns && runs.length > 0 && item.id === "results" && (
-                  <span className="nav-count">{runs.length}</span>
-                )}
+                {item.id === "results" && runs.length > 0 && <span className="nav-count">{runs.length}</span>}
               </button>
             );
           })}
@@ -142,17 +123,31 @@ export function Shell({ children }: { children: ReactNode }) {
           )}
           <div className={`api-status ${apiStatus}`}>
             <span className="dot" />
-            {apiStatus === "online" ? "Service online" : apiStatus === "offline" ? "Service offline" : "Connecting…"}
+            {API_STATUS_TEXT[apiStatus]}
           </div>
-          <ThemeSwitch theme={theme} onChange={setTheme} />
+          <button
+            type="button"
+            role="switch"
+            aria-checked={dark}
+            aria-label="Dark mode"
+            className="theme-switch"
+            onClick={() => setTheme(dark ? "light" : "dark")}
+          >
+            <Sun className="theme-icon sun" />
+            <span className="theme-track">
+              <span className="theme-thumb" />
+            </span>
+            <Moon className="theme-icon moon" />
+            <span className="theme-label">{dark ? "Dark" : "Light"}</span>
+          </button>
         </div>
       </aside>
 
       <main className="main">
         <header className="page-head">
           <div>
-            <h1>{heading.title}</h1>
-            <p>{heading.subtitle}</p>
+            <h1>{NAV.find((item) => item.id === section)?.label}</h1>
+            <p>{SUBTITLES[section]}</p>
           </div>
         </header>
         {apiStatus === "offline" && (

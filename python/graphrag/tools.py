@@ -32,13 +32,8 @@ def _num(value: Any, digits: int = 4) -> float | None:
     return round(number, digits) if math.isfinite(number) else None
 
 
-def _detail(text: Any) -> dict[str, str]:
-    fields: dict[str, str] = {}
-    for part in str(text or "").split(";"):
-        key, _, value = part.partition("=")
-        if key.strip() and value:
-            fields[key.strip()] = value.strip()
-    return fields
+def _int(value: Any) -> int:
+    return int(value or 0)
 
 
 @dataclass
@@ -67,11 +62,11 @@ def load_run(run_dir: str | Path, run_id: str, topology_path: str | Path) -> Run
     run = read_run(run_dir, run_id)
     topology = json.loads(Path(topology_path).read_text(encoding="utf-8-sig"))
     node_names = {str(node["id"]): str(node["name"]) for node in topology.get("nodes", [])}
-    link_names = {
-        str(index): f"{node_names.get(str(link['a']), link['a'])}–{node_names.get(str(link['b']), link['b'])}"
-        for index, link in enumerate(topology.get("links", []), start=1)
-    }
-    network = run.network.iloc[0].to_dict() if not run.network.empty else {}
+    link_names = {}
+    for index, link in enumerate(topology.get("links", []), start=1):
+        end_a = node_names.get(str(link["a"]), link["a"])
+        end_b = node_names.get(str(link["b"]), link["b"])
+        link_names[str(index)] = f"{end_a}–{end_b}"
     return RunContext(
         run_id=run_id,
         algorithm=str(run.manifest.get("algorithm", "unknown")),
@@ -82,27 +77,24 @@ def load_run(run_dir: str | Path, run_id: str, topology_path: str | Path) -> Run
         flows=run.flows,
         links=run.links,
         windows=run.windows,
-        network=network,
+        network=run.network.iloc[0].to_dict() if not run.network.empty else {},
         node_names=node_names,
         link_names=link_names,
     )
 
 
 def _flow_rows(ctx: RunContext) -> list[dict[str, Any]]:
-    rows = []
-    for record in ctx.flows.to_dict(orient="records"):
-        rows.append({
-            "flow_id": int(record["flow_id"]),
-            "src": ctx.node(record["src"]),
-            "dst": ctx.node(record["dst"]),
-            "sent": int(record["sent"]),
-            "delivered": int(record["delivered"]),
-            "dropped": int(record["dropped"]),
-            "loss_pct": _num(record.get("loss_pct")),
-            "avg_latency_ms": _num(record.get("avg_latency_ms")),
-            "avg_hops": _num(record.get("avg_hops")),
-        })
-    return rows
+    return [{
+        "flow_id": int(record["flow_id"]),
+        "src": ctx.node(record["src"]),
+        "dst": ctx.node(record["dst"]),
+        "sent": int(record["sent"]),
+        "delivered": int(record["delivered"]),
+        "dropped": int(record["dropped"]),
+        "loss_pct": _num(record.get("loss_pct")),
+        "avg_latency_ms": _num(record.get("avg_latency_ms")),
+        "avg_hops": _num(record.get("avg_hops")),
+    } for record in ctx.flows.to_dict(orient="records")]
 
 
 def _avg_hops(ctx: RunContext) -> float | None:
@@ -124,7 +116,7 @@ def run_summary(ctx: RunContext) -> dict[str, Any]:
         "reliability_pct": _num(net.get("reliability_pct")),
         "throughput_mbps": _num(net.get("avg_throughput_mbps")),
         "latency_ms": _num(net.get("avg_latency_ms")),
-        "drops": int(net.get("total_drops", 0) or 0),
+        "drops": _int(net.get("total_drops", 0)),
         "recovery_time_s": _num(net.get("recovery_time_s")),
         "avg_hops": _avg_hops(ctx),
         "flows": _flow_rows(ctx),
@@ -145,12 +137,9 @@ def compare_runs(contexts: list[RunContext], metric: str = "latency_ms") -> dict
         return {"metric": metric, "label": spec["label"], "unit": spec["unit"], "values": values, "best": [], "tie": False}
 
     best_value = min(known) if spec["better"] == "low" else max(known)
-    scale = max(abs(best_value), 1e-9)
-    best = [
-        item["algorithm"]
-        for item in values
-        if item["value"] is not None and abs(item["value"] - best_value) <= TIE_TOLERANCE * scale
-    ]
+    allowed_gap = TIE_TOLERANCE * max(abs(best_value), 1e-9)
+    best = [item["algorithm"] for item in values
+            if item["value"] is not None and abs(item["value"] - best_value) <= allowed_gap]
     return {
         "metric": metric,
         "label": spec["label"],
@@ -163,27 +152,26 @@ def compare_runs(contexts: list[RunContext], metric: str = "latency_ms") -> dict
     }
 
 
+def _link_row(record: dict[str, Any]) -> dict[str, Any]:
+    a, _, b = str(record["channel"]).partition(">")
+    return {
+        "channel": f"{a}→{b}",
+        "link": "–".join(sorted([a, b])),
+        "utilization_pct": _num(record.get("utilization_pct"), 3),
+        "avg_queue": _num(record.get("avg_queue"), 3),
+        "max_queue": _int(record.get("max_queue", 0)),
+        "drops_queue_full": _int(record.get("drops_queue", 0)),
+        "drops_random_loss": _int(record.get("drops_loss", 0)),
+        "drops_link_down": _int(record.get("drops_down", 0)),
+        "downtime_s": _num(record.get("downtime_s"), 3),
+    }
+
+
 def link_load(ctx: RunContext, top: int = 5) -> dict[str, Any]:
-    rows = []
-    for record in ctx.links.to_dict(orient="records"):
-        a, _, b = str(record["channel"]).partition(">")
-        rows.append({
-            "channel": f"{a}→{b}",
-            "link": "–".join(sorted([a, b])),
-            "utilization_pct": _num(record.get("utilization_pct"), 3),
-            "avg_queue": _num(record.get("avg_queue"), 3),
-            "max_queue": int(record.get("max_queue", 0) or 0),
-            "drops_queue_full": int(record.get("drops_queue", 0) or 0),
-            "drops_random_loss": int(record.get("drops_loss", 0) or 0),
-            "drops_link_down": int(record.get("drops_down", 0) or 0),
-            "downtime_s": _num(record.get("downtime_s"), 3),
-        })
+    rows = [_link_row(record) for record in ctx.links.to_dict(orient="records")]
     rows.sort(key=lambda row: (row["utilization_pct"] or 0, row["drops_queue_full"]), reverse=True)
-    overflowing = sorted(
-        (row for row in rows if row["drops_queue_full"] > 0),
-        key=lambda row: row["drops_queue_full"],
-        reverse=True,
-    )
+    overflowing = [row for row in rows if row["drops_queue_full"] > 0]
+    overflowing.sort(key=lambda row: row["drops_queue_full"], reverse=True)
     return {
         "run_id": ctx.run_id,
         "busiest": rows[0] if rows else None,
@@ -193,20 +181,33 @@ def link_load(ctx: RunContext, top: int = 5) -> dict[str, Any]:
     }
 
 
-def _window(frame: pd.DataFrame, t_from: float | None, t_to: float | None) -> pd.DataFrame:
+def _window(frame: pd.DataFrame, t_from: float | None, t_to: float | None, column: str = "time_s") -> pd.DataFrame:
     if t_from is not None:
-        frame = frame[frame["time_s"] >= t_from]
+        frame = frame[frame[column] >= t_from]
     if t_to is not None:
-        frame = frame[frame["time_s"] <= t_to]
+        frame = frame[frame[column] <= t_to]
     return frame
+
+
+def _drop_reason(detail: Any) -> str:
+    reason = "unknown"
+    for part in str(detail or "").split(";"):
+        key, _, value = part.partition("=")
+        if key.strip() == "reason" and value:
+            reason = value.strip()
+    return reason
 
 
 def drops(ctx: RunContext, t_from: float | None = None, t_to: float | None = None) -> dict[str, Any]:
     rows = _window(ctx.trace[ctx.trace["event_type"] == "DROPPED"], t_from, t_to)
-    reasons = rows["detail"].map(lambda d: _detail(d).get("reason", "unknown"))
-    locations = rows["location"].astype(str).map(
-        lambda loc: f"{loc.partition('>')[0]}→{loc.partition('>')[2]}" if ">" in loc else ctx.node(loc)
-    )
+    reasons = rows["detail"].map(_drop_reason)
+
+    def location_name(location: str) -> str:
+        if ">" in location:
+            return location.replace(">", "→", 1)
+        return ctx.node(location)
+
+    locations = rows["location"].astype(str).map(location_name)
     grouped = (
         pd.DataFrame({"location": locations, "reason": reasons})
         .value_counts()
@@ -230,35 +231,35 @@ def network_events(ctx: RunContext, t_from: float | None = None, t_to: float | N
     events = []
     for record in rows.to_dict(orient="records"):
         kind = str(record["event_type"])
-        location = str(record["location"])
+        target = str(record["location"])
         if kind.startswith("LINK_"):
-            target = ctx.link(location)
+            target = ctx.link(target)
         elif kind.startswith("ROUTER_"):
-            target = ctx.node(location)
-        else:
-            target = location
+            target = ctx.node(target)
         events.append({"time_s": _num(record["time_s"]), "event": kind, "target": target, "detail": str(record["detail"])})
     return {"run_id": ctx.run_id, "from_s": t_from, "to_s": t_to, "events": events[:200], "count": len(events)}
 
 
+def _path_text(channels: pd.Series) -> str:
+    devices = [str(channels.iloc[0]).split(">")[0]]
+    devices += [str(channel).split(">")[1] for channel in channels]
+    return " → ".join(devices)
+
+
 def _delivered_paths(ctx: RunContext, flow_id: int) -> pd.DataFrame:
-    trace = ctx.trace
-    flow_rows = trace[trace["flow_id"] == flow_id]
+    flow_rows = ctx.trace[ctx.trace["flow_id"] == flow_id]
     delivered = set(flow_rows.loc[flow_rows["event_type"] == "DELIVERED", "packet_id"].dropna().astype(int))
     hops = flow_rows[(flow_rows["event_type"] == "TX_START") & flow_rows["packet_id"].isin(delivered)]
     if hops.empty:
         return pd.DataFrame(columns=["packet_id", "sent_s", "path"])
-    hops = hops.sort_values(["packet_id", "time_s"])
-    grouped = hops.groupby("packet_id")
-    paths = grouped["location"].agg(
-        lambda channels: " → ".join([str(channels.iloc[0]).split(">")[0]] + [str(c).split(">")[1] for c in channels])
-    )
+    grouped = hops.sort_values(["packet_id", "time_s"]).groupby("packet_id")
+    paths = grouped["location"].agg(_path_text)
     return pd.DataFrame({"sent_s": grouped["time_s"].min(), "path": paths}).reset_index().sort_values("sent_s")
 
 
 def flow_path(ctx: RunContext, src: str, dst: str, at_time: float | None = None) -> dict[str, Any]:
     flows = _flow_rows(ctx)
-    match = next((f for f in flows if f["src"] == src and f["dst"] == dst), None)
+    match = next((flow for flow in flows if flow["src"] == src and flow["dst"] == dst), None)
     if match is None:
         return {"run_id": ctx.run_id, "error": f"No flow from {src} to {dst} in this run.",
                 "flows": [f"{f['src']}→{f['dst']}" for f in flows]}
@@ -292,31 +293,29 @@ def flow_path(ctx: RunContext, src: str, dst: str, at_time: float | None = None)
 
 
 def window_metrics(ctx: RunContext, t_from: float | None = None, t_to: float | None = None) -> dict[str, Any]:
-    frame = ctx.windows.copy()
-    if t_from is not None:
-        frame = frame[frame["t_start"] >= t_from]
-    if t_to is not None:
-        frame = frame[frame["t_start"] <= t_to]
     rows = []
-    for record in frame.to_dict(orient="records"):
+    for record in _window(ctx.windows, t_from, t_to, "t_start").to_dict(orient="records"):
+        delivered = _int(record.get("delivered", 0))
         rows.append({
             "t_start_s": _num(record["t_start"]),
-            "delivered": int(record.get("delivered", 0) or 0),
-            "dropped": int(record.get("dropped", 0) or 0),
+            "delivered": delivered,
+            "dropped": _int(record.get("dropped", 0)),
             "loss_pct": _num(record.get("loss_pct")),
-            "avg_latency_ms": _num(record.get("avg_latency_ms")) if int(record.get("delivered", 0) or 0) > 0 else None,
+            "avg_latency_ms": _num(record.get("avg_latency_ms")) if delivered > 0 else None,
             "throughput_mbps": _num(record.get("throughput_mbps")),
             "max_util_pct": _num(record.get("max_util_pct")),
-            "idle": int(record.get("sent", 0) or 0) == 0,
+            "idle": _int(record.get("sent", 0)) == 0,
         })
     return {"run_id": ctx.run_id, "windows": rows}
 
 
 def topology_info(ctx: RunContext) -> dict[str, Any]:
-    nodes = [{"name": str(n["name"]), "type": str(n["type"]), "ip": str(n.get("ip", ""))} for n in ctx.topology.get("nodes", [])]
-    links = [
-        {"link": ctx.link(index), "bandwidth_mbps": link.get("bandwidthMbps"), "latency_ms": link.get("latencyMs"),
-         "loss_rate": link.get("lossRate")}
-        for index, link in enumerate(ctx.topology.get("links", []), start=1)
-    ]
+    nodes = [{"name": str(node["name"]), "type": str(node["type"]), "ip": str(node.get("ip", ""))}
+             for node in ctx.topology.get("nodes", [])]
+    links = [{
+        "link": ctx.link(index),
+        "bandwidth_mbps": link.get("bandwidthMbps"),
+        "latency_ms": link.get("latencyMs"),
+        "loss_rate": link.get("lossRate"),
+    } for index, link in enumerate(ctx.topology.get("links", []), start=1)]
     return {"run_id": ctx.run_id, "nodes": nodes, "links": links}

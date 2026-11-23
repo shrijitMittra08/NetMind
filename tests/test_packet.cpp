@@ -4,6 +4,7 @@
 
 #include <vector>
 
+// Checks that a new packet starts with id 0, DATA type, default TTL, CREATED status, no path
 TEST_CASE("Packet has the expected default values") {
     const netmind::Packet packet;
 
@@ -14,6 +15,7 @@ TEST_CASE("Packet has the expected default values") {
     REQUIRE(packet.pathTaken.empty());
 }
 
+// Checks that a reply copy swaps source and destination, resets send state, keeps the original
 TEST_CASE("Packet reply clone swaps endpoints and resets per-transmission state") {
     netmind::Packet request;
     request.id = 10;
@@ -54,6 +56,7 @@ TEST_CASE("Packet reply clone swaps endpoints and resets per-transmission state"
     REQUIRE(request.pathTaken == std::vector<netmind::NodeId>{3, 2, 1});
 }
 
+// Checks that a retransmit copy keeps the content, resets send state, and keeps the original
 TEST_CASE("Packet retransmission clone keeps packet content and resets transmission state") {
     netmind::Packet original;
     original.id = 20;

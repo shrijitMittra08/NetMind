@@ -23,6 +23,7 @@ def make_run(run_id, algorithm, latency, throughput=10.0, loss=0.0):
     return graph
 
 
+# Checks that a "why did packets drop at time X" question cites only the fact near that time
 def test_answers_drop_question_with_nearby_fact_citation():
     graph = make_run("run_001", "dijkstra", 8.0)
     facts = {
@@ -66,6 +67,7 @@ def test_answers_drop_question_with_nearby_fact_citation():
     assert "[run_001:F002]" not in result["answer"]
 
 
+# Checks that the most congested link is the one whose queue got closest to full
 def test_identifies_link_with_highest_queue_saturation():
     graph = make_run("run_001", "dijkstra", 8.0)
     graph.add_node("link:0", node_type="Link", name="R1-R2")
@@ -112,6 +114,7 @@ def test_identifies_link_with_highest_queue_saturation():
     assert result["citations"] == ["[run_001:F002]"]
 
 
+# Checks that algorithms are compared by mean window latency and the lowest one is named best
 def test_compares_algorithms_by_mean_window_latency():
     graphs = [
         make_run("run_bfs", "bfs", latency=5.0),
@@ -129,6 +132,7 @@ def test_compares_algorithms_by_mean_window_latency():
     assert "lowest average latency" in result["answer"]
 
 
+# Checks that a flow path question returns the hops the packets were actually seen taking
 def test_returns_observed_flow_path():
     graph = nx.MultiDiGraph()
     graph.graph["run_id"] = "run_001"
@@ -168,6 +172,7 @@ def test_returns_observed_flow_path():
     assert "PC1 -> R1 -> R2 -> PC2" in result["answer"]
 
 
+# Checks that an unrecognised question falls back to searching the stored facts
 def test_unknown_question_searches_stored_facts():
     graph = make_run("run_001", "dijkstra", 8.0)
     facts = {
